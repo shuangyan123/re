@@ -3,6 +3,7 @@ import type {
   TutorCriticalFailureSeverity,
   TutorEvalCategory,
 } from "./tutor-eval.js";
+import type { TutorEvalCapabilityTag } from "./tutor-eval-taxonomy.js";
 
 export const RUBRIC_SCHEMA_VERSION = 1 as const;
 
@@ -43,6 +44,7 @@ export interface TutorRubric {
 
 export type TutorEvalRubricApplicability = "required" | "optional";
 export type TutorEvalRubricEvaluationType = "deterministic" | "judge";
+export type TutorEvalRubricBehavior = "required" | "desirable" | "prohibited";
 
 export interface TutorEvalRubricFailure {
   readonly type: TutorCriticalFailure;
@@ -56,9 +58,14 @@ export interface TutorEvalRubricFailure {
 export interface TutorEvalRubric {
   readonly id: string;
   readonly category: TutorEvalCategory;
+  /** One observable behavior; do not combine diagnosis, explanation, and tone. */
   readonly criterion: string;
   readonly weight: number;
   readonly applicability?: TutorEvalRubricApplicability;
+  /** Required, positive-but-nonessential, or explicitly prohibited behavior. */
+  readonly behavior?: TutorEvalRubricBehavior;
+  /** One primary capability prevents accidental multi-counting in the dataset. */
+  readonly capabilityTag?: TutorEvalCapabilityTag;
   readonly critical?: boolean;
   readonly evaluationType?: TutorEvalRubricEvaluationType;
   readonly evaluatorId?: DeterministicEvaluatorId;

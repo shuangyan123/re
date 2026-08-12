@@ -6,8 +6,10 @@ import type {
 } from "./tutor-eval.js";
 import type {
   TutorEvalRubricApplicability,
+  TutorEvalRubricBehavior,
   TutorEvalRubricFailure,
 } from "./rubric.js";
+import type { TutorEvalCapabilityTag } from "./tutor-eval-taxonomy.js";
 
 export const TUTOR_EVAL_JUDGE_SCHEMA_VERSION = 1 as const;
 
@@ -29,6 +31,8 @@ export interface TutorEvalJudgeInput {
     readonly criterion: string;
     readonly weight: number;
     readonly applicability?: TutorEvalRubricApplicability;
+    readonly behavior?: TutorEvalRubricBehavior;
+    readonly capabilityTag?: TutorEvalCapabilityTag;
     readonly critical?: boolean;
     readonly criticalFailure?: TutorEvalRubricFailure;
   }[];

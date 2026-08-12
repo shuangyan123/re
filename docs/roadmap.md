@@ -15,11 +15,13 @@
 - Repeated case runs and reserved counterfactual pair identity
 - Contract tests, Node 22 CI, and repository rules
 
-## 0.2 Rubric & Dataset Design — NOT STARTED (beyond synthetic Foundation)
+## 0.2 Rubric & Dataset Design — PARTIAL: 0.2A dataset foundation
 
-- Pedagogical dimensions beyond the initial TutorEval contract
-- Broader dataset taxonomy and scenario difficulty
-- Leakage, correctness, and guidance calibration
+- [x] Versioned pedagogical taxonomy and structured scenario difficulty
+- [x] Curated 24-case synthetic dataset across five subjects
+- [x] Atomic rubric authoring metadata and double-counting rules
+- [x] Disclosure-policy coverage and counterfactual adaptation pairs
+- [x] Dataset integrity validation and deterministic coverage report
 - [ ] Independent rubric review and calibration
 
 ## 0.3 LLM-as-Judge Calibration — PARTIAL: prompt contract only

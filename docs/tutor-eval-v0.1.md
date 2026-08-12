@@ -1,5 +1,9 @@
 # TutorEval v0.1
 
+This document describes the preserved v0.1 execution contract and legacy
+seven-case dataset. The canonical curated dataset is now TutorEval 0.2A;
+see [the 0.2A rubric and dataset design guide](tutor-eval-v0.2a.md).
+
 TutorEval is the case-scoped evaluation layer for this independent Tutor
 Benchmark. Its Foundation flow is:
 

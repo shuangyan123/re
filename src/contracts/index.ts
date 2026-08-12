@@ -6,6 +6,7 @@ export * from "./rubric.js";
 export * from "./scenario.js";
 export * from "./tutor.js";
 export * from "./tutor-eval.js";
+export * from "./tutor-eval-taxonomy.js";
 export * from "./tutor-eval-judge.js";
 export * from "./tutor-eval-result-validation.js";
 export * from "./tutor-eval-validation.js";
