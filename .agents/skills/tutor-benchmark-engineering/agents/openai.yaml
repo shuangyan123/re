@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tutor Benchmark Engineering"
+  short_description: "Maintain Tutor Benchmark safely"
+  default_prompt: "Use $tutor-benchmark-engineering to implement and validate scoped benchmark changes."

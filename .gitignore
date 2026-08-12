@@ -1,0 +1,16 @@
+node_modules/
+coverage/
+dist/
+
+.env
+.env.*
+
+results/
+artifacts/
+benchmark-result.json
+data/private/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store

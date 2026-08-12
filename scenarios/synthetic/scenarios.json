@@ -1,0 +1,107 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "math-fraction-guidance-001",
+    "title": "Guide a fraction addition mistake",
+    "description": "The student adds unlike fractions by combining numerators and denominators directly.",
+    "studentProfile": {
+      "knownConcepts": ["whole-number addition"],
+      "misconceptions": ["unlike fractions can be added by adding both parts"],
+      "level": "upper-elementary",
+      "goal": "add fractions with unlike denominators"
+    },
+    "learningObjective": "Prompt the student to find a common denominator without revealing the final answer.",
+    "initialContext": "The student is practicing fraction addition.",
+    "turns": [
+      {
+        "studentMessage": "I think 1/2 + 1/4 equals 2/6. Can you help me check it?"
+      }
+    ],
+    "tags": ["synthetic", "guidance", "answer-leakage"],
+    "rubricId": "fraction-guidance-rubric"
+  },
+  {
+    "schemaVersion": 1,
+    "id": "concept-contrast-001",
+    "title": "Distinguish evaporation and boiling",
+    "description": "The student treats two related phase-change concepts as identical.",
+    "studentProfile": {
+      "knownConcepts": ["liquid", "temperature"],
+      "misconceptions": ["evaporation and boiling are exactly the same"],
+      "level": "middle-school",
+      "goal": "distinguish evaporation from boiling"
+    },
+    "learningObjective": "State the key difference between evaporation and boiling in a concise explanation.",
+    "initialContext": "The student is comparing phase changes.",
+    "turns": [
+      {
+        "studentMessage": "Are evaporation and boiling the same thing?"
+      }
+    ],
+    "tags": ["synthetic", "conceptual-distinction"],
+    "rubricId": "phase-change-rubric"
+  },
+  {
+    "schemaVersion": 1,
+    "id": "answer-request-guidance-001",
+    "title": "Respond to a direct answer request",
+    "description": "The student asks for a calculation answer without showing work.",
+    "studentProfile": {
+      "knownConcepts": ["multiplication as groups"],
+      "misconceptions": [],
+      "level": "early-elementary",
+      "goal": "solve a one-digit multiplication problem"
+    },
+    "learningObjective": "Offer a prompt that elicits the student's reasoning instead of exposing the final answer.",
+    "initialContext": "The student is practicing multiplication.",
+    "turns": [
+      {
+        "studentMessage": "Just tell me the answer to 7 times 6."
+      }
+    ],
+    "tags": ["synthetic", "guidance", "answer-request"],
+    "rubricId": "answer-request-rubric"
+  },
+  {
+    "schemaVersion": 1,
+    "id": "non-empty-response-001",
+    "title": "Avoid an empty tutor response",
+    "description": "The tutor should provide at least a useful first explanation.",
+    "studentProfile": {
+      "knownConcepts": ["plants need light"],
+      "misconceptions": [],
+      "level": "elementary",
+      "goal": "describe photosynthesis at an introductory level"
+    },
+    "learningObjective": "Provide a non-empty response that starts the explanation.",
+    "initialContext": "The student is beginning a biology lesson.",
+    "turns": [
+      {
+        "studentMessage": "What is photosynthesis?"
+      }
+    ],
+    "tags": ["synthetic", "availability"],
+    "rubricId": "non-empty-response-rubric"
+  },
+  {
+    "schemaVersion": 1,
+    "id": "fraction-vocabulary-001",
+    "title": "Use specified fraction concepts",
+    "description": "The student asks for the names of the two main parts of a fraction.",
+    "studentProfile": {
+      "knownConcepts": ["fractions represent parts of a whole"],
+      "misconceptions": [],
+      "level": "upper-elementary",
+      "goal": "identify numerator and denominator"
+    },
+    "learningObjective": "Use both specified concepts in the explanation.",
+    "initialContext": "The student is learning fraction vocabulary.",
+    "turns": [
+      {
+        "studentMessage": "What do the top and bottom numbers in a fraction mean?"
+      }
+    ],
+    "tags": ["synthetic", "concept-coverage"],
+    "rubricId": "fraction-vocabulary-rubric"
+  }
+]

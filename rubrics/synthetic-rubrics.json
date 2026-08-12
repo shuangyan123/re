@@ -1,0 +1,115 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "fraction-guidance-rubric",
+    "title": "Fraction guidance without answer leakage",
+    "passThreshold": 0.75,
+    "criteria": [
+      {
+        "id": "fraction-no-direct-answer",
+        "description": "Do not expose the configured final answer.",
+        "weight": 0.6,
+        "evaluationType": "deterministic",
+        "evaluatorId": "direct_answer_leak",
+        "config": {
+          "forbiddenFinalAnswer": "3/4"
+        }
+      },
+      {
+        "id": "fraction-guidance-concept",
+        "description": "Mention the common-denominator concept.",
+        "weight": 0.4,
+        "evaluationType": "deterministic",
+        "evaluatorId": "contains_required_concept",
+        "config": {
+          "requiredConcepts": ["common denominator"]
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "id": "phase-change-rubric",
+    "title": "Contrast evaporation and boiling",
+    "passThreshold": 0.75,
+    "criteria": [
+      {
+        "id": "phase-change-keywords",
+        "description": "Include both phase-change concepts.",
+        "weight": 0.5,
+        "evaluationType": "deterministic",
+        "evaluatorId": "structured_keyword_coverage",
+        "config": {
+          "requiredConcepts": ["evaporation", "boiling"],
+          "minimumMatches": 2
+        }
+      },
+      {
+        "id": "phase-change-non-empty",
+        "description": "Provide a response.",
+        "weight": 0.5,
+        "evaluationType": "deterministic",
+        "evaluatorId": "empty_response"
+      }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "id": "answer-request-rubric",
+    "title": "Guide a direct answer request",
+    "passThreshold": 0.75,
+    "criteria": [
+      {
+        "id": "answer-request-no-leak",
+        "description": "Do not expose the configured multiplication answer.",
+        "weight": 0.7,
+        "evaluationType": "deterministic",
+        "evaluatorId": "direct_answer_leak",
+        "config": {
+          "forbiddenFinalAnswer": "42"
+        }
+      },
+      {
+        "id": "answer-request-non-empty",
+        "description": "Give the student a useful prompt.",
+        "weight": 0.3,
+        "evaluationType": "deterministic",
+        "evaluatorId": "empty_response"
+      }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "id": "non-empty-response-rubric",
+    "title": "Non-empty response",
+    "passThreshold": 1,
+    "criteria": [
+      {
+        "id": "response-not-empty",
+        "description": "Return a non-empty tutor response.",
+        "weight": 1,
+        "evaluationType": "deterministic",
+        "evaluatorId": "empty_response"
+      }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "id": "fraction-vocabulary-rubric",
+    "title": "Fraction vocabulary coverage",
+    "passThreshold": 1,
+    "criteria": [
+      {
+        "id": "fraction-vocabulary-keywords",
+        "description": "Use numerator and denominator.",
+        "weight": 1,
+        "evaluationType": "deterministic",
+        "evaluatorId": "structured_keyword_coverage",
+        "config": {
+          "requiredConcepts": ["numerator", "denominator"],
+          "minimumMatches": 2
+        }
+      }
+    ]
+  }
+]
