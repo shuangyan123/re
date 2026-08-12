@@ -23,6 +23,14 @@ import {
   type TutorEvalRubric,
   type TutorEvalRubricFailure,
 } from "./rubric.js";
+import {
+  TUTOR_EVAL_CAPABILITY_TAGS,
+  TUTOR_EVAL_LEARNER_LEVELS,
+  TUTOR_EVAL_LEARNING_TASKS,
+  TUTOR_EVAL_STUDENT_STATES,
+  isTutorEvalDifficultyLevel,
+  type TutorEvalDifficulty,
+} from "./tutor-eval-taxonomy.js";
 import type { TutorConversationMessage } from "./tutor.js";
 
 type UnknownRecord = Record<string, unknown>;
@@ -69,6 +77,22 @@ const criticalFailureSeverities = new Set<TutorCriticalFailureSeverity>([
   "critical",
 ]);
 
+const rubricBehaviors = new Set<NonNullable<TutorEvalRubric["behavior"]>>([
+  "required",
+  "desirable",
+  "prohibited",
+]);
+
+const reservedVisibleAnnotationKeys = new Set([
+  "evaluatorOnly",
+  "groundTruth",
+  "knownMisconception",
+  "disclosurePolicy",
+  "rubrics",
+  "expectedTeachingStrategy",
+  "referenceAnswer",
+]);
+
 function asRecord(value: unknown): UnknownRecord | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
@@ -94,6 +118,17 @@ function readOptionalString(
   return nonEmptyString(record[key]) ? (record[key] as string) : null;
 }
 
+function readOptionalEnum<T extends string>(
+  record: UnknownRecord,
+  key: string,
+  values: readonly T[],
+): T | null | undefined {
+  if (!(key in record)) {
+    return undefined;
+  }
+  return values.includes(record[key] as T) ? (record[key] as T) : null;
+}
+
 function readStringArray(
   record: UnknownRecord,
   key: string,
@@ -115,14 +150,55 @@ function readStringArray(
 
 function readOptionalDifficulty(
   record: UnknownRecord,
-): string | number | undefined | null {
+): TutorEvalDifficulty | string | number | undefined | null {
   if (!("difficulty" in record)) {
     return undefined;
   }
   const value = record.difficulty;
-  return nonEmptyString(value) || (typeof value === "number" && Number.isFinite(value))
-    ? (value as string | number)
-    : null;
+  if (nonEmptyString(value)) {
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  const structured = asRecord(value);
+  if (structured === null) {
+    return null;
+  }
+  const learnerLevel = readOptionalEnum(
+    structured,
+    "learnerLevel",
+    TUTOR_EVAL_LEARNER_LEVELS,
+  );
+  const taskDifficulty = structured.taskDifficulty;
+  const pedagogicalDifficulty = structured.pedagogicalDifficulty;
+  if (
+    learnerLevel === undefined ||
+    learnerLevel === null ||
+    !isTutorEvalDifficultyLevel(taskDifficulty) ||
+    !isTutorEvalDifficultyLevel(pedagogicalDifficulty)
+  ) {
+    return null;
+  }
+  return {
+    learnerLevel,
+    taskDifficulty,
+    pedagogicalDifficulty,
+  };
+}
+
+function hasReservedVisibleAnnotation(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some(hasReservedVisibleAnnotation);
+  }
+  const record = asRecord(value);
+  if (record === null) {
+    return false;
+  }
+  return (
+    Object.keys(record).some((key) => reservedVisibleAnnotationKeys.has(key)) ||
+    Object.values(record).some(hasReservedVisibleAnnotation)
+  );
 }
 
 function parseStudentProfile(value: unknown): TutorEvalStudentProfile | null {
@@ -302,6 +378,18 @@ function parseTutorEvalRubricValue(value: unknown): TutorEvalRubric | null {
   const criterion = readRequiredString(record, "criterion");
   const weight = record.weight;
   const applicability = record.applicability;
+  const behaviorValue = record.behavior;
+  const behavior =
+    behaviorValue === undefined
+      ? "required"
+      : rubricBehaviors.has(behaviorValue as NonNullable<TutorEvalRubric["behavior"]>)
+        ? (behaviorValue as NonNullable<TutorEvalRubric["behavior"]>)
+        : null;
+  const capabilityTag = readOptionalEnum(
+    record,
+    "capabilityTag",
+    TUTOR_EVAL_CAPABILITY_TAGS,
+  );
   const critical = record.critical;
   const evaluationTypeValue = record.evaluationType;
   const evaluatorIdValue = record.evaluatorId;
@@ -334,6 +422,8 @@ function parseTutorEvalRubricValue(value: unknown): TutorEvalRubric | null {
     (applicability !== undefined &&
       applicability !== "required" &&
       applicability !== "optional") ||
+    behavior === null ||
+    capabilityTag === null ||
     (critical !== undefined && typeof critical !== "boolean") ||
     evaluatorId === null ||
     evaluationType === null ||
@@ -355,6 +445,8 @@ function parseTutorEvalRubricValue(value: unknown): TutorEvalRubric | null {
     criterion,
     weight,
     ...(applicability === undefined ? {} : { applicability }),
+    behavior,
+    ...(capabilityTag === undefined ? {} : { capabilityTag }),
     ...(critical === undefined ? {} : { critical }),
     ...(evaluationType === undefined ? {} : { evaluationType }),
     ...(evaluatorId === undefined ? {} : { evaluatorId }),
@@ -404,6 +496,34 @@ function parseTutorEvalCaseValue(value: unknown): TutorEvalCase | null {
   const topic = readRequiredString(metadataRecord, "topic");
   const difficulty = readOptionalDifficulty(metadataRecord);
   const tags = readStringArray(metadataRecord, "tags", true);
+  const taxonomyVersion = readOptionalString(metadataRecord, "taxonomyVersion");
+  const learningTask = readOptionalEnum(
+    metadataRecord,
+    "learningTask",
+    TUTOR_EVAL_LEARNING_TASKS,
+  );
+  const studentState = readOptionalEnum(
+    metadataRecord,
+    "studentState",
+    TUTOR_EVAL_STUDENT_STATES,
+  );
+  const capabilityTagsValue = readStringArray(
+    metadataRecord,
+    "capabilityTags",
+    true,
+  );
+  const capabilityTags =
+    capabilityTagsValue === undefined
+      ? undefined
+      : capabilityTagsValue === null
+        ? null
+      : capabilityTagsValue.every((tag) =>
+          TUTOR_EVAL_CAPABILITY_TAGS.includes(
+            tag as (typeof TUTOR_EVAL_CAPABILITY_TAGS)[number],
+          ),
+        ) && new Set(capabilityTagsValue).size === capabilityTagsValue.length
+        ? (capabilityTagsValue as (typeof TUTOR_EVAL_CAPABILITY_TAGS)[number][])
+        : null;
   const learningObjective = readRequiredString(tutorInputRecord, "learningObjective");
   const studentMessage = readRequiredString(tutorInputRecord, "studentMessage");
   const profileValue = tutorInputRecord.studentProfile;
@@ -443,11 +563,16 @@ function parseTutorEvalCaseValue(value: unknown): TutorEvalCase | null {
     topic === null ||
     difficulty === null ||
     tags === null ||
+    taxonomyVersion === null ||
+    learningTask === null ||
+    studentState === null ||
+    capabilityTags === null ||
     learningObjective === null ||
     studentMessage === null ||
     studentProfile === null ||
     conversationHistory === null ||
     problemContext === null ||
+    hasReservedVisibleAnnotation(tutorInputRecord) ||
     !disclosurePolicies.has(disclosurePolicy as DisclosurePolicy) ||
     invalidKnownMisconception ||
     groundTruth === null ||
@@ -472,6 +597,10 @@ function parseTutorEvalCaseValue(value: unknown): TutorEvalCase | null {
       topic,
       ...(difficulty === undefined ? {} : { difficulty }),
       ...(tags === undefined ? {} : { tags }),
+      ...(taxonomyVersion === undefined ? {} : { taxonomyVersion }),
+      ...(learningTask === undefined ? {} : { learningTask }),
+      ...(studentState === undefined ? {} : { studentState }),
+      ...(capabilityTags === undefined ? {} : { capabilityTags }),
     },
     tutorInput: {
       learningObjective,
@@ -666,6 +795,10 @@ export function buildTutorEvalJudgeInput(
       ...(rubric.applicability === undefined
         ? {}
         : { applicability: rubric.applicability }),
+      ...(rubric.behavior === undefined ? {} : { behavior: rubric.behavior }),
+      ...(rubric.capabilityTag === undefined
+        ? {}
+        : { capabilityTag: rubric.capabilityTag }),
       ...(rubric.critical === undefined ? {} : { critical: rubric.critical }),
       ...(rubric.criticalFailure === undefined
         ? {}

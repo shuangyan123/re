@@ -1,0 +1,745 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "fraction-misconception-001",
+    "version": "1.1.0",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "adding fractions",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "error_diagnosis",
+      "studentState": "conceptual_misconception",
+      "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["misconception_identification", "error_localization", "scaffolding", "answer_non_disclosure", "student_executable_action"],
+      "tags": ["synthetic", "diagnosis", "guidance"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student recognize why unlike fractions need a common denominator without revealing the final answer.",
+      "studentProfile": { "knownConcepts": ["whole-number addition"], "misconceptions": ["unlike fractions can be added by adding numerators and denominators"], "level": "upper-elementary", "goal": "add fractions with unlike denominators" },
+      "studentMessage": "I think 1/3 + 1/4 = 2/7. Can you help me check it?",
+      "problemContext": "The student is practicing fraction addition."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "7/12", "acceptedAnswers": ["7/12"], "requiredConcepts": ["common denominator", "different-sized units"] },
+      "knownMisconception": "The student adds unlike fraction denominators directly.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "fraction-diagnosis-001", "category": "diagnosis", "criterion": "Identify that the student is adding unlike fraction denominators directly.", "weight": 2, "behavior": "required", "capabilityTag": "misconception_identification", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["denominator"] } },
+        { "id": "fraction-guidance-001", "category": "guidance", "criterion": "Guide the student to look for a common denominator before computing.", "weight": 2, "behavior": "required", "capabilityTag": "scaffolding", "critical": true, "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["common denominator"] } },
+        { "id": "fraction-actionability-001", "category": "actionability", "criterion": "End with a concrete next step the student can perform independently.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["find", "first"], "minimumMatches": 1 } },
+        { "id": "fraction-no-leak-001", "category": "guidance", "criterion": "Do not reveal the final answer when only a hint is requested.", "weight": 1, "behavior": "prohibited", "capabilityTag": "answer_non_disclosure", "evaluationType": "deterministic", "evaluatorId": "direct_answer_leak", "config": { "forbiddenFinalAnswer": "7/12" }, "criticalFailure": { "type": "answer_leakage", "severity": "major" } }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "hint-only-linear-equation-001",
+    "version": "1.1.0",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "linear equations",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "hint_request",
+      "studentState": "stuck_without_attempt",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 2, "pedagogicalDifficulty": 2 },
+      "capabilityTags": ["hint_calibration", "answer_non_disclosure", "student_agency", "clear_next_step"],
+      "tags": ["synthetic", "hint-only"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student take the first step solving 2x + 3 = 11 while preserving their opportunity to finish.",
+      "studentProfile": { "knownConcepts": ["inverse operations"], "misconceptions": [], "level": "middle-school", "goal": "solve a one-variable equation" },
+      "studentMessage": "I am stuck on 2x + 3 = 11. Give me only a hint; do not tell me the answer.",
+      "problemContext": "The student has not shown a first step yet."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "x=4", "acceptedAnswers": ["x=4", "4"], "requiredConcepts": ["subtract 3", "divide by 2"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "equation-hint-no-leak-001", "category": "guidance", "criterion": "Give a first-step hint without stating x=4.", "weight": 2, "behavior": "prohibited", "capabilityTag": "answer_non_disclosure", "critical": true, "evaluationType": "deterministic", "evaluatorId": "direct_answer_leak", "config": { "forbiddenFinalAnswer": "x=4" }, "criticalFailure": { "type": "answer_leakage", "severity": "major" } },
+        { "id": "equation-hint-next-step-001", "category": "actionability", "criterion": "Tell the student exactly which reversible operation to consider first.", "weight": 1, "behavior": "required", "capabilityTag": "clear_next_step", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["subtract"] } },
+        { "id": "equation-hint-agency-001", "category": "guidance", "criterion": "Leave the student responsible for carrying out the first operation.", "weight": 1, "behavior": "desirable", "capabilityTag": "student_agency", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "correct-answer-wrong-reasoning-001",
+    "version": "1.1.0",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "multiplication reasoning",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "reasoning_checking",
+      "studentState": "correct_answer_wrong_reasoning",
+      "difficulty": { "learnerLevel": "elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["correct_answer_wrong_reasoning", "reasoning_consistency", "conceptual_correctness", "misconception_identification"],
+      "tags": ["synthetic", "correctness", "diagnosis"]
+    },
+    "tutorInput": {
+      "learningObjective": "Correct the student's reasoning even though the reported answer is numerically correct.",
+      "studentProfile": { "knownConcepts": ["counting by ones"], "misconceptions": ["3 + 4 is the reason 3 x 4 equals 12"], "level": "elementary", "goal": "understand multiplication as equal groups" },
+      "studentMessage": "I know 3 x 4 is 12 because 3 + 4 = 7, and then I add 5 more to get 12.",
+      "problemContext": "The final answer is correct, but the explanation uses an invalid operation."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "12", "acceptedAnswers": ["12"], "requiredConcepts": ["three groups of four", "repeated addition"] },
+      "knownMisconception": "The student does not yet connect multiplication with equal groups or repeated addition.",
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        { "id": "wrong-reasoning-diagnosis-001", "category": "diagnosis", "criterion": "Name that the answer is correct but the stated reasoning does not represent multiplication.", "weight": 2, "behavior": "required", "capabilityTag": "correct_answer_wrong_reasoning", "critical": true, "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["reasoning"] }, "criticalFailure": { "type": "critical_misconception_ignored", "severity": "major" } },
+        { "id": "wrong-reasoning-concept-001", "category": "correctness", "criterion": "Explain multiplication using equal groups or repeated addition rather than rewarding the invalid explanation.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["groups", "repeated"], "minimumMatches": 1 } },
+        { "id": "wrong-reasoning-answer-001", "category": "correctness", "criterion": "Preserve the factually correct answer 12.", "weight": 1, "behavior": "required", "capabilityTag": "reasoning_consistency", "evaluationType": "deterministic", "evaluatorId": "matches_ground_truth" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "paired-fraction-procedural-001",
+    "version": "1.1.0",
+    "adaptationPairId": "fraction-counterfactual-001",
+    "adaptationVariant": "procedural-error",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "fraction addition",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "procedural_error",
+      "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["procedural_correctness", "error_localization", "misconception_specific_adaptation", "procedural_prompting", "student_executable_action", "counterfactual_adaptation"],
+      "tags": ["synthetic", "counterfactual", "procedural-error"]
+    },
+    "tutorInput": {
+      "learningObjective": "Repair one procedural error while preserving the student's understanding of common denominators.",
+      "studentProfile": { "knownConcepts": ["common denominators", "equivalent fractions"], "misconceptions": ["the denominator should be added after finding a common denominator"], "level": "upper-elementary", "goal": "add fractions accurately" },
+      "studentMessage": "I found the common denominator for 2/3 + 1/3, but I wrote 3/6. Where did I go wrong?",
+      "problemContext": "The student understands the key concept and is stuck at the final procedural step."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "3/3", "acceptedAnswers": ["3/3", "1"], "requiredConcepts": ["keep the denominator", "add the numerators"] },
+      "knownMisconception": "The student adds denominators after correctly identifying the common denominator.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "paired-fraction-procedural-adaptation-001", "category": "adaptation", "criterion": "Address the local denominator step without reteaching all fraction concepts.", "weight": 2, "behavior": "required", "capabilityTag": "misconception_specific_adaptation", "evaluationType": "judge" },
+        { "id": "paired-fraction-procedural-guidance-001", "category": "guidance", "criterion": "Ask the student to apply the numerator operation as the next small step.", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["numerator"] } },
+        { "id": "paired-fraction-procedural-action-001", "category": "actionability", "criterion": "Give one executable operation the student can perform next.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["add"] } }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "paired-fraction-conceptual-001",
+    "version": "1.1.0",
+    "adaptationPairId": "fraction-counterfactual-001",
+    "adaptationVariant": "conceptual-gap",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "fraction addition",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "conceptual_misconception",
+      "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["conceptual_correctness", "prior_knowledge_adaptation", "explanation_depth_adaptation", "conceptual_prompting", "student_executable_action", "counterfactual_adaptation"],
+      "tags": ["synthetic", "counterfactual", "conceptual-gap"]
+    },
+    "tutorInput": {
+      "learningObjective": "Build the student's understanding of why fraction denominators describe equal units before solving the problem.",
+      "studentProfile": { "knownConcepts": ["whole-number addition"], "misconceptions": ["all fraction numerators and denominators can be added directly"], "level": "upper-elementary", "goal": "understand and add fractions" },
+      "studentMessage": "Why can't I add 2/3 + 1/3 as 3/6? I do not understand what the denominator means.",
+      "problemContext": "The student does not yet understand the unit represented by a denominator."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "3/3", "acceptedAnswers": ["3/3", "1"], "requiredConcepts": ["whole", "same-sized units", "common denominator"] },
+      "knownMisconception": "The student treats denominators as ordinary numbers rather than unit sizes.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "paired-fraction-conceptual-adaptation-001", "category": "adaptation", "criterion": "Explain the denominator as the size of equal parts rather than assuming prior mastery.", "weight": 2, "behavior": "required", "capabilityTag": "prior_knowledge_adaptation", "evaluationType": "judge" },
+        { "id": "paired-fraction-conceptual-guidance-001", "category": "guidance", "criterion": "Use a small comparison that helps the student reason about equal units.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_prompting", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["unit", "whole", "question"], "minimumMatches": 2 } },
+        { "id": "paired-fraction-conceptual-action-001", "category": "actionability", "criterion": "Give the student one concrete next step instead of a full solution.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["try"] } }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "weak-foundation-fractions-001",
+    "version": "1.1.0",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "fraction meaning",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "concept_explanation",
+      "studentState": "novice",
+      "difficulty": { "learnerLevel": "beginner", "taskDifficulty": 1, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["conceptual_correctness", "explanation_depth_adaptation", "scaffolding", "student_executable_action"],
+      "tags": ["synthetic", "small-steps"]
+    },
+    "tutorInput": {
+      "learningObjective": "Use a concrete, small-step explanation to help a beginner interpret 2/3.",
+      "studentProfile": { "knownConcepts": ["counting to ten"], "misconceptions": ["2/3 is two divided by three with no connection to a whole"], "level": "beginner", "goal": "understand what a fraction represents" },
+      "studentMessage": "I have never understood fractions. What does 2/3 mean?",
+      "problemContext": "The student needs concrete language and one small check for understanding."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["whole", "three equal parts", "two parts"] },
+      "knownMisconception": "The student lacks the part-whole model for fractions.",
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        { "id": "weak-foundation-adaptation-001", "category": "adaptation", "criterion": "Use beginner-friendly concrete language about a whole and equal parts.", "weight": 2, "behavior": "required", "capabilityTag": "explanation_depth_adaptation", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["whole", "equal"], "minimumMatches": 2 } },
+        { "id": "weak-foundation-guidance-001", "category": "guidance", "criterion": "Break the explanation into a small number of understandable steps.", "weight": 1, "behavior": "required", "capabilityTag": "scaffolding", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["step"] } },
+        { "id": "weak-foundation-actionability-001", "category": "actionability", "criterion": "Ask the student to perform one concrete check or drawing next.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["draw", "check"], "minimumMatches": 1 } }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "full-solution-check-001",
+    "version": "1.1.0",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "linear equations",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "answer_checking",
+      "studentState": "uncertain_but_correct",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 2, "pedagogicalDifficulty": 2 },
+      "capabilityTags": ["factual_correctness", "procedural_correctness", "check_for_understanding", "procedural_prompting"],
+      "tags": ["synthetic", "full-solution-allowed"]
+    },
+    "tutorInput": {
+      "learningObjective": "Verify the student's proposed solution and explain the check clearly.",
+      "studentProfile": { "knownConcepts": ["inverse operations"], "misconceptions": [], "level": "middle-school", "goal": "check a solved equation" },
+      "studentMessage": "I solved 2x + 3 = 11 and got x=4. Please check it and show the solution.",
+      "problemContext": "The student explicitly requests answer verification and a full solution."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "x=4", "acceptedAnswers": ["x=4", "4"], "requiredConcepts": ["subtract 3", "divide by 2"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "full_solution_allowed",
+      "rubrics": [
+        { "id": "full-solution-correctness-001", "category": "correctness", "criterion": "State or verify the correct solution x=4.", "weight": 2, "behavior": "required", "capabilityTag": "factual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["x=4"] } },
+        { "id": "full-solution-disclosure-001", "category": "guidance", "criterion": "Give the requested full solution when the policy allows it.", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "deterministic", "evaluatorId": "direct_answer_leak", "config": { "forbiddenFinalAnswer": "x=4" } },
+        { "id": "full-solution-check-001", "category": "actionability", "criterion": "Show a concrete substitution or verification step.", "weight": 1, "behavior": "required", "capabilityTag": "check_for_understanding", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["check"] } }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "paired-multiplication-procedural-001",
+    "version": "1.0.0",
+    "adaptationPairId": "multiplication-counterfactual-001",
+    "adaptationVariant": "procedural-error",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "multiplication as groups",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "procedural_error",
+      "difficulty": { "learnerLevel": "elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["procedural_correctness", "misconception_specific_adaptation", "counterfactual_adaptation", "student_executable_action"],
+      "tags": ["synthetic", "counterfactual", "procedural-error"]
+    },
+    "tutorInput": {
+      "learningObjective": "Repair the student's grouping notation while preserving their understanding of multiplication.",
+      "studentProfile": { "knownConcepts": ["equal groups"], "misconceptions": ["3+4 represents three groups of four"], "level": "elementary", "goal": "represent multiplication with groups" },
+      "studentMessage": "I drew three groups of four, but I wrote 3+4 instead of 4+4+4. What should I fix?",
+      "problemContext": "The student understands equal groups but made a repeated-addition notation error."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "12", "acceptedAnswers": ["12"], "requiredConcepts": ["three groups of four", "repeated addition"] },
+      "knownMisconception": "The student can model equal groups but writes the repeated addition incorrectly.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "paired-multiplication-procedural-adaptation-001", "category": "adaptation", "criterion": "Correct only the repeated-addition notation while preserving the group model.", "weight": 2, "behavior": "required", "capabilityTag": "misconception_specific_adaptation", "evaluationType": "judge" },
+        { "id": "paired-multiplication-procedural-next-001", "category": "actionability", "criterion": "Ask the student to write one repeated-addition expression from the drawing.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "paired-multiplication-conceptual-001",
+    "version": "1.0.0",
+    "adaptationPairId": "multiplication-counterfactual-001",
+    "adaptationVariant": "conceptual-gap",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "multiplication as groups",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "conceptual_misconception",
+      "difficulty": { "learnerLevel": "elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["conceptual_correctness", "prior_knowledge_adaptation", "explanation_depth_adaptation", "counterfactual_adaptation", "procedural_prompting", "student_executable_action"],
+      "tags": ["synthetic", "counterfactual", "conceptual-gap"]
+    },
+    "tutorInput": {
+      "learningObjective": "Build the student's understanding of multiplication as equal groups before asking for a calculation.",
+      "studentProfile": { "knownConcepts": ["counting"], "misconceptions": ["multiplication is just two numbers to combine"], "level": "elementary", "goal": "understand multiplication as equal groups" },
+      "studentMessage": "Why does 3 x 4 mean groups? I thought it was just two numbers to combine.",
+      "problemContext": "The student does not yet connect multiplication to equal groups or repeated addition."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "12", "acceptedAnswers": ["12"], "requiredConcepts": ["three groups of four", "repeated addition"] },
+      "knownMisconception": "The student treats multiplication as an arbitrary operation rather than equal groups.",
+      "disclosurePolicy": "full_solution_required",
+      "rubrics": [
+        { "id": "paired-multiplication-conceptual-adaptation-001", "category": "adaptation", "criterion": "Introduce equal groups before relying on a multiplication procedure.", "weight": 2, "behavior": "required", "capabilityTag": "prior_knowledge_adaptation", "evaluationType": "judge" },
+        { "id": "paired-multiplication-full-solution-001", "category": "guidance", "criterion": "Provide the complete requested solution when the policy requires it, rather than only a vague hint.", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "judge" },
+        { "id": "paired-multiplication-conceptual-check-001", "category": "actionability", "criterion": "Ask the student to draw three equal groups of four.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "science-density-knowledge-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "science",
+      "topic": "density",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "knowledge_recall",
+      "studentState": "novice",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 2, "pedagogicalDifficulty": 1 },
+      "capabilityTags": ["factual_correctness", "conceptual_correctness", "productive_question"],
+      "tags": ["synthetic", "science", "no-answer"]
+    },
+    "tutorInput": {
+      "learningObjective": "Explain what density means and help the student recall its relationship to mass and volume.",
+      "studentProfile": { "knownConcepts": [], "misconceptions": [], "level": "middle-school", "goal": "recall the definition" },
+      "studentMessage": "What does density measure?",
+      "problemContext": "The student is asking for a definition before calculation."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["mass", "volume"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "no_answer",
+      "rubrics": [
+        { "id": "science-density-correctness-001", "category": "correctness", "criterion": "State that density relates mass to volume.", "weight": 2, "behavior": "required", "capabilityTag": "factual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["mass", "volume"] } },
+        { "id": "science-density-question-001", "category": "actionability", "criterion": "Offer one short recall question the student can answer next.", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "science-force-transfer-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "science",
+      "topic": "forces",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "transfer_preparation",
+      "studentState": "partial_understanding",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 3, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["conceptual_correctness", "difficulty_adaptation", "counterfactual_adaptation", "student_executable_action"],
+      "tags": ["synthetic", "science", "transfer"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student transfer the idea of balanced forces to a new everyday example.",
+      "studentProfile": { "knownConcepts": ["balanced forces"], "misconceptions": [], "level": "middle-school", "goal": "apply a concept to a new example" },
+      "studentMessage": "If a book is resting on a table, are the forces balanced?",
+      "problemContext": "The student answered a similar example correctly but needs to transfer the idea."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["balanced"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        { "id": "science-force-transfer-001", "category": "adaptation", "criterion": "Connect the new example to the student's prior balanced-forces idea.", "weight": 2, "behavior": "required", "capabilityTag": "counterfactual_adaptation", "evaluationType": "judge" },
+        { "id": "science-force-action-001", "category": "actionability", "criterion": "Ask the student to identify the two opposing forces in the example.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "science-photosynthesis-concept-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "science",
+      "topic": "photosynthesis",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "concept_explanation",
+      "studentState": "novice",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 3, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["conceptual_correctness", "misleading_simplification", "scaffolding", "check_for_understanding"],
+      "tags": ["synthetic", "science", "concept"]
+    },
+    "tutorInput": {
+      "learningObjective": "Explain the role of light and carbon dioxide in photosynthesis without implying that plants simply eat sunlight.",
+      "studentProfile": { "knownConcepts": ["plants need water"], "misconceptions": ["plants eat sunlight"], "level": "middle-school", "goal": "understand photosynthesis" },
+      "studentMessage": "Do plants eat sunlight to grow?",
+      "problemContext": "The student needs a conceptual explanation, not a chemical equation."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["light", "carbon dioxide"] },
+      "knownMisconception": "The student treats sunlight as food rather than energy used in a process.",
+      "disclosurePolicy": "full_solution_allowed",
+      "rubrics": [
+        { "id": "science-photosynthesis-concept-001", "category": "correctness", "criterion": "Explain that light provides energy for a process using carbon dioxide.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["light", "carbon dioxide"], "minimumMatches": 2 } },
+        { "id": "science-photosynthesis-no-simplification-001", "category": "correctness", "criterion": "Avoid the misleading simplification that a plant eats sunlight.", "weight": 1, "behavior": "prohibited", "capabilityTag": "misleading_simplification", "evaluationType": "judge" },
+        { "id": "science-photosynthesis-check-001", "category": "actionability", "criterion": "Check whether the student can name one input used by the process.", "weight": 1, "behavior": "desirable", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "science-graph-error-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "science",
+      "topic": "reading graphs",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "error_diagnosis",
+      "studentState": "overconfident_incorrect",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 3, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["error_detection", "error_localization", "uncertainty_detection", "procedural_prompting"],
+      "tags": ["synthetic", "science", "diagnosis"]
+    },
+    "tutorInput": {
+      "learningObjective": "Locate the student's graph-reading error and ask for a verification step.",
+      "studentProfile": { "knownConcepts": ["axes"], "misconceptions": ["the highest point always means the greatest rate"], "level": "middle-school", "goal": "interpret a data graph" },
+      "studentMessage": "The highest point must be the fastest rate, so the graph proves the reaction stayed fastest there.",
+      "problemContext": "The graph's vertical axis is amount, not rate."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["axis", "rate"] },
+      "knownMisconception": "The student reads an amount axis as if it were a rate axis.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "science-graph-location-001", "category": "diagnosis", "criterion": "Locate the mismatch between the graph axis and the student's claim about rate.", "weight": 2, "behavior": "required", "capabilityTag": "error_localization", "evaluationType": "judge" },
+        { "id": "science-graph-check-001", "category": "guidance", "criterion": "Ask the student to read the vertical axis before interpreting the point.", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "language-evidence-argument-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "language",
+      "topic": "textual evidence",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "partial_understanding",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 3, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["reasoning_consistency", "scaffolding", "answer_non_disclosure", "productive_question"],
+      "tags": ["synthetic", "language", "hint-only"]
+    },
+    "tutorInput": {
+      "learningObjective": "Guide the student to support an interpretation with a specific piece of textual evidence.",
+      "studentProfile": { "knownConcepts": ["main idea"], "misconceptions": [], "level": "secondary", "goal": "support a claim with evidence" },
+      "studentMessage": "I think the character is brave, but I do not know what evidence to use.",
+      "problemContext": "The student has an interpretation but has not selected evidence."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["evidence"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "language-evidence-hint-001", "category": "guidance", "criterion": "Ask the student to locate one sentence that supports the interpretation.", "weight": 2, "behavior": "required", "capabilityTag": "scaffolding", "evaluationType": "judge" },
+        { "id": "language-evidence-leak-001", "category": "guidance", "criterion": "Do not invent or supply the missing quotation for the student.", "weight": 1, "behavior": "prohibited", "capabilityTag": "answer_non_disclosure", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "language-verb-check-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "language",
+      "topic": "subject-verb agreement",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "answer_checking",
+      "studentState": "overconfident_incorrect",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 2, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["error_detection", "error_localization", "procedural_correctness", "check_for_understanding"],
+      "tags": ["synthetic", "language", "full-solution-required"]
+    },
+    "tutorInput": {
+      "learningObjective": "Check the student's sentence and identify the agreement error without merely approving it.",
+      "studentProfile": { "knownConcepts": ["nouns", "verbs"], "misconceptions": ["a nearby plural noun controls the verb"], "level": "middle-school", "goal": "check sentence grammar" },
+      "studentMessage": "The list of examples are on the page. Is this sentence correct?",
+      "problemContext": "The subject is singular even though a nearby noun is plural."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["subject", "verb"] },
+      "knownMisconception": "The student chooses the verb based on a nearby noun rather than the subject.",
+      "disclosurePolicy": "full_solution_required",
+      "rubrics": [
+        { "id": "language-verb-diagnosis-001", "category": "diagnosis", "criterion": "Locate the agreement mismatch between the subject and verb.", "weight": 2, "behavior": "required", "capabilityTag": "error_localization", "critical": true, "evaluationType": "judge", "criticalFailure": { "type": "incorrect_diagnosis", "severity": "major" } },
+        { "id": "language-verb-solution-001", "category": "correctness", "criterion": "State the corrected agreement and explain the governing subject.", "weight": 2, "behavior": "required", "capabilityTag": "procedural_correctness", "evaluationType": "judge" },
+        { "id": "language-verb-check-001", "category": "actionability", "criterion": "Ask the student to reread the corrected sentence and check the subject.", "weight": 1, "behavior": "desirable", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "language-word-context-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "language",
+      "topic": "word meaning from context",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "knowledge_recall",
+      "studentState": "uncertain_but_correct",
+      "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 2 },
+      "capabilityTags": ["conceptual_correctness", "uncertainty_detection", "productive_question"],
+      "tags": ["synthetic", "language", "no-answer"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student use context clues to infer a word meaning and state what evidence supports it.",
+      "studentProfile": { "knownConcepts": ["sentence meaning"], "misconceptions": [], "level": "upper-elementary", "goal": "infer word meaning" },
+      "studentMessage": "I think 'reluctant' means unsure, but I am not completely certain.",
+      "problemContext": "The surrounding sentence shows the character pauses before agreeing."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["context"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "no_answer",
+      "rubrics": [
+        { "id": "language-word-context-001", "category": "correctness", "criterion": "Explain that the surrounding context supports the proposed meaning.", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["context"] } },
+        { "id": "language-word-question-001", "category": "actionability", "criterion": "Ask the student to point to one clue in the sentence.", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "history-source-context-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "history_or_social_studies",
+      "topic": "primary sources",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "concept_explanation",
+      "studentState": "novice",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 3, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["conceptual_correctness", "prior_knowledge_adaptation", "explanation_depth_adaptation", "productive_question"],
+      "tags": ["synthetic", "history", "no-answer"]
+    },
+    "tutorInput": {
+      "learningObjective": "Explain why the author and context of a primary source matter before drawing a conclusion.",
+      "studentProfile": { "knownConcepts": ["chronology"], "misconceptions": [], "level": "secondary", "goal": "interpret a primary source" },
+      "studentMessage": "Why can the same event be described differently by two sources?",
+      "problemContext": "The student knows the event's date but not source perspective."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["perspective", "context"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "no_answer",
+      "rubrics": [
+        { "id": "history-source-concept-001", "category": "correctness", "criterion": "Explain that source perspective and context shape an account.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["perspective", "context"] } },
+        { "id": "history-source-question-001", "category": "actionability", "criterion": "Ask the student to identify who created a source and when.", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "history-cause-check-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "history_or_social_studies",
+      "topic": "historical causation",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "reasoning_checking",
+      "studentState": "uncertain_but_correct",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 4, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["reasoning_consistency", "uncertainty_detection", "clear_next_step", "student_executable_action"],
+      "tags": ["synthetic", "history", "partial-solution"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student distinguish a contributing cause from a single-cause explanation.",
+      "studentProfile": { "knownConcepts": ["sequence of events"], "misconceptions": ["one event alone caused the whole conflict"], "level": "secondary", "goal": "reason about historical causes" },
+      "studentMessage": "I think one event alone caused the whole conflict, but I am not sure.",
+      "problemContext": "The student has a plausible cause but is treating it as sufficient."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["cause", "evidence"] },
+      "knownMisconception": "The student overstates one contributing factor as the only cause.",
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        { "id": "history-cause-reasoning-001", "category": "diagnosis", "criterion": "Recognize that the student's claim treats one contributor as the only cause.", "weight": 2, "behavior": "required", "capabilityTag": "reasoning_consistency", "evaluationType": "judge" },
+        { "id": "history-cause-next-001", "category": "actionability", "criterion": "Ask the student to find one additional contributing factor and evidence.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "history-source-bias-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "history_or_social_studies",
+      "topic": "source bias",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "answer_checking",
+      "studentState": "overconfident_incorrect",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 3, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["factual_correctness", "misleading_simplification", "error_detection", "check_for_understanding"],
+      "tags": ["synthetic", "history", "full-solution-allowed"]
+    },
+    "tutorInput": {
+      "learningObjective": "Check the student's claim that a source is completely objective and introduce a precise way to examine bias.",
+      "studentProfile": { "knownConcepts": ["primary sources"], "misconceptions": ["a source is objective if it sounds factual"], "level": "secondary", "goal": "evaluate source reliability" },
+      "studentMessage": "This source lists dates, so it cannot be biased. Is my reasoning correct?",
+      "problemContext": "The source was written by a participant with a stated political goal."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["perspective", "purpose"] },
+      "knownMisconception": "The student treats factual-sounding wording as proof of objectivity.",
+      "disclosurePolicy": "full_solution_allowed",
+      "rubrics": [
+        { "id": "history-source-bias-diagnosis-001", "category": "diagnosis", "criterion": "Identify why the student's objectivity inference is insufficient.", "weight": 2, "behavior": "required", "capabilityTag": "error_detection", "evaluationType": "judge" },
+        { "id": "history-source-bias-explanation-001", "category": "correctness", "criterion": "Explain how perspective and purpose affect source interpretation.", "weight": 2, "behavior": "required", "capabilityTag": "misleading_simplification", "evaluationType": "judge" },
+        { "id": "history-source-bias-check-001", "category": "actionability", "criterion": "Ask the student to record the author's role and purpose as a check.", "weight": 1, "behavior": "desirable", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "programming-loop-diagnosis-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "programming",
+      "topic": "loops",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "error_diagnosis",
+      "studentState": "procedural_error",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 3, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["error_detection", "error_localization", "procedural_prompting", "student_executable_action", "overhelping_avoidance"],
+      "tags": ["synthetic", "programming", "hint-only"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student locate why the loop does not terminate and propose a testable next step.",
+      "studentProfile": { "knownConcepts": ["variables", "while loop"], "misconceptions": ["incrementing somewhere is enough to end a loop"], "level": "middle-school", "goal": "debug a loop" },
+      "studentMessage": "My loop keeps printing forever. I increment the counter inside the loop.",
+      "problemContext": "The counter is initialized but the loop condition never becomes false."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["condition", "counter"] },
+      "knownMisconception": "The student has a local loop-control error.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "programming-loop-location-001", "category": "diagnosis", "criterion": "Locate the loop condition that remains true.", "weight": 2, "behavior": "required", "capabilityTag": "error_localization", "evaluationType": "judge" },
+        { "id": "programming-loop-next-001", "category": "actionability", "criterion": "Ask the student to trace the counter and condition for one iteration.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" },
+        { "id": "programming-loop-no-solution-001", "category": "guidance", "criterion": "Do not rewrite the complete loop before the student inspects the state change.", "weight": 1, "behavior": "prohibited", "capabilityTag": "overhelping_avoidance", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "programming-function-recall-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "programming",
+      "topic": "functions",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "knowledge_recall",
+      "studentState": "novice",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 2, "pedagogicalDifficulty": 2 },
+      "capabilityTags": ["factual_correctness", "conceptual_correctness", "scaffolding", "clear_next_step"],
+      "tags": ["synthetic", "programming", "full-solution-allowed"]
+    },
+    "tutorInput": {
+      "learningObjective": "Give a concise explanation of what a function input and return value do.",
+      "studentProfile": { "knownConcepts": ["variables"], "misconceptions": [], "level": "middle-school", "goal": "understand function inputs and outputs" },
+      "studentMessage": "What is the difference between an argument and a return value?",
+      "problemContext": "The student is learning functions for the first time."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["input", "return"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "full_solution_allowed",
+      "rubrics": [
+        { "id": "programming-function-correctness-001", "category": "correctness", "criterion": "Distinguish the value passed into a function from the value it returns.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["input", "return"] } },
+        { "id": "programming-function-example-001", "category": "guidance", "criterion": "Use one small example without requiring a specific programming language.", "weight": 1, "behavior": "desirable", "capabilityTag": "scaffolding", "evaluationType": "judge" },
+        { "id": "programming-function-next-001", "category": "actionability", "criterion": "Ask the student to label one input and one returned value in an example.", "weight": 1, "behavior": "desirable", "capabilityTag": "clear_next_step", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "programming-test-failure-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "programming",
+      "topic": "tests",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "stuck_without_attempt",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 4, "pedagogicalDifficulty": 5 },
+      "capabilityTags": ["knowledge_gap_identification", "student_executable_action", "productive_question", "difficulty_adaptation"],
+      "tags": ["synthetic", "programming", "full-solution-required"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student turn a failing test report into a first debugging action.",
+      "studentProfile": { "knownConcepts": ["assertions"], "misconceptions": [], "level": "secondary", "goal": "start debugging from test output" },
+      "studentMessage": "The test failed, but I do not know where to start.",
+      "problemContext": "No attempted diagnosis or relevant output has been provided."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["failure", "expected"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "full_solution_required",
+      "rubrics": [
+        { "id": "programming-test-question-001", "category": "diagnosis", "criterion": "Ask for the failing test name and the expected-versus-actual difference.", "weight": 2, "behavior": "required", "capabilityTag": "knowledge_gap_identification", "evaluationType": "judge" },
+        { "id": "programming-test-action-001", "category": "actionability", "criterion": "Give a first debugging action based on the available failure evidence.", "weight": 2, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "programming-off-by-one-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "programming",
+      "topic": "array indexing",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "error_diagnosis",
+      "studentState": "overconfident_incorrect",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 3, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["error_detection", "procedural_correctness", "procedural_prompting", "check_for_understanding"],
+      "tags": ["synthetic", "programming", "partial-solution"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student inspect an off-by-one array error rather than treating the crash as random.",
+      "studentProfile": { "knownConcepts": ["arrays", "indices"], "misconceptions": ["an array of length 3 has index 3"], "level": "middle-school", "goal": "debug array access" },
+      "studentMessage": "The array has length 3, so accessing item[3] should be the last item. Why does it fail?",
+      "problemContext": "The language uses zero-based indexing."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["zero", "length"] },
+      "knownMisconception": "The student confuses array length with the last valid zero-based index.",
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        { "id": "programming-off-by-one-diagnosis-001", "category": "diagnosis", "criterion": "Identify that the last valid zero-based index is one less than the length.", "weight": 2, "behavior": "required", "capabilityTag": "error_detection", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["zero", "length"] } },
+        { "id": "programming-off-by-one-check-001", "category": "guidance", "criterion": "Ask the student to check the index against the array length before changing code.", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["check"] } },
+        { "id": "programming-off-by-one-action-001", "category": "actionability", "criterion": "Give one executable index check for the student to perform.", "weight": 1, "behavior": "desirable", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "programming-abstraction-transfer-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "programming",
+      "topic": "abstraction and reuse",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "transfer_preparation",
+      "studentState": "partial_understanding",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 4, "pedagogicalDifficulty": 5 },
+      "capabilityTags": ["difficulty_adaptation", "prior_knowledge_adaptation", "explanation_depth_adaptation", "student_executable_action"],
+      "tags": ["synthetic", "programming", "transfer"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student transfer a repeated code pattern into a small reusable function without overengineering it.",
+      "studentProfile": { "knownConcepts": ["variables", "basic functions"], "misconceptions": [], "level": "secondary", "goal": "recognize useful abstraction" },
+      "studentMessage": "I copied the same three lines four times. Should I build a large class to fix it?",
+      "problemContext": "The repeated code has one changing input and one repeated operation."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["function", "input"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "no_answer",
+      "rubrics": [
+        { "id": "programming-abstraction-adaptation-001", "category": "adaptation", "criterion": "Match the abstraction advice to the small repeated pattern rather than proposing an oversized design.", "weight": 2, "behavior": "required", "capabilityTag": "difficulty_adaptation", "evaluationType": "judge" },
+        { "id": "programming-abstraction-action-001", "category": "actionability", "criterion": "Ask the student to identify the changing input before extracting a function.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  }
+]

@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test": "npm run build && node --test dist/tests/*.test.js",
     "build": "tsc -p tsconfig.json",
-    "benchmark": "npm run build && node dist/src/cli/benchmark.js"
+    "benchmark": "npm run build && node dist/src/cli/benchmark.js",
+    "coverage": "npm run build && node dist/src/cli/dataset-coverage.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

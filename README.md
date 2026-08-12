@@ -21,6 +21,12 @@ It contains runtime-validated JSON scenarios and rubrics, a scripted synthetic t
 
 TutorEval v0.1 adds case-scoped visible Tutor input, evaluator-only hidden annotations, disclosure policies, atomic correctness/diagnosis/guidance/adaptation/actionability rubrics, centralized aggregation, critical-failure gates, dataset/case versioning, repeated runs, complete run metadata, and a typed Judge boundary. See [the TutorEval guide](docs/tutor-eval-v0.1.md).
 
+TutorEval 0.2A extends that contract with a versioned pedagogical taxonomy,
+structured difficulty, a curated 24-case synthetic dataset, rubric behavior and
+capability metadata, counterfactual pairs, disclosure-policy coverage, runtime
+integrity checks, and a deterministic coverage report. See [the 0.2A design
+guide](docs/tutor-eval-v0.2a.md).
+
 The contract tests compare a deliberately bad scripted tutor with a guided scripted tutor; the lower score comes from the same rubric and evaluator logic, without tutor-specific exceptions.
 
 ## AI Tutor Judge v0.1
@@ -44,7 +50,14 @@ npm run build
 npm run benchmark
 ```
 
-`npm run benchmark` runs the synthetic guided tutor against the checked-in TutorEval v0.1 cases, prints category scores and leakage/failure rates, and writes `artifacts/tutor-eval-v0.1-result.json`. Generated results are ignored by Git. A pedagogical scenario failure is reported but does not make the CLI fail; configuration, adapter, or evaluation errors return a non-zero exit code.
+`npm run benchmark` runs the synthetic guided tutor against the checked-in
+TutorEval 0.2A cases, prints category scores and leakage/failure rates, and
+writes `artifacts/tutor-eval-v0.2a-result.json`. Criteria reserved for the
+future Judge are reported as unavailable because 0.2A makes no real Judge
+calls. `npm run coverage` prints the dataset coverage JSON. Generated results
+are ignored by Git. A pedagogical scenario failure is reported but does not
+make the CLI fail; an uncaught setup or runner exception returns a non-zero
+exit code.
 
 ## Repository privacy
 
@@ -62,7 +75,9 @@ Review Workspace (`shuangyan123/demo`) is one possible future `TutorUnderTest` a
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md). The Foundation implementation is complete; real provider/Judge integration and learning-impact phases remain separate.
+See [docs/roadmap.md](docs/roadmap.md). The 0.1 execution foundation and 0.2A
+dataset-design foundation are separate from independent rubric calibration,
+real provider/Judge integration, and learning-impact phases.
 
 ## License
 

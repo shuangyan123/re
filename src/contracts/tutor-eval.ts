@@ -4,9 +4,17 @@ import type {
   TutorTurnInput,
 } from "./tutor.js";
 import type { TutorEvalRubric } from "./rubric.js";
+import type {
+  TutorEvalCapabilityTag,
+  TutorEvalDifficulty,
+  TutorEvalLearningTask,
+  TutorEvalStudentState,
+} from "./tutor-eval-taxonomy.js";
 
-export const TUTOR_EVAL_DATASET_ID = "tutor-eval-v0.1" as const;
-export const TUTOR_EVAL_DATASET_VERSION = "0.1" as const;
+export const TUTOR_EVAL_DATASET_ID = "tutor-eval-v0.2a" as const;
+export const TUTOR_EVAL_DATASET_VERSION = "0.2a" as const;
+export const TUTOR_EVAL_LEGACY_DATASET_ID = "tutor-eval-v0.1" as const;
+export const TUTOR_EVAL_LEGACY_DATASET_VERSION = "0.1" as const;
 export const TUTOR_EVAL_CASE_SCHEMA_VERSION = 1 as const;
 
 export type TutorEvalCategory =
@@ -59,8 +67,13 @@ export interface TutorEvalGroundTruth {
 export interface TutorEvalCaseMetadata {
   readonly subject: string;
   readonly topic: string;
-  readonly difficulty?: string | number;
+  /** Legacy string/number values remain readable for v0.1 cases. */
+  readonly difficulty?: TutorEvalDifficulty | string | number;
   readonly tags?: readonly string[];
+  readonly taxonomyVersion?: string;
+  readonly learningTask?: TutorEvalLearningTask;
+  readonly studentState?: TutorEvalStudentState;
+  readonly capabilityTags?: readonly TutorEvalCapabilityTag[];
 }
 
 export interface TutorEvalTutorInput {
