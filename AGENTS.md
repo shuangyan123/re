@@ -51,4 +51,6 @@ clean main -> fetch -> fresh feature branch -> implementation -> PR -> CI -> mer
 
 The 0.1 Foundation phase is synthetic, deterministic, typed, testable, and reproducible. It does not include LLM-as-Judge, real model/API calls, Review Workspace integration, real user data, databases, dashboards, large datasets, or complex statistical evaluation.
 
+An explicitly scoped follow-up may add a versioned judge prompt, provider-independent judge input/output contracts, and pure result validation or score calculations. Real model calls, provider SDKs, calibration claims, and hidden reasoning persistence remain prohibited unless separately authorized.
+
 Stop when the explicitly requested phase is complete. Do not start the next roadmap phase without a new scoped task.

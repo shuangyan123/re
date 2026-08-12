@@ -16,11 +16,15 @@
 - Dataset taxonomy and scenario difficulty
 - Leakage, correctness, and guidance definitions
 
-## 0.3 LLM-as-Judge Calibration — NOT STARTED
+## 0.3 LLM-as-Judge Calibration — PARTIAL: prompt contract only
 
-- Judge prompts
-- Pairwise evaluation
-- Calibration and human agreement
+- [x] Versioned v0.1 judge system prompt
+- [x] Provider-independent judge input/output contracts
+- [x] Pure pedagogy score and quality-gate calculations
+- [x] Runtime validation for judge input and result JSON
+- [ ] Judge provider adapter or real model calls
+- [ ] Pairwise evaluation
+- [ ] Calibration and human agreement
 
 ## 0.4 Tutor Adapter Layer — NOT STARTED
 
