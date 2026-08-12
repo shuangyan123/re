@@ -21,6 +21,12 @@ It contains runtime-validated JSON scenarios and rubrics, a scripted synthetic t
 
 The contract tests compare a deliberately bad scripted tutor with a guided scripted tutor; the lower score comes from the same rubric and evaluator logic, without tutor-specific exceptions.
 
+## AI Tutor Judge v0.1
+
+The repository now includes the provider-independent Judge v0.1 contract described in [the system prompt](prompts/ai-tutor-judge-system-v0.1.md). It validates the judge input shape, the JSON result shape, the seven 0–5 dimensions, critical-failure quality gates, case-rubric results, confidence bounds, and the explicit pedagogy-score formula.
+
+This change is a prompt and contract layer only. It does not call an LLM, include a provider SDK, perform calibration, or claim that a judge result proves learning impact.
+
 Deterministic checks such as answer-leakage and keyword coverage are useful proxies, not a scientific measurement of full tutoring quality. LLM judging, human calibration, repeated-run statistics, and richer pedagogical dimensions are future work.
 
 ## Quick start

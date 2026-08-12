@@ -1,6 +1,8 @@
 export type BenchmarkErrorCode =
   | "scenario_invalid"
   | "rubric_invalid"
+  | "judge_input_invalid"
+  | "judge_result_invalid"
   | "adapter_failed"
   | "evaluation_failed"
   | "runner_failed";
@@ -8,15 +10,27 @@ export type BenchmarkErrorCode =
 const stableMessages: Record<BenchmarkErrorCode, string> = {
   scenario_invalid: "Scenario configuration is invalid.",
   rubric_invalid: "Rubric configuration is invalid.",
+  judge_input_invalid: "AI Tutor Judge input is invalid.",
+  judge_result_invalid: "AI Tutor Judge result is invalid.",
   adapter_failed: "Tutor adapter failed for this scenario.",
   evaluation_failed: "Evaluator failed for this scenario.",
   runner_failed: "Benchmark runner failed.",
 };
 
 export class BenchmarkConfigurationError extends Error {
-  readonly code: "scenario_invalid" | "rubric_invalid";
+  readonly code:
+    | "scenario_invalid"
+    | "rubric_invalid"
+    | "judge_input_invalid"
+    | "judge_result_invalid";
 
-  constructor(code: "scenario_invalid" | "rubric_invalid") {
+  constructor(
+    code:
+      | "scenario_invalid"
+      | "rubric_invalid"
+      | "judge_input_invalid"
+      | "judge_result_invalid",
+  ) {
     super(stableMessages[code]);
     this.name = "BenchmarkConfigurationError";
     this.code = code;
