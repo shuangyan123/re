@@ -5,6 +5,21 @@ import type {
   TutorTurnOutput,
 } from "../contracts/index.js";
 import type { DeterministicEvaluatorId } from "../contracts/rubric.js";
+import type {
+  DisclosurePolicy,
+  TutorEvalGroundTruth,
+} from "../contracts/tutor-eval.js";
+
+export interface DeterministicCriterionDefinition {
+  readonly id: string;
+  readonly evaluatorId: DeterministicEvaluatorId;
+  readonly config?: TutorRubricCriterion["config"];
+}
+
+export interface DeterministicEvaluationContext {
+  readonly disclosurePolicy?: DisclosurePolicy;
+  readonly groundTruth?: TutorEvalGroundTruth;
+}
 
 export type DeterministicEvaluator = (
   scenario: TutorScenario,
@@ -17,7 +32,7 @@ function diagnostic(code: string, message: string) {
 }
 
 function result(
-  criterion: TutorRubricCriterion,
+  criterion: DeterministicCriterionDefinition,
   passed: boolean,
   score: number,
   code: string,
@@ -34,7 +49,7 @@ function result(
 }
 
 function errorResult(
-  criterion: TutorRubricCriterion,
+  criterion: DeterministicCriterionDefinition,
   message = "Evaluator configuration is invalid.",
 ): CriterionResult {
   return {
@@ -51,8 +66,19 @@ function normalizedText(output: TutorTurnOutput): string {
   return output.text.trim().toLowerCase();
 }
 
+function containsAnswer(text: string, answer: string): boolean {
+  const normalizedAnswer = answer.trim().toLowerCase();
+  if (normalizedAnswer.length === 0) {
+    return false;
+  }
+  const escaped = normalizedAnswer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`,
+  ).test(text);
+}
+
 function evaluateForbiddenPhrase(
-  criterion: TutorRubricCriterion,
+  criterion: DeterministicCriterionDefinition,
   output: TutorTurnOutput,
 ): CriterionResult {
   const phrases = criterion.config?.forbiddenPhrases;
@@ -73,7 +99,7 @@ function evaluateForbiddenPhrase(
 }
 
 function evaluateRequiredConcept(
-  criterion: TutorRubricCriterion,
+  criterion: DeterministicCriterionDefinition,
   output: TutorTurnOutput,
 ): CriterionResult {
   const concepts = criterion.config?.requiredConcepts;
@@ -98,7 +124,7 @@ function evaluateRequiredConcept(
 }
 
 function evaluateResponseLength(
-  criterion: TutorRubricCriterion,
+  criterion: DeterministicCriterionDefinition,
   output: TutorTurnOutput,
 ): CriterionResult {
   const minLength = criterion.config?.minLength;
@@ -122,10 +148,23 @@ function evaluateResponseLength(
 }
 
 function evaluateDirectAnswerLeak(
-  criterion: TutorRubricCriterion,
+  criterion: DeterministicCriterionDefinition,
   output: TutorTurnOutput,
+  context: DeterministicEvaluationContext = {},
 ): CriterionResult {
   const forbiddenFinalAnswer = criterion.config?.forbiddenFinalAnswer;
+  if (
+    context.disclosurePolicy === "full_solution_allowed" ||
+    context.disclosurePolicy === "full_solution_required"
+  ) {
+    return result(
+      criterion,
+      true,
+      1,
+      "answer_disclosure_allowed",
+      "The case disclosure policy allows a complete solution.",
+    );
+  }
   if (forbiddenFinalAnswer === undefined) {
     return errorResult(criterion);
   }
@@ -143,8 +182,35 @@ function evaluateDirectAnswerLeak(
   );
 }
 
+function evaluateGroundTruthMatch(
+  criterion: DeterministicCriterionDefinition,
+  output: TutorTurnOutput,
+  context: DeterministicEvaluationContext,
+): CriterionResult {
+  const groundTruth = context.groundTruth;
+  const acceptedAnswers = groundTruth?.acceptedAnswers ??
+    (groundTruth?.finalAnswer === undefined ? [] : [groundTruth.finalAnswer]);
+  if (acceptedAnswers.length === 0) {
+    return errorResult(
+      criterion,
+      "Ground truth does not define an accepted answer.",
+    );
+  }
+  const text = normalizedText(output);
+  const matched = acceptedAnswers.some((answer) => containsAnswer(text, answer));
+  return result(
+    criterion,
+    matched,
+    matched ? 1 : 0,
+    matched ? "ground_truth_match" : "ground_truth_mismatch",
+    matched
+      ? "Tutor response contains an accepted ground-truth answer."
+      : "Tutor response does not contain an accepted ground-truth answer.",
+  );
+}
+
 function evaluateEmptyResponse(
-  criterion: TutorRubricCriterion,
+  criterion: DeterministicCriterionDefinition,
   output: TutorTurnOutput,
 ): CriterionResult {
   const empty = output.text.trim().length === 0;
@@ -158,7 +224,7 @@ function evaluateEmptyResponse(
 }
 
 function evaluateKeywordCoverage(
-  criterion: TutorRubricCriterion,
+  criterion: DeterministicCriterionDefinition,
   output: TutorTurnOutput,
 ): CriterionResult {
   const concepts = criterion.config?.requiredConcepts;
@@ -188,28 +254,48 @@ function evaluateKeywordCoverage(
 }
 
 const evaluatorImplementations: Readonly<
-  Record<DeterministicEvaluatorId, DeterministicEvaluator>
+  Record<
+    DeterministicEvaluatorId,
+    (criterion: DeterministicCriterionDefinition, output: TutorTurnOutput) => CriterionResult
+  >
 > = {
-  contains_forbidden_phrase: (_scenario, criterion, output) =>
-    evaluateForbiddenPhrase(criterion, output),
-  contains_required_concept: (_scenario, criterion, output) =>
-    evaluateRequiredConcept(criterion, output),
-  response_length_range: (_scenario, criterion, output) =>
-    evaluateResponseLength(criterion, output),
-  direct_answer_leak: (_scenario, criterion, output) =>
-    evaluateDirectAnswerLeak(criterion, output),
-  empty_response: (_scenario, criterion, output) =>
-    evaluateEmptyResponse(criterion, output),
-  structured_keyword_coverage: (_scenario, criterion, output) =>
-    evaluateKeywordCoverage(criterion, output),
+  contains_forbidden_phrase: (criterion, output) => evaluateForbiddenPhrase(criterion, output),
+  contains_required_concept: (criterion, output) => evaluateRequiredConcept(criterion, output),
+  response_length_range: (criterion, output) => evaluateResponseLength(criterion, output),
+  direct_answer_leak: (criterion, output) => evaluateDirectAnswerLeak(criterion, output),
+  matches_ground_truth: (criterion, output) =>
+    evaluateGroundTruthMatch(criterion, output, {}),
+  empty_response: (criterion, output) => evaluateEmptyResponse(criterion, output),
+  structured_keyword_coverage: (criterion, output) => evaluateKeywordCoverage(criterion, output),
 };
 
 export function evaluateDeterministicCriterion(
-  scenario: TutorScenario,
+  _scenario: TutorScenario,
   criterion: TutorRubricCriterion,
   output: TutorTurnOutput,
+  context: DeterministicEvaluationContext = {},
 ): CriterionResult {
-  return evaluatorImplementations[criterion.evaluatorId](scenario, criterion, output);
+  if (criterion.evaluatorId === "direct_answer_leak") {
+    return evaluateDirectAnswerLeak(criterion, output, context);
+  }
+  if (criterion.evaluatorId === "matches_ground_truth") {
+    return evaluateGroundTruthMatch(criterion, output, context);
+  }
+  return evaluatorImplementations[criterion.evaluatorId](criterion, output);
+}
+
+export function evaluateTutorEvalDeterministicCriterion(
+  criterion: DeterministicCriterionDefinition,
+  output: TutorTurnOutput,
+  context: DeterministicEvaluationContext = {},
+): CriterionResult {
+  if (criterion.evaluatorId === "direct_answer_leak") {
+    return evaluateDirectAnswerLeak(criterion, output, context);
+  }
+  if (criterion.evaluatorId === "matches_ground_truth") {
+    return evaluateGroundTruthMatch(criterion, output, context);
+  }
+  return evaluatorImplementations[criterion.evaluatorId](criterion, output);
 }
 
 export const deterministicEvaluatorIds = Object.freeze(

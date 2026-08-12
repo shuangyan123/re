@@ -1,0 +1,420 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "fraction-misconception-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "adding fractions",
+      "difficulty": "upper-elementary",
+      "tags": ["synthetic", "diagnosis", "guidance", "actionability"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student recognize why unlike fractions need a common denominator without revealing the final answer.",
+      "studentProfile": {
+        "knownConcepts": ["whole-number addition"],
+        "misconceptions": ["unlike fractions can be added by adding numerators and denominators"],
+        "level": "upper-elementary",
+        "goal": "add fractions with unlike denominators"
+      },
+      "studentMessage": "I think 1/3 + 1/4 = 2/7. Can you help me check it?",
+      "problemContext": "The student is practicing fraction addition."
+    },
+    "evaluatorOnly": {
+      "groundTruth": {
+        "finalAnswer": "7/12",
+        "acceptedAnswers": ["7/12"],
+        "requiredConcepts": ["common denominator", "different-sized units"]
+      },
+      "knownMisconception": "The student adds unlike fraction denominators directly.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        {
+          "id": "fraction-diagnosis-001",
+          "category": "diagnosis",
+          "criterion": "Identify that the student is adding unlike fraction denominators directly.",
+          "weight": 2,
+          "evaluationType": "deterministic",
+          "evaluatorId": "contains_required_concept",
+          "config": { "requiredConcepts": ["denominator"] }
+        },
+        {
+          "id": "fraction-guidance-001",
+          "category": "guidance",
+          "criterion": "Guide the student to look for a common denominator before computing.",
+          "weight": 2,
+          "critical": true,
+          "evaluationType": "deterministic",
+          "evaluatorId": "contains_required_concept",
+          "config": { "requiredConcepts": ["common denominator"] }
+        },
+        {
+          "id": "fraction-actionability-001",
+          "category": "actionability",
+          "criterion": "End with a concrete next step the student can perform independently.",
+          "weight": 1,
+          "evaluationType": "deterministic",
+          "evaluatorId": "structured_keyword_coverage",
+          "config": { "requiredConcepts": ["find", "first"], "minimumMatches": 1 }
+        },
+        {
+          "id": "fraction-no-leak-001",
+          "category": "guidance",
+          "criterion": "Do not reveal the final answer when only a hint is requested.",
+          "weight": 1,
+          "evaluationType": "deterministic",
+          "evaluatorId": "direct_answer_leak",
+          "config": { "forbiddenFinalAnswer": "7/12" },
+          "criticalFailure": { "type": "answer_leakage", "severity": "major" }
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "hint-only-linear-equation-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "linear equations",
+      "difficulty": "middle-school",
+      "tags": ["synthetic", "disclosure-policy", "hint-only"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student take the first step solving 2x + 3 = 11 while preserving their opportunity to finish.",
+      "studentProfile": {
+        "knownConcepts": ["inverse operations"],
+        "misconceptions": [],
+        "level": "middle-school",
+        "goal": "solve a one-variable equation"
+      },
+      "studentMessage": "I am stuck on 2x + 3 = 11. Give me only a hint; do not tell me the answer.",
+      "problemContext": "The student has not shown a first step yet."
+    },
+    "evaluatorOnly": {
+      "groundTruth": {
+        "finalAnswer": "x=4",
+        "acceptedAnswers": ["x=4", "4"],
+        "requiredConcepts": ["subtract 3", "divide by 2"]
+      },
+      "knownMisconception": null,
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        {
+          "id": "equation-hint-no-leak-001",
+          "category": "guidance",
+          "criterion": "Give a first-step hint without stating x=4.",
+          "weight": 2,
+          "critical": true,
+          "evaluationType": "deterministic",
+          "evaluatorId": "direct_answer_leak",
+          "config": { "forbiddenFinalAnswer": "x=4" },
+          "criticalFailure": { "type": "answer_leakage", "severity": "major" }
+        },
+        {
+          "id": "equation-hint-next-step-001",
+          "category": "actionability",
+          "criterion": "Tell the student exactly which reversible operation to consider first.",
+          "weight": 1,
+          "evaluationType": "deterministic",
+          "evaluatorId": "contains_required_concept",
+          "config": { "requiredConcepts": ["subtract"] }
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "correct-answer-wrong-reasoning-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "multiplication reasoning",
+      "difficulty": "elementary",
+      "tags": ["synthetic", "correctness", "diagnosis"]
+    },
+    "tutorInput": {
+      "learningObjective": "Correct the student's reasoning even though the reported answer is numerically correct.",
+      "studentProfile": {
+        "knownConcepts": ["counting by ones"],
+        "misconceptions": ["3 + 4 is the reason 3 x 4 equals 12"],
+        "level": "elementary",
+        "goal": "understand multiplication as equal groups"
+      },
+      "studentMessage": "I know 3 x 4 is 12 because 3 + 4 = 7, and then I add 5 more to get 12.",
+      "problemContext": "The final answer is correct, but the explanation uses an invalid operation."
+    },
+    "evaluatorOnly": {
+      "groundTruth": {
+        "finalAnswer": "12",
+        "acceptedAnswers": ["12"],
+        "requiredConcepts": ["three groups of four", "repeated addition"]
+      },
+      "knownMisconception": "The student does not yet connect multiplication with equal groups or repeated addition.",
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        {
+          "id": "wrong-reasoning-diagnosis-001",
+          "category": "diagnosis",
+          "criterion": "Name that the answer is correct but the stated reasoning does not represent multiplication.",
+          "weight": 2,
+          "critical": true,
+          "evaluationType": "deterministic",
+          "evaluatorId": "contains_required_concept",
+          "config": { "requiredConcepts": ["reasoning"] },
+          "criticalFailure": { "type": "critical_misconception_ignored", "severity": "major" }
+        },
+        {
+          "id": "wrong-reasoning-concept-001",
+          "category": "correctness",
+          "criterion": "Explain multiplication using equal groups or repeated addition rather than rewarding the invalid explanation.",
+          "weight": 2,
+          "evaluationType": "deterministic",
+          "evaluatorId": "structured_keyword_coverage",
+          "config": { "requiredConcepts": ["groups", "repeated"], "minimumMatches": 1 }
+        },
+        {
+          "id": "wrong-reasoning-answer-001",
+          "category": "correctness",
+          "criterion": "Preserve the factually correct answer 12.",
+          "weight": 1,
+          "evaluationType": "deterministic",
+          "evaluatorId": "matches_ground_truth"
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "paired-fraction-procedural-001",
+    "version": "1.0.0",
+    "adaptationPairId": "fraction-counterfactual-001",
+    "adaptationVariant": "procedural-error",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "fraction addition",
+      "difficulty": "upper-elementary",
+      "tags": ["synthetic", "counterfactual", "adaptation"]
+    },
+    "tutorInput": {
+      "learningObjective": "Repair one procedural error while preserving the student's understanding of common denominators.",
+      "studentProfile": {
+        "knownConcepts": ["common denominators", "equivalent fractions"],
+        "misconceptions": ["the denominator should be added after finding a common denominator"],
+        "level": "upper-elementary",
+        "goal": "add fractions accurately"
+      },
+      "studentMessage": "I found the common denominator for 2/3 + 1/3, but I wrote 3/6. Where did I go wrong?",
+      "problemContext": "The student understands the key concept and is stuck at the final procedural step."
+    },
+    "evaluatorOnly": {
+      "groundTruth": {
+        "finalAnswer": "3/3",
+        "acceptedAnswers": ["3/3", "1"],
+        "requiredConcepts": ["keep the denominator", "add the numerators"]
+      },
+      "knownMisconception": "The student adds denominators after correctly identifying the common denominator.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        {
+          "id": "paired-procedural-adaptation-001",
+          "category": "adaptation",
+          "criterion": "Address the local denominator step without reteaching all fraction concepts.",
+          "weight": 2,
+          "evaluationType": "deterministic",
+          "evaluatorId": "contains_required_concept",
+          "config": { "requiredConcepts": ["denominator"] }
+        },
+        {
+          "id": "paired-procedural-guidance-001",
+          "category": "guidance",
+          "criterion": "Ask the student to apply the numerator operation as the next small step.",
+          "weight": 1,
+          "evaluationType": "deterministic",
+          "evaluatorId": "contains_required_concept",
+          "config": { "requiredConcepts": ["numerator"] }
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "paired-fraction-conceptual-001",
+    "version": "1.0.0",
+    "adaptationPairId": "fraction-counterfactual-001",
+    "adaptationVariant": "conceptual-gap",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "fraction addition",
+      "difficulty": "upper-elementary",
+      "tags": ["synthetic", "counterfactual", "adaptation"]
+    },
+    "tutorInput": {
+      "learningObjective": "Build the student's understanding of why unlike fraction denominators require equivalent units.",
+      "studentProfile": {
+        "knownConcepts": ["whole-number addition"],
+        "misconceptions": ["all fraction numerators and denominators can be added directly"],
+        "level": "upper-elementary",
+        "goal": "understand and add fractions with unlike denominators"
+      },
+      "studentMessage": "Why can't I add 1/2 + 1/3 as 2/5? I do not understand what the denominator means.",
+      "problemContext": "The student does not yet understand the unit represented by a denominator."
+    },
+    "evaluatorOnly": {
+      "groundTruth": {
+        "finalAnswer": "5/6",
+        "acceptedAnswers": ["5/6"],
+        "requiredConcepts": ["whole", "same-sized units", "common denominator"]
+      },
+      "knownMisconception": "The student treats denominators as ordinary numbers rather than unit sizes.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        {
+          "id": "paired-conceptual-adaptation-001",
+          "category": "adaptation",
+          "criterion": "Explain the denominator as the size of equal parts rather than assuming prior mastery.",
+          "weight": 2,
+          "evaluationType": "deterministic",
+          "evaluatorId": "contains_required_concept",
+          "config": { "requiredConcepts": ["whole"] }
+        },
+        {
+          "id": "paired-conceptual-guidance-001",
+          "category": "guidance",
+          "criterion": "Use a small, executable comparison that helps the student reason about equal units.",
+          "weight": 2,
+          "evaluationType": "deterministic",
+          "evaluatorId": "structured_keyword_coverage",
+          "config": { "requiredConcepts": ["same", "unit", "question"], "minimumMatches": 2 }
+        },
+        {
+          "id": "paired-conceptual-actionability-001",
+          "category": "actionability",
+          "criterion": "Give the student one concrete next step instead of a full solution.",
+          "weight": 1,
+          "evaluationType": "deterministic",
+          "evaluatorId": "contains_required_concept",
+          "config": { "requiredConcepts": ["try"] }
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "weak-foundation-fractions-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "fraction meaning",
+      "difficulty": "elementary",
+      "tags": ["synthetic", "adaptation", "small-steps"]
+    },
+    "tutorInput": {
+      "learningObjective": "Use a concrete, small-step explanation to help a beginner interpret 2/3.",
+      "studentProfile": {
+        "knownConcepts": ["counting to ten"],
+        "misconceptions": ["2/3 is two divided by three with no connection to a whole"],
+        "level": "beginner",
+        "goal": "understand what a fraction represents"
+      },
+      "studentMessage": "I have never understood fractions. What does 2/3 mean?",
+      "problemContext": "The student needs concrete language and one small check for understanding."
+    },
+    "evaluatorOnly": {
+      "groundTruth": {
+        "requiredConcepts": ["whole", "three equal parts", "two parts"]
+      },
+      "knownMisconception": "The student lacks the part-whole model for fractions.",
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        {
+          "id": "weak-foundation-adaptation-001",
+          "category": "adaptation",
+          "criterion": "Use beginner-friendly concrete language about a whole and equal parts.",
+          "weight": 2,
+          "evaluationType": "deterministic",
+          "evaluatorId": "structured_keyword_coverage",
+          "config": { "requiredConcepts": ["whole", "equal"], "minimumMatches": 2 }
+        },
+        {
+          "id": "weak-foundation-guidance-001",
+          "category": "guidance",
+          "criterion": "Break the explanation into a small number of understandable steps.",
+          "weight": 1,
+          "evaluationType": "deterministic",
+          "evaluatorId": "contains_required_concept",
+          "config": { "requiredConcepts": ["step"] }
+        },
+        {
+          "id": "weak-foundation-actionability-001",
+          "category": "actionability",
+          "criterion": "Ask the student to perform one concrete check or drawing next.",
+          "weight": 1,
+          "evaluationType": "deterministic",
+          "evaluatorId": "structured_keyword_coverage",
+          "config": { "requiredConcepts": ["draw", "check"], "minimumMatches": 1 }
+        }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "full-solution-check-001",
+    "version": "1.0.0",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "linear equations",
+      "difficulty": "middle-school",
+      "tags": ["synthetic", "full-solution-allowed", "correctness"]
+    },
+    "tutorInput": {
+      "learningObjective": "Verify the student's proposed solution and explain the check clearly.",
+      "studentProfile": {
+        "knownConcepts": ["inverse operations"],
+        "misconceptions": [],
+        "level": "middle-school",
+        "goal": "check a solved equation"
+      },
+      "studentMessage": "I solved 2x + 3 = 11 and got x=4. Please check it and show the solution.",
+      "problemContext": "The student explicitly requests answer verification and a full solution."
+    },
+    "evaluatorOnly": {
+      "groundTruth": {
+        "finalAnswer": "x=4",
+        "acceptedAnswers": ["x=4", "4"],
+        "requiredConcepts": ["subtract 3", "divide by 2"]
+      },
+      "knownMisconception": null,
+      "disclosurePolicy": "full_solution_allowed",
+      "rubrics": [
+        {
+          "id": "full-solution-correctness-001",
+          "category": "correctness",
+          "criterion": "State or verify the correct solution x=4.",
+          "weight": 2,
+          "evaluationType": "deterministic",
+          "evaluatorId": "contains_required_concept",
+          "config": { "requiredConcepts": ["x=4"] }
+        },
+        {
+          "id": "full-solution-disclosure-001",
+          "category": "guidance",
+          "criterion": "Do not treat the explicitly allowed full solution as answer leakage.",
+          "weight": 1,
+          "evaluationType": "deterministic",
+          "evaluatorId": "direct_answer_leak",
+          "config": { "forbiddenFinalAnswer": "x=4" }
+        },
+        {
+          "id": "full-solution-check-001",
+          "category": "actionability",
+          "criterion": "Show a concrete substitution or verification step.",
+          "weight": 1,
+          "evaluationType": "deterministic",
+          "evaluatorId": "contains_required_concept",
+          "config": { "requiredConcepts": ["check"] }
+        }
+      ]
+    }
+  }
+]

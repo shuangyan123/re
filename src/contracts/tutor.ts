@@ -14,14 +14,31 @@ export interface StudentState {
 
 export interface TutorTurnInput {
   readonly scenarioId: string;
+  /** Canonical TutorEval identity; scenarioId remains for Foundation compatibility. */
+  readonly caseId?: string;
+  readonly learningObjective?: string;
   readonly initialContext: string;
   readonly conversation: readonly TutorConversationMessage[];
   readonly currentStudentMessage: string;
   readonly studentState: StudentState;
 }
 
+export interface TutorTokenUsage {
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+  readonly totalTokens?: number;
+}
+
+/** Sanitized adapter metrics only; raw provider payloads remain outside core. */
+export interface TutorTurnMetrics {
+  readonly tokenUsage?: TutorTokenUsage;
+  readonly latencyMs?: number;
+  readonly cost?: number;
+}
+
 export interface TutorTurnOutput {
   readonly text: string;
+  readonly metrics?: TutorTurnMetrics;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 

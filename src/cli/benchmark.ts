@@ -1,82 +1,61 @@
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import {
-  BenchmarkConfigurationError,
-  parseTutorRubrics,
-  parseTutorScenarios,
-  type TutorRubric,
-  type TutorScenario,
-} from "../contracts/index.js";
 import { ScriptedTutor } from "../adapters/scripted-tutor.js";
-import { runBenchmark } from "../runner/index.js";
-import {
-  formatBenchmarkSummary,
-  writeBenchmarkResult,
-} from "../reporting/index.js";
-
-async function readJson(path: string): Promise<unknown> {
-  const contents = await readFile(path, "utf8");
-  return JSON.parse(contents) as unknown;
-}
+import { TUTOR_EVAL_DATASET_ID } from "../contracts/index.js";
+import { loadTutorEvalDataset } from "../datasets/index.js";
+import { formatTutorEvalSummary, writeTutorEvalResult } from "../reporting/index.js";
+import { runTutorEval } from "../runner/index.js";
 
 const guidedResponses: Readonly<Record<string, string>> = {
-  "math-fraction-guidance-001":
-    "Let's find a common denominator first. What number can both 2 and 4 divide into?",
-  "concept-contrast-001":
-    "Evaporation happens at the surface and can happen below the boiling point, while boiling happens throughout the liquid at its boiling point.",
-  "answer-request-guidance-001":
-    "Try thinking of 7 groups of 6. How many items would you count if you added six seven times?",
-  "non-empty-response-001":
-    "Photosynthesis is the process plants use to make food from light, water, and carbon dioxide.",
-  "fraction-vocabulary-001":
-    "The numerator is the top number and the denominator is the bottom number; together they describe parts of a whole.",
+  "fraction-misconception-001":
+    "You noticed the denominators are different. First, find a common denominator. What could you find first?",
+  "hint-only-linear-equation-001":
+    "First, subtract 3 from both sides. What does that leave before you divide?",
+  "correct-answer-wrong-reasoning-001":
+    "Your answer 12 is correct, but the reasoning needs fixing: multiplication means equal groups, or repeated addition. Can you describe three groups of four?",
+  "paired-fraction-procedural-001":
+    "Since you already found the common denominator, focus on this next step: add the numerators and keep the denominator. What happens?",
+  "paired-fraction-conceptual-001":
+    "Think of one whole split into same-sized units. What question could you ask about the size of each unit? Try drawing one example.",
+  "weak-foundation-fractions-001":
+    "Start with one whole. Split it into equal parts in a drawing. This is the first step; can you draw the parts and check which two are shaded?",
+  "full-solution-check-001":
+    "Yes, x=4. Check it by substituting: subtract 3, then divide by 2. The check confirms the solution.",
 };
 
-export async function loadSyntheticBenchmarkInputs(): Promise<{
-  readonly scenarios: TutorScenario[];
-  readonly rubrics: TutorRubric[];
-}> {
-  const scenariosPath = resolve(
-    process.cwd(),
-    "scenarios",
-    "synthetic",
-    "scenarios.json",
-  );
-  const rubricsPath = resolve(process.cwd(), "rubrics", "synthetic-rubrics.json");
-  const [scenarioValue, rubricValue] = await Promise.all([
-    readJson(scenariosPath),
-    readJson(rubricsPath),
-  ]);
-  return {
-    scenarios: parseTutorScenarios(scenarioValue),
-    rubrics: parseTutorRubrics(rubricValue),
-  };
-}
-
 export async function main(): Promise<void> {
-  const { scenarios, rubrics } = await loadSyntheticBenchmarkInputs();
   const tutor = new ScriptedTutor({
     id: "scripted-guided-tutor",
     responses: guidedResponses,
   });
-  const result = await runBenchmark(tutor, scenarios, rubrics, {
-    runId: "synthetic-foundation-run",
+  const result = await runTutorEval({
+    dataset: TUTOR_EVAL_DATASET_ID,
+    datasetLoader: loadTutorEvalDataset,
+    tutor,
+    tutorDescriptor: {
+      provider: "synthetic",
+      model: "scripted-guided-tutor",
+      modelVersion: "foundation",
+      promptId: "synthetic-guided",
+      promptVersion: "1.0.0",
+      temperature: 0,
+      seed: 0,
+    },
+    runsPerCase: 1,
+    runId: "tutor-eval-v0.1-synthetic-guided",
   });
-  console.log(formatBenchmarkSummary(result));
-  await writeBenchmarkResult(
+  console.log(formatTutorEvalSummary(result));
+  await writeTutorEvalResult(
     result,
-    resolve(process.cwd(), "artifacts", "benchmark-result.json"),
+    resolve(process.cwd(), "artifacts", "tutor-eval-v0.1-result.json"),
   );
 }
 
 try {
   await main();
 } catch (error) {
-  if (error instanceof BenchmarkConfigurationError) {
-    console.error(`${error.code}: ${error.message}`);
-  } else {
-    console.error("runner_failed: Benchmark runner failed.");
-  }
+  console.error(
+    error instanceof Error ? error.message : "TutorEval runner failed.",
+  );
   process.exitCode = 1;
 }
