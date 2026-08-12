@@ -16,24 +16,58 @@ This skill governs changes to the public, provider-independent Tutor Benchmark. 
 - Keep provider-specific fields in adapters. Do not add vendor response IDs, model fields, token data, stop reasons, credentials, prompts, or hidden reasoning to core results.
 
 ## Workflow
+This Skill is the required repo-local orchestration layer for Tutor Benchmark repository write tasks. It directly owns the complete engineering and GitHub delivery lifecycle; available GitHub connector, git, and gh tools may support execution but are not a second workflow layer.
 
-This Skill is the required repo-local orchestration layer for Tutor Benchmark repository write tasks. It owns the engineering sequence and delegates GitHub-specific operations to the installed specialist skills; it does not replace those plugins.
+---
 
-### 1. Determine scope and workflow mode
+# 1. Determine the requested scope
 
-Classify the request before choosing a branch:
+Start by identifying exactly what the user asked to change.
 
-- Read-only: inspect, explain, or review without changing files. Do not create a branch.
-- New write task: feature, fix, refactor, maintenance, rules, documentation, tests, or Skill changes. This requires the hard preflight and a fresh branch before the first edit.
-- Existing PR continuation: explicitly continue an open PR or address its review, CI, or stabilization work. Continue that PR's exact head branch and do not create a second PR.
+Classify the task:
 
-Rules-only changes are still write tasks. Respect an explicit user limit such as analysis-only, no commit, no push, no PR, or no merge; otherwise carry a scoped task through the full delivery workflow. Do not start a later Foundation or roadmap phase as follow-up work.
+~~~text
+feature
+fix
+refactor
+maintenance
+rules or documentation
+tests
+~~~
 
-### 2. Hard preflight before writing
+Identify explicit exclusions.
 
-For a new write task, before editing any file, run:
+Do not automatically expand the task into another Foundation or roadmap phase.
 
-```text
+## 1.1 Select the workflow mode
+
+Use exactly one of these modes before choosing a branch:
+
+### A. Read-only task
+
+Examples: audit, review, explain, inspect, or research.
+
+If no file will be modified, do not create a branch. Read the repository state and report the evidence only.
+
+### B. New write task
+
+Examples: feature, fix, refactor, maintenance, rules maintenance, docs maintenance, Skill maintenance, or test modification.
+
+This mode requires the hard preflight in section 2 and a task-specific fresh branch from the latest origin/main before the first file edit. Rules-only changes are still write tasks.
+
+### C. Existing PR continuation
+
+If the user explicitly asks to continue an existing open PR or to address its review, CI, or stabilization work, inspect and continue that PR's exact head branch. Do not create another branch or a second PR. Verify the PR head branch, local branch, and PR HEAD SHA before writing.
+
+For roadmap work, read only the relevant Foundation or project documentation and do not begin a later phase without explicit scope.
+
+---
+
+# 2. HARD PREFLIGHT BEFORE WRITING
+
+For mode B, before editing, run:
+
+~~~bash
 git status --short
 git status -sb
 git branch --show-current
@@ -42,108 +76,760 @@ git fetch origin
 git rev-parse origin/main
 git worktree list
 git status --short
-```
+~~~
 
-The preflight must establish a clean current worktree on `main`, `HEAD` equal to `origin/main`, no detached HEAD, no unfinished merge/rebase, no unknown local changes, and no worktree ownership conflict. If any condition is false, STOP and report the actual state.
+The preflight must establish:
 
-Never use `git stash`, `git reset`, `git restore`, `git clean`, `git checkout -- .`, worktree removal/prune, branch deletion, or unrelated commits to manufacture a clean checkout. Never overwrite WIP or stage unrelated changes. A dirty state may continue only when it is proven to belong to the exact existing PR task.
+* the current worktree is clean
+* the current branch is main
+* HEAD equals origin/main
+* there are no unknown local changes
+* no other worktree must be modified or resolved to begin this task
 
-For an existing PR continuation, inspect and verify the PR head branch, local branch, and PR HEAD SHA before writing. If they do not correspond, STOP.
+If any condition fails, STOP. Do not stash, reset, restore, clean, checkout away local changes, commit unrelated changes, delete or prune worktrees, or alter WIP branches.
 
-### 3. Fresh branch before the first write
+For mode C, inspect the existing PR first and verify its exact head branch, the local checkout, and the PR HEAD SHA. A dirty state is only continuable when it is proven to belong to that exact PR task.
 
-For a new task, create and switch to a short-lived branch from the validated latest `origin/main` before editing:
+Never discard unknown user changes.
 
-```text
+Never use git reset --hard as a routine synchronization method.
+
+---
+
+# 3. Load relevant benchmark context
+
+Read only documentation and source relevant to the task.
+
+Common sources:
+
+~~~text
+AGENTS.md
+README.md
+package.json
+package-lock.json
+src/
+tests/
+scenarios/
+rubrics/
+docs/ when directly relevant
+~~~
+
+Then inspect the actual contracts, adapters, evaluator, runner, report, and tests touched by the request.
+
+When documentation and code disagree:
+
+* trust verified implementation behavior
+* determine whether documentation is stale
+* update documentation if this task touches that boundary
+
+Do not implement based only on filenames or documentation assumptions.
+
+---
+
+# 4. Perform a proportional architecture audit
+
+For small changes, keep this brief.
+
+For contract, evaluator, adapter, runner, or workflow changes, determine:
+
+~~~text
+current entry point
+call chain
+scenario and rubric validation
+TutorUnderTest adapter boundary
+evaluator and result flow
+report boundary
+privacy and security boundary
+test coverage
+rollback or failure boundary
+~~~
+
+For multi-step execution specifically identify:
+
+~~~text
+step order
+partial results
+failure isolation
+retry safety
+cleanup
+external effects
+~~~
+
+Do not pretend external provider calls and local result persistence form one ACID transaction.
+
+---
+
+# 5. Choose the minimum sufficient design
+
+Prefer the smallest design that genuinely improves:
+
+* correctness
+* maintainability
+* testability
+* architecture boundaries
+
+Before introducing an abstraction ask:
+
+> Does this represent a real benchmark or substitution boundary?
+
+Do not introduce without strong evidence:
+
+~~~text
+BaseUseCase
+BaseRepository
+Manager
+Coordinator
+GatewayFactory
+DI Container
+Service Locator
+CommandBus
+EventBus
+CQRS framework
+new global state library
+~~~
+
+Keep the dependency flow:
+
+~~~text
+Scenario
+-> TutorUnderTest adapter
+-> Tutor output
+-> evaluator
+-> result
+-> report
+~~~
+
+---
+
+# 6. Preserve scope and benchmark boundaries
+
+Do not perform unrelated refactors.
+
+Do not automatically:
+
+* add real model or provider calls
+* add LLM-as-Judge or model voting
+* import Review Workspace internals
+* add a database, dashboard, or large dataset
+* add complex statistics or calibration claims
+* change the product boundary
+* alter Foundation phase limits
+* upgrade major dependencies
+* replace the TypeScript toolchain
+
+If an unrelated issue blocks correctness, fix the minimum blocker and explain why.
+
+Otherwise record it as residual work.
+
+---
+
+# 7. Establish or continue the task branch
+
+For mode B, after the hard preflight create and switch to a fresh task-specific branch from the validated origin/main:
+
+Use:
+
+~~~text
 feature/<scope>
 fix/<scope>
 refactor/<scope>
 chore/<scope>
-```
+~~~
 
-Do not start a new independent task on `main`, detached HEAD, a stale task branch, an unrelated feature branch, or a WIP branch. If a desired branch already exists locally, remotely, or in another worktree, inspect its history and ownership; never overwrite unknown history or bypass a worktree conflict.
+Example:
 
-### 4. Audit, design, and implementation
+~~~bash
+git switch -c chore/<scope> origin/main
+~~~
 
-Read the applicable `AGENTS.md`, README, package scripts, contracts, tests, and only the architecture context relevant to the task. Inspect the actual call chain, data flow, persistence boundary, external effects, error semantics, and test boundary before editing.
+Confirm the branch and clean state before the first file edit. If the desired branch name already exists locally or remotely, inspect its history and ownership; never overwrite unknown history.
 
-Keep the Foundation product boundary intact: synthetic, deterministic, typed, reproducible evaluation only. Do not add real model calls, provider SDKs, LLM judges, Review Workspace imports, databases, dashboards, large datasets, complex statistics, or unrelated product behavior without a separately scoped task.
+If Git reports that the branch is already used by another worktree, STOP and report the conflicting branch, worktree path, current HEAD, and current branch. Do not switch to detached HEAD, silently use an unrelated branch, delete the worktree, or force the operation.
 
-Choose the smallest design that proves the requested behavior. Keep core contracts provider-independent, keep provider details in adapters, and never persist credentials, raw provider payloads, prompts, or hidden reasoning.
+For mode C, continue the verified exact PR head branch instead of creating a new branch. Read-only mode requires no branch.
 
-### 5. Validate and review the complete diff
+Never perform a new write task directly on main, detached HEAD, an unrelated feature branch, or a WIP branch.
 
-Test behavior rather than weakening benchmark expectations. Cover validation, adapter behavior, deterministic evaluator semantics, per-scenario isolation, stable errors, result schema, and reproducibility as applicable.
+---
 
-For rules-only changes limited to repository instructions and this Skill, run at least `git diff --check` and any applicable rules or Markdown validation. For runtime changes, run the repository gates listed below and relevant targeted checks. Before committing, inspect `git status`, `git diff --check`, the complete diff, changed-file scope, secrets/private data, generated outputs, and benchmark-integrity boundaries.
+# 8. Implement incrementally
 
-Do not delete failing scenarios, lower thresholds, rewrite expected answers, add model-specific exceptions, skip tests, weaken assertions, disable lint/security checks, or use broad `any` merely to make validation pass.
+Follow the existing provider-independent benchmark architecture.
 
-### 6. Route GitHub work to installed specialist skills
+Keep scenario loading, validation, adapter execution, evaluation, result construction, and reporting responsibilities separated.
 
-When the task materially depends on live repository, branch, pull request, issue, review, CI, or remote state, read and follow the matching installed skill:
+When changing contracts:
 
-- General repository, PR, or issue context: `github` (`skills://plugins/github/github/skill.md`).
-- PR review comments or requested changes: `gh-address-comments` (`skills://plugins/github/gh-address-comments/skill.md`).
-- GitHub Actions or CI failures: `gh-fix-ci` (`skills://plugins/github/gh-fix-ci/skill.md`).
-- Commit, push, and PR publication: `yeet` (`skills://plugins/github/yeet/skill.md`).
+* keep identifiers stable and versionable
+* validate runtime input rather than relying on TypeScript assertions
+* keep provider-specific metadata in adapters
+* do not persist credentials, raw provider payloads, prompts, or hidden reasoning
 
-The repo-local Skill owns project orchestration. The installed GitHub skills own specialist GitHub operations. Prefer the GitHub connector for repository metadata, PRs, issues, patches, comments, reviews, labels, and remote state. Use local `git` for status, branches, worktrees, diffs, staging, commits, and pushes. Use `gh` for authentication, current-branch PR discovery, Actions checks and logs, and connector coverage gaps. Ordinary coding questions with no live GitHub dependency do not require a GitHub skill.
+When changing evaluators or runners:
 
-### 7. Standing authorization and safe failure boundaries
+* preserve deterministic ordering
+* isolate per-scenario failures
+* retain criterion-level diagnostics and weighted totals
+* never turn a proxy evaluator into a claim of complete teaching quality
 
-Unless the user explicitly limits the phase, normal scoped delivery is authorized through commit, push, PR creation, inspection of CI/review state, fixes for task-related CI failures, merge of a healthy PR, and post-merge cleanup. A specialist skill's generic confirmation prompt must not turn an authorized repository workflow into an unnecessary intermediate stop.
+---
 
-STOP instead when there are unrelated dirty changes, unclear ownership, authentication or permission failure, dangerous merge conflict, an unverified or changed PR HEAD, a CI failure unrelated to this task, sensitive files, or requested scope expansion. Fix only task-related failures and report external or unrelated blockers without changing unrelated code.
+# 9. Add tests that exercise behavior
 
-### 8. Commit, push, and pull request
+Architecture source checks are useful but cannot replace direct behavior tests.
 
-After local validation and complete-diff review:
+For benchmark changes prefer:
 
-1. Stage only intended files; never use `git add -A` on a mixed worktree.
-2. Commit with a clear Conventional Commit message.
-3. Push the task branch without force.
-4. Create or update the PR targeting `main`.
+~~~text
+real function or runner invocation
++
+synthetic fixtures
++
+asserted inputs
++
+asserted call order when applicable
++
+asserted results
++
+asserted failure semantics
+~~~
 
-The PR must describe the change, architecture or behavior, compatibility, actual validation, and residual risks. Do not stop after commit, push, or PR creation.
+Cover validation, adapter behavior, deterministic evaluator behavior, per-scenario isolation, stable errors, result schema, and reproducibility as applicable.
 
-### 9. Inspect CI and review state
+Do not use whole-result snapshots as the only evidence.
 
-After opening or updating the PR, inspect the PR HEAD SHA, mergeability, conflicts, required checks, Actions runs, reviews, requested changes, and unresolved blocking threads. Wait for checks to reach a terminal state when the environment permits.
+---
 
-If a GitHub Actions check fails, use `gh-fix-ci`, retrieve the real check and logs, classify the root cause, fix only a task-related regression, run relevant local validation, commit and push the fix, and recheck the new PR HEAD. Never merge based on checks for an older HEAD.
+# 10. Run local quality gates
 
-### 10. Merge gate
+For rules-only changes limited to repository instructions and the engineering Skill, run at least:
 
-Merge only when the requested change is complete, relevant local validation passes, required checks are green, review is unblocked, no conflict exists, no sensitive file or scope expansion is present, and the PR HEAD is unchanged since validation. Re-read the HEAD immediately before merge and bind the merge to that SHA when supported.
+~~~bash
+git diff --check
+~~~
 
-Prefer squash merge. Never force-push, direct-push `main`, admin-bypass protections, remove required checks, merge a failing/conflicting PR, or merge an unverified HEAD.
+Also run applicable repository rules, Markdown, frontmatter, or structure validation. Do not mechanically run unrelated product checks when no runtime boundary changed; state the rules-only scope and the commands actually run in the PR.
 
-### 11. Cleanup, sync, and post-merge verification
+For ordinary Foundation TypeScript changes run at minimum:
 
-After merge, confirm no open PR depends on the task branch before deleting it. Remove only the completed task branch/worktree created for this task; preserve unrelated worktrees, uncommitted changes, and WIP branches. Return to `main`, run `git pull --ff-only origin main`, confirm the worktree is clean, and run the required post-merge smoke or rules checks against the merged commit.
+~~~bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run benchmark
+~~~
 
-### 12. Final report
+Run additional targeted tests when relevant.
 
-Report only verified facts:
+Do not claim a test passed unless it actually ran and passed.
 
-- implementation and validation
-- task branch and commit SHA
-- PR number, URL, and status
-- CI and review status
-- merge method and final `main` SHA
-- post-merge checks
-- remaining blockers or intentionally deferred work
+---
 
-Use this sequence for release-ready work:
+# 11. Handle failures correctly
 
-```text
-scope -> preflight -> latest origin/main -> fresh branch
--> audit/design -> implementation -> tests -> benchmark-integrity review
--> complete diff -> commit -> push -> PR -> CI/review
--> verify HEAD -> squash merge -> cleanup -> sync main
--> post-merge verification -> final report
-```
+If a quality gate fails, first determine whether it is:
+
+~~~text
+regression introduced by this task
+existing repository failure
+environment failure
+external service failure
+~~~
+
+Fix regressions introduced by this task before proceeding.
+
+Do not make validation green by:
+
+* deleting scenarios or assertions
+* changing expected answers to match a tutor
+* lowering thresholds
+* adding model-specific exceptions
+* skipping a failing case
+* disabling lint or security checks
+* suppressing TypeScript errors
+* using broad any
+
+If a real external or environment blocker cannot be resolved safely, stop before Merge and report it.
+
+---
+
+# 12. Review the final diff
+
+Before committing run:
+
+~~~bash
+git status
+git diff --check
+git diff
+~~~
+
+Review the complete patch as if reviewing another engineer's PR.
+
+Look for:
+
+~~~text
+unrelated changes
+debug logs
+temporary code
+TODO hacks
+dead code
+duplicated logic
+unsafe retries
+secret leakage
+unexpected contract changes
+unexpected generated output
+unnecessary abstractions
+missing tests
+stale documentation
+~~~
+
+Do not commit generated artifacts unless the repository intentionally tracks them.
+
+Never commit:
+
+~~~text
+.env
+API keys
+tokens
+cookies
+passwords
+private keys
+personal user data
+local logs
+benchmark result output
+~~~
+
+---
+
+# 13. Update documentation only when required
+
+Update relevant docs for real changes to:
+
+* contracts or result schema
+* evaluation semantics
+* development workflow
+* privacy or security boundaries
+* Foundation phase status
+* public behavior
+
+Do not update every document mechanically.
+
+Do not turn AGENTS.md into a changelog.
+
+Never mark a phase complete if defined work remains pending.
+
+---
+
+# 14. Commit
+
+Only commit after required local quality gates pass.
+
+Use Conventional Commits.
+
+Examples:
+
+~~~text
+feat: add ...
+fix: correct ...
+refactor: extract ...
+test: cover ...
+docs: record ...
+chore: maintain ...
+~~~
+
+Prefer a small number of logically complete commits.
+
+Do not split changes only to produce more commits.
+
+---
+
+# 15. Push
+
+Push the work branch after local verification.
+
+For a new branch:
+
+~~~bash
+git push -u origin <branch>
+~~~
+
+For an existing upstream:
+
+~~~bash
+git push
+~~~
+
+Force pushes are prohibited:
+
+~~~text
+git push --force
+git push --force-with-lease
+~~~
+
+Do not use either command, including to repair a rejected or divergent push.
+
+If rejected as non-fast-forward, inspect remote history and do not overwrite it.
+
+---
+
+# 16. Create the Pull Request
+
+Create a PR:
+
+~~~text
+base: main
+head: current work branch
+~~~
+
+PR title should summarize the actual change.
+
+PR body must include:
+
+## Summary
+
+What changed and why.
+
+## Architecture / Behavior
+
+Only important benchmark or workflow facts.
+
+## Compatibility
+
+State relevant:
+
+* contract or result compatibility
+* fixture or scenario impact
+* provider-independent boundary impact
+* retry or partial-result impact
+
+## Testing
+
+List only commands actually executed.
+
+Example:
+
+~~~text
+- npm run typecheck
+- npm run lint
+- npm test
+- npm run build
+- npm run benchmark
+~~~
+
+Never use:
+
+~~~text
+Not run (not requested)
+~~~
+
+when the task requires validation.
+
+If something was not run, give the real reason.
+
+Never claim unrun checks.
+
+## Residual risks
+
+Only real remaining risks.
+
+Do not stop after creating the PR.
+
+---
+
+# 17. Inspect remote PR state
+
+After creating or updating the PR inspect:
+
+~~~text
+PR HEAD SHA
+mergeability
+merge conflicts
+required checks
+GitHub Actions
+reviews
+changes requested
+unresolved blocking review threads
+branch protection when available
+~~~
+
+Use the GitHub connector, git, or gh as available execution tools. Do not assume local PASS means remote PASS.
+
+If checks are pending, continue checking until they reach a terminal state when the environment permits.
+
+---
+
+# 18. Respond to review feedback
+
+If blocking review feedback appears and is within scope:
+
+~~~text
+inspect
+->
+fix
+->
+test
+->
+review complete diff
+->
+commit
+->
+push
+->
+wait for new CI
+~~~
+
+Do not merge based on old CI after changing the PR HEAD.
+
+If requested feedback substantially expands scope, do not perform an unrelated phase just to satisfy it. Keep the PR focused and report the scope conflict.
+
+---
+
+# 19. Auto-merge hard gate
+
+Automatic Merge is allowed only when all applicable conditions are true:
+
+~~~text
+local required gates PASS
+remote required checks PASS
+GitHub Actions PASS
+no merge conflict
+no Changes Requested
+no unresolved blocking review
+no sensitive files
+no unexpected scope expansion
+PR base = main
+PR HEAD = the validated HEAD
+~~~
+
+Immediately before Merge, re-read PR HEAD SHA.
+
+If it changed since validation:
+
+**do not Merge.**
+
+Validate the new HEAD first.
+
+A required check that is pending or failed is a hard stop. Do not merge a PR with a conflict, Changes Requested, or an unresolved blocking review thread.
+
+---
+
+# 20. Never bypass GitHub protections
+
+Do not:
+
+~~~text
+admin bypass
+force merge
+disable branch protection
+remove required checks
+direct push main instead of PR
+merge a failing PR
+merge a conflicting PR
+merge an unverified new HEAD
+~~~
+
+Automation is subordinate to correctness.
+
+---
+
+# 21. Merge strategy
+
+When all hard gates pass:
+
+prefer:
+
+~~~text
+Squash and merge
+~~~
+
+Use a clear Conventional Commit-style squash title.
+
+Do not use a meaningless default title.
+
+---
+
+# 22. Branch cleanup
+
+After successful Merge:
+
+check whether another open PR depends on the branch.
+
+If not:
+
+delete the merged remote work branch.
+
+Do not delete a branch that is still used as the base of stacked work.
+
+---
+
+# 23. Sync final main
+
+After Merge:
+
+~~~bash
+git fetch origin
+git switch main
+git pull --ff-only origin main
+git status
+~~~
+
+Do not use reset --hard as the default sync mechanism.
+
+---
+
+# 24. Post-merge verification
+
+Run lightweight checks against final main.
+
+For rules or Skill-only changes run the applicable structural checks and git diff --check.
+
+For ordinary Foundation changes run the relevant project gates, normally:
+
+~~~bash
+npm run typecheck
+npm test
+npm run benchmark
+~~~
+
+When appropriate also run npm run lint or npm run build explicitly.
+
+This confirms the actual merged commit, not merely the feature branch, is healthy.
+
+---
+
+# 25. Stop after the requested task
+
+Do not automatically start the next Foundation or roadmap task.
+
+For example:
+
+~~~text
+Foundation contracts merged
+~~~
+
+means stop.
+
+Do not continue to a judge phase, real provider integration, Review Workspace adapter, or another unrelated migration unless the user explicitly requested it.
+
+---
+
+# 26. Failure policy
+
+If push, PR, CI, or Merge cannot complete, identify the actual blocker.
+
+Examples:
+
+~~~text
+authentication
+permission
+branch protection
+remote divergence
+merge conflict
+failed CI
+external outage
+environment limitation
+~~~
+
+Resolve only when safe and within scope.
+
+Otherwise stop at the last safe state.
+
+Never claim:
+
+~~~text
+pushed
+merged
+tests passed
+~~~
+
+unless verified.
+
+---
+
+# 27. Final report
+
+After successful delivery report:
+
+~~~text
+Implementation
+- concise description
+
+Validation
+- typecheck: PASS/FAIL
+- lint: PASS/FAIL
+- test: PASS/FAIL
+- build: PASS/FAIL
+- benchmark: PASS/FAIL
+- structural/rules checks: PASS/FAIL if applicable
+
+Git
+- branch
+- commits
+
+Pull Request
+- number
+- title
+- URL
+- remote checks
+
+Merge
+- method
+- result
+- final main SHA
+
+Post-merge
+- checks executed
+
+Residual risks
+- only real unresolved issues
+~~~
+
+Keep the report concise.
+
+---
+
+# 28. Core completion rule
+
+The normal successful workflow is:
+
+~~~text
+Understand
+->
+Audit
+->
+Implement
+->
+Direct tests
+->
+Local quality gates
+->
+Review complete diff
+->
+Commit
+->
+Push
+->
+Pull Request
+->
+Remote CI / Review
+->
+Verify HEAD SHA
+->
+Squash Merge
+->
+Clean branch
+->
+Sync main
+->
+Post-merge verification
+->
+STOP
+~~~
+
+If any critical condition fails, stop at the last safe state instead of bypassing the guardrail.
+
+The quality of the resulting main branch matters more than successfully completing an automated Merge.
 
 ## Contracts and results
 

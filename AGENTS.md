@@ -42,7 +42,7 @@ The repo-local Skill owns architecture audit, implementation, validation, GitHub
 - Preserve unrelated user changes, WIP branches, and worktrees. STOP on unknown dirty changes, detached HEAD, unfinished merge/rebase, ambiguous ownership, or conflicting worktree. Never stash, reset, restore, clean, `git checkout -- .`, delete or prune user work, overwrite WIP, or commit unrelated changes.
 - Unless the user explicitly limits the phase, normal scoped delivery is authorized through commit, push, PR creation, task-related CI fixes, healthy merge, and post-merge cleanup. Safety STOP conditions and unrelated CI blockers remain hard stops.
 - Merge requires green required checks, unblocked review, no conflict, unchanged verified PR HEAD, no sensitive files, and no scope expansion. Do not force-push, direct-push `main`, admin-bypass protections, or merge an unverified PR. Do not configure GitHub branch protection in the Foundation phase.
-- The repo-local Skill must route live GitHub work to the installed specialist skills: `github` (`skills://plugins/github/github/skill.md`), `gh-address-comments` (`skills://plugins/github/gh-address-comments/skill.md`), `gh-fix-ci` (`skills://plugins/github/gh-fix-ci/skill.md`), and `yeet` (`skills://plugins/github/yeet/skill.md`).
+- The repo-local Skill directly owns the complete GitHub delivery lifecycle. The available GitHub connector and local `git`/`gh` commands are execution tools, not an additional mandatory workflow layer.
 - Prefer the GitHub connector for structured remote metadata, PRs, issues, patches, comments, reviews, and labels. Use local `git` for checkout and local history operations, and `gh` for authentication, current-PR discovery, Actions checks/logs, and connector gaps.
 
 ### Project-specific facts
