@@ -9,7 +9,7 @@ This repository is not:
 - a Review Workspace submodule;
 - a model leaderboard or a complete measure of teaching quality.
 
-## 0.1 Foundation
+## 0.1 Foundation and TutorEval
 
 The current release is a small foundation proving the path:
 
@@ -19,15 +19,17 @@ Scenario -> TutorUnderTest adapter -> Tutor output -> deterministic evaluators -
 
 It contains runtime-validated JSON scenarios and rubrics, a scripted synthetic tutor adapter, pure deterministic evaluators, a failure-isolating runner, human-readable output, and a JSON report writer.
 
+TutorEval v0.1 adds case-scoped visible Tutor input, evaluator-only hidden annotations, disclosure policies, atomic correctness/diagnosis/guidance/adaptation/actionability rubrics, centralized aggregation, critical-failure gates, dataset/case versioning, repeated runs, complete run metadata, and a typed Judge boundary. See [the TutorEval guide](docs/tutor-eval-v0.1.md).
+
 The contract tests compare a deliberately bad scripted tutor with a guided scripted tutor; the lower score comes from the same rubric and evaluator logic, without tutor-specific exceptions.
 
 ## AI Tutor Judge v0.1
 
-The repository now includes the provider-independent Judge v0.1 contract described in [the system prompt](prompts/ai-tutor-judge-system-v0.1.md). It validates the judge input shape, the JSON result shape, the seven 0–5 dimensions, critical-failure quality gates, case-rubric results, confidence bounds, and the explicit pedagogy-score formula.
+The repository also retains the earlier provider-independent Judge v0.1 contract described in [the legacy system prompt](prompts/ai-tutor-judge-system-v0.1.md) for compatibility. TutorEval's canonical Judge result is the case-scoped `TutorEvalJudgeResult` contract.
 
-This change is a prompt and contract layer only. It does not call an LLM, include a provider SDK, perform calibration, or claim that a judge result proves learning impact.
+The TutorEval Judge boundary is injection-only. This release does not call an LLM, include a provider SDK, perform calibration, or claim that a judge result proves learning impact.
 
-Deterministic checks such as answer-leakage and keyword coverage are useful proxies, not a scientific measurement of full tutoring quality. LLM judging, human calibration, repeated-run statistics, and richer pedagogical dimensions are future work.
+Deterministic checks such as answer-leakage and keyword coverage are useful proxies, not a scientific measurement of full tutoring quality. LLM judging, human calibration, variance/statistical analysis across repeated runs, and richer pedagogical dimensions are future work.
 
 ## Quick start
 
@@ -42,7 +44,7 @@ npm run build
 npm run benchmark
 ```
 
-`npm run benchmark` runs the synthetic guided tutor against the checked-in scenarios, prints a compact summary, and writes `artifacts/benchmark-result.json`. Generated results are ignored by Git. A pedagogical scenario failure is reported but does not make the CLI fail; configuration, adapter, or evaluation errors return a non-zero exit code.
+`npm run benchmark` runs the synthetic guided tutor against the checked-in TutorEval v0.1 cases, prints category scores and leakage/failure rates, and writes `artifacts/tutor-eval-v0.1-result.json`. Generated results are ignored by Git. A pedagogical scenario failure is reported but does not make the CLI fail; configuration, adapter, or evaluation errors return a non-zero exit code.
 
 ## Repository privacy
 
@@ -60,7 +62,7 @@ Review Workspace (`shuangyan123/demo`) is one possible future `TutorUnderTest` a
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md). 0.1 is complete; later phases are not started.
+See [docs/roadmap.md](docs/roadmap.md). The Foundation implementation is complete; real provider/Judge integration and learning-impact phases remain separate.
 
 ## License
 

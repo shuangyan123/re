@@ -17,7 +17,7 @@ import {
   type TutorScenario,
   type TutorScenarioTurn,
 } from "./scenario.js";
-import type { StudentState, TutorTurnOutput } from "./tutor.js";
+import type { StudentState, TutorTurnMetrics, TutorTurnOutput } from "./tutor.js";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -26,6 +26,7 @@ const evaluatorIds = new Set<DeterministicEvaluatorId>([
   "contains_required_concept",
   "response_length_range",
   "direct_answer_leak",
+  "matches_ground_truth",
   "empty_response",
   "structured_keyword_coverage",
 ]);
@@ -255,6 +256,8 @@ function isCriterionConfigValid(
       );
     case "direct_answer_leak":
       return isNonEmptyString(config?.forbiddenFinalAnswer);
+    case "matches_ground_truth":
+      return config === undefined || Object.keys(config).length === 0;
     case "empty_response":
       return config === undefined || Object.keys(config).length === 0;
     case "structured_keyword_coverage": {
@@ -396,9 +399,42 @@ export function assertValidTutorRubric(value: unknown): asserts value is TutorRu
   parseTutorRubric(value);
 }
 
+function isTutorTurnMetrics(value: unknown): value is TutorTurnMetrics {
+  const record = asRecord(value);
+  if (record === null) {
+    return false;
+  }
+  const tokenUsage = record.tokenUsage;
+  if (tokenUsage !== undefined) {
+    const tokenRecord = asRecord(tokenUsage);
+    if (
+      tokenRecord === null ||
+      Object.values(tokenRecord).some(
+        (item) =>
+          typeof item !== "number" ||
+          !Number.isFinite(item) ||
+          item < 0,
+      )
+    ) {
+      return false;
+    }
+  }
+  return ["latencyMs", "cost"].every((key) => {
+    const item = record[key];
+    return (
+      item === undefined ||
+      (typeof item === "number" && Number.isFinite(item) && item >= 0)
+    );
+  });
+}
+
 export function isTutorTurnOutput(value: unknown): value is TutorTurnOutput {
   const record = asRecord(value);
-  return record !== null && typeof record.text === "string";
+  return (
+    record !== null &&
+    typeof record.text === "string" &&
+    (record.metrics === undefined || isTutorTurnMetrics(record.metrics))
+  );
 }
 
 function isDiagnostic(value: unknown): value is { readonly code: string; readonly message: string } {

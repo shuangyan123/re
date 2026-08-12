@@ -1,4 +1,14 @@
+import type {
+  TutorEvalJudgeResult,
+} from "./tutor-eval-judge.js";
+import type {
+  TutorCriticalFailureSeverity,
+  TutorCriticalFailure,
+  TutorEvalCategory,
+} from "./tutor-eval.js";
+
 export const RESULT_SCHEMA_VERSION = 1 as const;
+export const TUTOR_EVAL_RESULT_SCHEMA_VERSION = 1 as const;
 
 export type ScenarioResultStatus = "passed" | "failed" | "error";
 
@@ -41,4 +51,102 @@ export interface BenchmarkRunResult {
   readonly errorCount: number;
   readonly totalScore: number;
   readonly scenarioResults: readonly ScenarioResult[];
+}
+
+export type TutorEvalRubricResultStatus = "PASS" | "PARTIAL" | "FAIL" | "ERROR";
+export type TutorEvalQualityGate = "PASS" | "FAIL";
+
+export interface TutorEvalDiagnostic {
+  readonly code: string;
+  readonly message: string;
+}
+
+export interface TutorEvalCriticalFailure {
+  readonly type: TutorCriticalFailure;
+  readonly severity: TutorCriticalFailureSeverity;
+  readonly evidence: string;
+}
+
+export interface TutorEvalRubricResult {
+  readonly rubricId: string;
+  readonly category: TutorEvalCategory;
+  readonly result: TutorEvalRubricResultStatus;
+  readonly score: number | null;
+  readonly weight: number;
+  readonly critical: boolean;
+  readonly diagnostics: readonly TutorEvalDiagnostic[];
+}
+
+export type TutorEvalCategoryScores = Readonly<
+  Record<TutorEvalCategory, number | null>
+>;
+
+export interface TutorEvalTokenUsage {
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+  readonly totalTokens?: number;
+}
+
+export interface TutorEvalTutorDescriptor {
+  readonly provider: string;
+  readonly model: string;
+  readonly modelVersion?: string;
+  readonly promptId?: string;
+  readonly promptVersion: string;
+  readonly temperature?: number;
+  readonly seed?: number;
+}
+
+export interface TutorEvalJudgeDescriptor {
+  readonly provider: string;
+  readonly model: string;
+  readonly modelVersion?: string;
+  readonly promptId?: string;
+  readonly promptVersion: string;
+  readonly temperature?: number;
+  readonly seed?: number;
+}
+
+export interface TutorEvalCaseRunResult {
+  readonly caseId: string;
+  readonly caseVersion: string;
+  readonly runIndex: number;
+  readonly status: "passed" | "failed" | "error";
+  readonly passed: boolean;
+  readonly rawTutorResponse: string | null;
+  readonly rawJudgeResult: TutorEvalJudgeResult | null;
+  readonly rubricResults: readonly TutorEvalRubricResult[];
+  readonly categoryScores: TutorEvalCategoryScores;
+  readonly overallScore: number | null;
+  readonly qualityGate: TutorEvalQualityGate;
+  readonly criticalFailures: readonly TutorEvalCriticalFailure[];
+  readonly answerLeakage: boolean;
+  readonly latencyMs: number | null;
+  readonly tokenUsage: TutorEvalTokenUsage | null;
+  readonly cost: number | null;
+  readonly diagnostics: readonly TutorEvalDiagnostic[];
+}
+
+export interface TutorEvalRunResult {
+  readonly schemaVersion: typeof TUTOR_EVAL_RESULT_SCHEMA_VERSION;
+  readonly runId: string;
+  readonly createdAt: string;
+  readonly startedAt: string;
+  readonly finishedAt: string;
+  readonly durationMs: number;
+  readonly datasetId: string;
+  readonly datasetVersion: string;
+  readonly tutor: TutorEvalTutorDescriptor;
+  readonly judge: TutorEvalJudgeDescriptor | null;
+  readonly runsPerCase: number;
+  readonly caseCount: number;
+  readonly caseRunCount: number;
+  readonly passedCount: number;
+  readonly failedCount: number;
+  readonly errorCount: number;
+  readonly categoryScores: TutorEvalCategoryScores;
+  readonly overallScore: number | null;
+  readonly criticalFailureRate: number;
+  readonly answerLeakageRate: number;
+  readonly caseResults: readonly TutorEvalCaseRunResult[];
 }

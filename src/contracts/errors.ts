@@ -1,6 +1,10 @@
 export type BenchmarkErrorCode =
   | "scenario_invalid"
   | "rubric_invalid"
+  | "tutor_eval_case_invalid"
+  | "tutor_eval_dataset_invalid"
+  | "tutor_eval_rubric_invalid"
+  | "tutor_eval_result_invalid"
   | "judge_input_invalid"
   | "judge_result_invalid"
   | "adapter_failed"
@@ -10,6 +14,10 @@ export type BenchmarkErrorCode =
 const stableMessages: Record<BenchmarkErrorCode, string> = {
   scenario_invalid: "Scenario configuration is invalid.",
   rubric_invalid: "Rubric configuration is invalid.",
+  tutor_eval_case_invalid: "TutorEval case configuration is invalid.",
+  tutor_eval_dataset_invalid: "TutorEval dataset configuration is invalid.",
+  tutor_eval_rubric_invalid: "TutorEval rubric configuration is invalid.",
+  tutor_eval_result_invalid: "TutorEval result is invalid.",
   judge_input_invalid: "AI Tutor Judge input is invalid.",
   judge_result_invalid: "AI Tutor Judge result is invalid.",
   adapter_failed: "Tutor adapter failed for this scenario.",
@@ -21,6 +29,10 @@ export class BenchmarkConfigurationError extends Error {
   readonly code:
     | "scenario_invalid"
     | "rubric_invalid"
+    | "tutor_eval_case_invalid"
+    | "tutor_eval_dataset_invalid"
+    | "tutor_eval_rubric_invalid"
+    | "tutor_eval_result_invalid"
     | "judge_input_invalid"
     | "judge_result_invalid";
 
@@ -28,6 +40,10 @@ export class BenchmarkConfigurationError extends Error {
     code:
       | "scenario_invalid"
       | "rubric_invalid"
+      | "tutor_eval_case_invalid"
+      | "tutor_eval_dataset_invalid"
+      | "tutor_eval_rubric_invalid"
+      | "tutor_eval_result_invalid"
       | "judge_input_invalid"
       | "judge_result_invalid",
   ) {
