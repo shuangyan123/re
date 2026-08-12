@@ -17,16 +17,17 @@ This skill governs changes to the public, provider-independent Tutor Benchmark. 
 
 ## Workflow
 
-1. Audit before editing: run `git status --short`, `git status -sb`, `git branch --show-current`, `git rev-parse HEAD`, and `git remote -v`. Inspect applicable `AGENTS.md` files, package scripts, call chains, contracts, persistence boundaries, and tests.
-2. Stop on unknown dirty work, conflicting worktrees, secrets, real user data, or an ambiguous scope that cannot be resolved safely. Never stash, reset, clean, overwrite, or delete user work to make a task easier.
-3. For an actually empty repository, allow exactly one direct `main` bootstrap commit. Record the exception in `AGENTS.md`; after bootstrap, use clean `main -> fetch -> fresh feature branch -> implementation -> PR -> CI -> merge`.
-4. Design the smallest change that proves the requested behavior. Keep runtime validation separate from orchestration and keep reporting separate from evaluation.
-5. Implement synthetic-only behavior unless the task explicitly authorizes a real external adapter. Do not fetch OpenAI, Gemini, Ollama, or Review Workspace in Foundation work.
-6. Test semantics, not whole-result snapshots. Cover validation, adapter behavior, deterministic evaluator behavior, per-scenario isolation, stable errors, result schema, and reproducibility.
-7. Run relevant quality gates, inspect `git diff --check` and the complete diff, check for secrets/private data/generated results, and verify that no scope boundary was crossed.
-8. For approved delivery, commit with a Conventional Commit, push without force, open/update the appropriate PR, poll CI to a terminal state, and merge only an unchanged, green, reviewed HEAD. After merge, sync `main`, rerun the required smoke checks, and report exact evidence.
+1. Audit before editing: run `git status --short`, `git status -sb`, `git branch --show-current`, `git rev-parse HEAD`, `git remote -v`, `git fetch origin`, `git rev-parse origin/main`, and `git worktree list`. Inspect applicable `AGENTS.md` files, package scripts, call chains, contracts, persistence boundaries, and tests.
+2. Stop on unknown dirty work, conflicting worktrees, secrets, real user data, or an ambiguous scope that cannot be resolved safely. Never stash, reset, clean, restore, overwrite, delete, or prune user work to make a task easier.
+3. Rules-only changes are still write tasks. Except for the one-time empty-repository bootstrap, require a clean `main` whose `HEAD` equals `origin/main`, then create a fresh short-lived `feature/`, `fix/`, `refactor/`, or `chore/` task branch from the validated `origin/main` before the first edit. Continue an existing PR only on its verified exact head branch.
+4. When the work depends on live repository, branch, pull request, issue, review, CI, or remote state, read and follow the installed GitHub skill that matches it: `github` (`skills://plugins/github/github/skill.md`) for general context, `gh-address-comments` (`skills://plugins/github/gh-address-comments/skill.md`) for review feedback, `gh-fix-ci` (`skills://plugins/github/gh-fix-ci/skill.md`) for Actions failures, and `yeet` (`skills://plugins/github/yeet/skill.md`) for commit/push/PR publication. Prefer the GitHub connector for structured remote data; use local `git` and `gh` for checkout and CLI-only operations.
+5. Design the smallest change that proves the requested behavior. Keep runtime validation separate from orchestration and keep reporting separate from evaluation.
+6. Implement synthetic-only behavior unless the task explicitly authorizes a real external adapter. Do not fetch OpenAI, Gemini, Ollama, or Review Workspace in Foundation work.
+7. Test semantics, not whole-result snapshots. Cover validation, adapter behavior, deterministic evaluator behavior, per-scenario isolation, stable errors, result schema, and reproducibility.
+8. Run relevant quality gates, inspect `git diff --check` and the complete diff, check for secrets/private data/generated results, and verify that no scope boundary was crossed.
+9. For normal repository write tasks, commit with a Conventional Commit, push without force, open/update the appropriate PR, poll CI and review state to a terminal decision, fix only task-related CI failures, and merge only an unchanged, green, unblocked HEAD. After merge, sync `main`, rerun the required smoke checks, and report exact evidence. Stop immediately at the requested phase boundary; do not start a later roadmap phase as follow-up work.
 
-Use this audit -> design -> branch -> implementation -> tests -> benchmark-integrity review -> diff -> commit -> PR -> CI -> merge -> cleanup -> sync sequence for release-ready work. Stop immediately at the requested phase boundary; do not start a later roadmap phase as follow-up work.
+Use this audit -> fetch -> fresh branch -> design -> implementation -> tests -> benchmark-integrity review -> diff -> commit -> push -> PR -> CI/review -> squash merge -> cleanup -> sync -> post-merge verification sequence for release-ready work.
 
 ## Contracts and results
 
