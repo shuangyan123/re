@@ -87,6 +87,15 @@ export interface TutorEvalTokenUsage {
   readonly totalTokens?: number;
 }
 
+/** Sanitized telemetry for one provider-independent Judge execution. */
+export interface TutorEvalJudgeMetrics {
+  readonly latencyMs: number;
+  readonly tokenUsage: TutorEvalTokenUsage | null;
+  /** Cost is null until a trustworthy provider-reported value is available. */
+  readonly cost: number | null;
+  readonly attempts: number;
+}
+
 export interface TutorEvalTutorDescriptor {
   readonly provider: string;
   readonly model: string;
@@ -104,6 +113,7 @@ export interface TutorEvalJudgeDescriptor {
   readonly promptId?: string;
   readonly promptVersion: string;
   readonly temperature?: number;
+  readonly reasoningEffort?: string;
   readonly seed?: number;
 }
 
@@ -115,6 +125,8 @@ export interface TutorEvalCaseRunResult {
   readonly passed: boolean;
   readonly rawTutorResponse: string | null;
   readonly rawJudgeResult: TutorEvalJudgeResult | null;
+  /** Optional for v1 result compatibility; populated for provider executions. */
+  readonly judgeMetrics?: TutorEvalJudgeMetrics | null;
   readonly rubricResults: readonly TutorEvalRubricResult[];
   readonly categoryScores: TutorEvalCategoryScores;
   readonly overallScore: number | null;

@@ -10,10 +10,30 @@ import type {
   TutorEvalRubricFailure,
 } from "./rubric.js";
 import type { TutorEvalCapabilityTag } from "./tutor-eval-taxonomy.js";
+import type { TutorEvalJudgeMetrics } from "./result.js";
 
 export const TUTOR_EVAL_JUDGE_SCHEMA_VERSION = 1 as const;
 
 export type TutorEvalJudgeRubricStatus = "PASS" | "PARTIAL" | "FAIL";
+
+export const TUTOR_EVAL_JUDGE_RUBRIC_STATUSES: readonly TutorEvalJudgeRubricStatus[] = [
+  "PASS",
+  "PARTIAL",
+  "FAIL",
+] as const;
+
+export const TUTOR_EVAL_JUDGE_FAILURE_MESSAGES: Readonly<
+  Record<TutorEvalJudgeFailureCode, string>
+> = {
+  judge_unavailable:
+    "This case contains Judge rubrics, but no Judge executor was configured.",
+  judge_result_invalid: "Judge output failed schema or contract validation.",
+  judge_timeout: "Judge execution timed out before a valid result was returned.",
+  judge_transport_error: "Judge execution failed before a valid result was returned.",
+  judge_rubric_missing: "Judge output omitted one or more requested Judge rubrics.",
+  judge_rubric_unexpected:
+    "Judge output returned a rubric outside the requested Judge rubric set.",
+};
 
 export interface TutorEvalJudgeInput {
   readonly caseId: string;
@@ -47,6 +67,16 @@ export interface TutorEvalJudgeInput {
  */
 export interface TutorEvalJudge {
   evaluate(input: TutorEvalJudgeInput): Promise<unknown>;
+  /** Optional telemetry-aware path; legacy injected Judges may use evaluate(). */
+  evaluateWithMetrics?(
+    input: TutorEvalJudgeInput,
+  ): Promise<TutorEvalJudgeEvaluation>;
+}
+
+/** Keeps sanitized execution telemetry separate from the validated Judge result. */
+export interface TutorEvalJudgeEvaluation {
+  readonly result: unknown;
+  readonly metrics?: TutorEvalJudgeMetrics | null;
 }
 
 export type TutorEvalJudgeFailureCode =
@@ -56,6 +86,23 @@ export type TutorEvalJudgeFailureCode =
   | "judge_transport_error"
   | "judge_rubric_missing"
   | "judge_rubric_unexpected";
+
+export class TutorEvalJudgeExecutionError extends Error {
+  readonly code: TutorEvalJudgeFailureCode;
+  readonly metrics?: TutorEvalJudgeMetrics;
+
+  constructor(
+    code: TutorEvalJudgeFailureCode,
+    metrics?: TutorEvalJudgeMetrics,
+  ) {
+    super(TUTOR_EVAL_JUDGE_FAILURE_MESSAGES[code]);
+    this.name = "TutorEvalJudgeExecutionError";
+    this.code = code;
+    if (metrics !== undefined) {
+      this.metrics = metrics;
+    }
+  }
+}
 
 export interface TutorEvalJudgeRubricResult {
   readonly rubricId: string;

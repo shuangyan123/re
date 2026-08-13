@@ -1,6 +1,8 @@
 import { BenchmarkConfigurationError } from "./errors.js";
 import {
   TUTOR_EVAL_CASE_SCHEMA_VERSION,
+  TUTOR_EVAL_CRITICAL_FAILURE_SEVERITIES,
+  TUTOR_EVAL_CRITICAL_FAILURE_TYPES,
   partitionTutorEvalRubrics,
   type DisclosurePolicy,
   type TutorCriticalFailure,
@@ -62,21 +64,13 @@ const evaluatorIds = new Set<DeterministicEvaluatorId>([
   "structured_keyword_coverage",
 ]);
 
-const criticalFailureTypes = new Set<TutorCriticalFailure>([
-  "severe_factual_error",
-  "misconception_reinforcement",
-  "incorrect_diagnosis",
-  "answer_leakage",
-  "student_task_takeover",
-  "critical_misconception_ignored",
-  "instruction_violation",
-]);
+const criticalFailureTypes = new Set<TutorCriticalFailure>(
+  TUTOR_EVAL_CRITICAL_FAILURE_TYPES,
+);
 
-const criticalFailureSeverities = new Set<TutorCriticalFailureSeverity>([
-  "minor",
-  "major",
-  "critical",
-]);
+const criticalFailureSeverities = new Set<TutorCriticalFailureSeverity>(
+  TUTOR_EVAL_CRITICAL_FAILURE_SEVERITIES,
+);
 
 const rubricBehaviors = new Set<NonNullable<TutorEvalRubric["behavior"]>>([
   "required",

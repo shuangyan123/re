@@ -35,6 +35,7 @@ import { executeTutorEvalJudge } from "./tutor-eval-judge-execution.js";
 
 export interface TutorEvalJudgeRunOptions extends TutorEvalJudgeDescriptor {
   readonly evaluate?: TutorEvalJudge["evaluate"];
+  readonly evaluateWithMetrics?: TutorEvalJudge["evaluateWithMetrics"];
 }
 
 export interface RunTutorEvalOptions {
@@ -110,6 +111,9 @@ function asJudgeDescriptor(
     ...(judge.promptId === undefined ? {} : { promptId: judge.promptId }),
     promptVersion: judge.promptVersion,
     ...(judge.temperature === undefined ? {} : { temperature: judge.temperature }),
+    ...(judge.reasoningEffort === undefined
+      ? {}
+      : { reasoningEffort: judge.reasoningEffort }),
     ...(judge.seed === undefined ? {} : { seed: judge.seed }),
   };
 }
@@ -135,6 +139,10 @@ function assertDescriptor(
       (typeof descriptor.temperature !== "number" ||
         !Number.isFinite(descriptor.temperature) ||
         descriptor.temperature < 0)) ||
+    ("reasoningEffort" in descriptor &&
+      descriptor.reasoningEffort !== undefined &&
+      (typeof descriptor.reasoningEffort !== "string" ||
+        descriptor.reasoningEffort.trim().length === 0)) ||
     (descriptor.seed !== undefined &&
       (typeof descriptor.seed !== "number" ||
         !Number.isInteger(descriptor.seed)))
@@ -157,7 +165,11 @@ function validateRunOptions(options: RunTutorEvalOptions): number {
   if (!Number.isInteger(runsPerCase) || runsPerCase < 1) {
     throw new BenchmarkConfigurationError("tutor_eval_dataset_invalid");
   }
-  if (options.judge?.evaluate === undefined && options.judge !== undefined) {
+  if (
+    options.judge !== undefined &&
+    options.judge.evaluate === undefined &&
+    options.judge.evaluateWithMetrics === undefined
+  ) {
     throw new BenchmarkConfigurationError("judge_result_invalid");
   }
   assertDescriptor(asTutorDescriptor(options), "tutor_eval_dataset_invalid");
@@ -221,6 +233,7 @@ function tutorAdapterErrorResult(
     passed: false,
     rawTutorResponse,
     rawJudgeResult: null,
+    judgeMetrics: null,
     rubricResults: [],
     categoryScores: emptyCategoryScores(),
     overallScore: null,
@@ -333,6 +346,7 @@ async function runCase(
     passed: !hasError && aggregate.passed,
     rawTutorResponse,
     rawJudgeResult: judgeExecution.rawJudgeResult,
+    judgeMetrics: judgeExecution.metrics,
     rubricResults,
     categoryScores: aggregate.categoryScores,
     overallScore: hasError ? null : aggregate.overallScore,

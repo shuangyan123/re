@@ -36,6 +36,41 @@ function isDiagnostic(value: unknown): boolean {
   );
 }
 
+function isTokenUsage(value: unknown): boolean {
+  const record = asRecord(value);
+  if (record === null) {
+    return false;
+  }
+  const allowedKeys = new Set(["inputTokens", "outputTokens", "totalTokens"]);
+  return Object.entries(record).every(
+    ([key, tokenCount]) =>
+      allowedKeys.has(key) &&
+      typeof tokenCount === "number" &&
+      Number.isInteger(tokenCount) &&
+      tokenCount >= 0,
+  );
+}
+
+function isJudgeMetrics(value: unknown): boolean {
+  const record = asRecord(value);
+  const allowedKeys = new Set(["latencyMs", "tokenUsage", "cost", "attempts"]);
+  return (
+    record !== null &&
+    Object.keys(record).every((key) => allowedKeys.has(key)) &&
+    typeof record.latencyMs === "number" &&
+    Number.isFinite(record.latencyMs) &&
+    record.latencyMs >= 0 &&
+    (record.tokenUsage === null || isTokenUsage(record.tokenUsage)) &&
+    (record.cost === null ||
+      (typeof record.cost === "number" &&
+        Number.isFinite(record.cost) &&
+        record.cost >= 0)) &&
+    typeof record.attempts === "number" &&
+    Number.isInteger(record.attempts) &&
+    record.attempts >= 1
+  );
+}
+
 function isCriticalFailure(value: unknown): boolean {
   const record = asRecord(value);
   return (
@@ -87,6 +122,17 @@ function isTutorDescriptor(value: unknown): boolean {
   );
 }
 
+function isJudgeDescriptor(value: unknown): boolean {
+  const record = asRecord(value);
+  return (
+    isTutorDescriptor(value) &&
+    record !== null &&
+    (record.reasoningEffort === undefined ||
+      (typeof record.reasoningEffort === "string" &&
+        record.reasoningEffort.trim().length > 0))
+  );
+}
+
 function isCategoryScores(value: unknown): value is TutorEvalCategoryScores {
   const record = asRecord(value);
   return (
@@ -108,6 +154,9 @@ function isCaseRunResult(value: unknown): value is TutorEvalCaseRunResult {
     typeof record.passed === "boolean" &&
     (typeof record.rawTutorResponse === "string" || record.rawTutorResponse === null) &&
     (record.rawJudgeResult === null || isTutorEvalJudgeResult(record.rawJudgeResult)) &&
+    (record.judgeMetrics === undefined ||
+      record.judgeMetrics === null ||
+      isJudgeMetrics(record.judgeMetrics)) &&
     Array.isArray(record.rubricResults) &&
     record.rubricResults.every(isRubricResult) &&
     isCategoryScores(record.categoryScores) &&
@@ -140,7 +189,7 @@ export function isTutorEvalRunResult(value: unknown): value is TutorEvalRunResul
     typeof record.datasetId === "string" &&
     typeof record.datasetVersion === "string" &&
     asRecord(record.tutor) !== null &&
-    (record.judge === null || asRecord(record.judge) !== null) &&
+    (record.judge === null || isJudgeDescriptor(record.judge)) &&
     typeof record.runsPerCase === "number" &&
     Number.isInteger(record.runsPerCase) &&
     record.runsPerCase >= 1 &&
