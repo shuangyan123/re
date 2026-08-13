@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
-import type { TutorEvalTutorDescriptor } from "../contracts/index.js";
+import type {
+  TutorEvalTutorDescriptor,
+  TutorGenerationSpec,
+} from "../contracts/index.js";
 
 export interface TutorResponseIdentityInput {
   readonly corpusId: string;
@@ -10,6 +13,7 @@ export interface TutorResponseIdentityInput {
   readonly caseId: string;
   readonly caseVersion: string;
   readonly tutor: TutorEvalTutorDescriptor;
+  readonly generationSpec?: TutorGenerationSpec;
   readonly runIndex: number;
 }
 
@@ -46,6 +50,29 @@ export function deriveTutorResponseId(
         : { reasoningEffort: input.tutor.reasoningEffort }),
       ...(input.tutor.seed === undefined ? {} : { seed: input.tutor.seed }),
     },
+    ...(input.generationSpec === undefined
+      ? {}
+      : {
+          generationSpec: {
+            specId: input.generationSpec.specId,
+            specVersion: input.generationSpec.specVersion,
+            prompt: {
+              id: input.generationSpec.prompt.id,
+              version: input.generationSpec.prompt.version,
+              sha256: input.generationSpec.prompt.sha256,
+            },
+            maxOutputTokens: input.generationSpec.maxOutputTokens,
+            ...(input.generationSpec.temperature === undefined
+              ? {}
+              : { temperature: input.generationSpec.temperature }),
+            ...(input.generationSpec.reasoningEffort === undefined
+              ? {}
+              : { reasoningEffort: input.generationSpec.reasoningEffort }),
+            ...(input.generationSpec.seed === undefined
+              ? {}
+              : { seed: input.generationSpec.seed }),
+          },
+        }),
     runIndex: input.runIndex,
   };
   const digest = createHash("sha256")

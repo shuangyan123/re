@@ -55,13 +55,16 @@ Structured Outputs. Live execution is explicit opt-in through
 prompt, rubric ownership, and request construction without network access. See
 [the 0.3B provider guide](docs/tutor-eval-v0.3b.md).
 
-TutorEval 0.4A adds a provider-independent, versioned Tutor response corpus
-boundary. A frozen corpus can be replayed through the current hybrid evaluator
-without regenerating Tutor output, and `npm run tutor:export-cases` exports
-only Tutor-visible case fields for a future host adapter. See [the 0.4A
-response corpus guide](docs/tutor-eval-v0.4a.md). This is a partial adapter
-boundary: no real Tutor provider or Review Workspace implementation is included
-in this repository.
+TutorEval 0.4A.1 adds a provider-independent, versioned Tutor generation
+contract. `TutorGenerationSpec` pins prompt ID/version/SHA-256, output limits,
+and benchmark-controlled parameters; `TutorExecutionPacket` pins canonical
+messages for an execution host; and `TutorResponseCorpus` can record the same
+generation identity separately from provider/model identity. Use
+`npm run tutor:export-execution` for the canonical benchmark packet and
+`npm run tutor:export-cases` for the earlier semantic Tutor-visible packet.
+See [the 0.4A.1 generation and corpus guide](docs/tutor-eval-v0.4a.md). This
+remains partial: no real Tutor provider or Review Workspace implementation is
+included in this repository.
 
 ## Quick start
 
@@ -80,6 +83,7 @@ Corpus workflows are explicit and offline by default:
 
 ```bash
 npm run tutor:export-cases -- -- --case fraction-misconception-001
+npm run tutor:export-execution -- -- --case fraction-misconception-001
 npm run tutor:corpus:validate -- -- --corpus path/to/corpus.json
 npm run benchmark:corpus -- -- --corpus path/to/corpus.json
 ```

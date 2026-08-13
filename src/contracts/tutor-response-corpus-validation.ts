@@ -10,6 +10,13 @@ import {
   type TutorVisibleCasePacketFile,
 } from "./tutor-response-corpus.js";
 import type { TutorEvalDataset } from "./tutor-eval.js";
+import {
+  isTutorGenerationSpec,
+  parseTutorGenerationSpec,
+  tutorGenerationSpecsEqual,
+  type TutorGenerationSpec,
+} from "./tutor-generation.js";
+import type { TutorExecutionPacketFile } from "./tutor-execution.js";
 import type {
   StudentState,
   TutorConversationMessage,
@@ -17,6 +24,7 @@ import type {
   TutorTokenUsage,
 } from "./tutor.js";
 import type { TutorEvalTutorDescriptor } from "./result.js";
+import { deriveTutorResponseId } from "../corpus/identity.js";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -209,6 +217,19 @@ function parseTutorDescriptor(value: unknown): TutorEvalTutorDescriptor | null {
   };
 }
 
+function parseOptionalGenerationSpec(
+  value: unknown,
+): TutorGenerationSpec | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  try {
+    return parseTutorGenerationSpec(value);
+  } catch {
+    return null;
+  }
+}
+
 function parseCandidateResponse(value: unknown): TutorCandidateResponse | null {
   const record = asRecord(value);
   if (
@@ -273,6 +294,7 @@ export function parseTutorResponseCorpus(value: unknown): TutorResponseCorpus {
     ? responsesValue.map(parseCandidateResponse)
     : null;
   const tutor = record?.tutor === undefined ? null : parseTutorDescriptor(record.tutor);
+  const generationSpec = parseOptionalGenerationSpec(record?.generationSpec);
   const provenance = provenances.has(record?.provenance as TutorResponseProvenance)
     ? record?.provenance as TutorResponseProvenance
     : null;
@@ -291,6 +313,7 @@ export function parseTutorResponseCorpus(value: unknown): TutorResponseCorpus {
       "coverage",
       "runsPerCase",
       "provenance",
+      "generationSpec",
       "tutor",
       "responses",
     ]) ||
@@ -305,6 +328,7 @@ export function parseTutorResponseCorpus(value: unknown): TutorResponseCorpus {
     !Number.isInteger(record.runsPerCase) ||
     record.runsPerCase < 1 ||
     provenance === null ||
+    generationSpec === null ||
     tutor === null ||
     responses === null ||
     responses.some((response): response is null => response === null) ||
@@ -339,6 +363,7 @@ export function parseTutorResponseCorpus(value: unknown): TutorResponseCorpus {
     coverage,
     runsPerCase: record.runsPerCase,
     provenance,
+    ...(generationSpec === undefined ? {} : { generationSpec }),
     tutor,
     responses: typedResponses,
   };
@@ -463,6 +488,8 @@ export type TutorResponseCorpusValidationIssueCode =
   | "dataset_mismatch"
   | "coverage_mismatch"
   | "tutor_descriptor_invalid"
+  | "generation_spec_mismatch"
+  | "response_identity_mismatch"
   | "provenance_mismatch"
   | "unknown_case"
   | "case_version_mismatch"
@@ -483,6 +510,7 @@ export interface TutorResponseCorpusValidationInput {
   readonly corpus: TutorResponseCorpus;
   readonly dataset: TutorEvalDataset;
   readonly requireFull?: boolean;
+  readonly executionPacket?: TutorExecutionPacketFile;
 }
 
 function isValidTutorDescriptor(
@@ -498,6 +526,22 @@ function isValidTutorDescriptor(
     (descriptor.temperature === undefined ||
       (Number.isFinite(descriptor.temperature) && descriptor.temperature >= 0)) &&
     (descriptor.seed === undefined || Number.isInteger(descriptor.seed))
+  );
+}
+
+function hasMatchingGenerationDescriptor(
+  corpus: TutorResponseCorpus,
+  generationSpec: TutorGenerationSpec,
+): boolean {
+  const tutor = corpus.tutor;
+  return (
+    tutor.promptId === generationSpec.prompt.id &&
+    tutor.promptVersion === generationSpec.prompt.version &&
+    (generationSpec.temperature === undefined ||
+      tutor.temperature === generationSpec.temperature) &&
+    (generationSpec.reasoningEffort === undefined ||
+      tutor.reasoningEffort === generationSpec.reasoningEffort) &&
+    (generationSpec.seed === undefined || tutor.seed === generationSpec.seed)
   );
 }
 
@@ -523,6 +567,22 @@ export function findTutorResponseCorpusValidationIssues(
   if (!isValidTutorDescriptor(corpus.tutor)) {
     issues.push({ code: "tutor_descriptor_invalid" });
   }
+  const generationSpec = corpus.generationSpec;
+  const validGenerationSpec =
+    generationSpec === undefined || isTutorGenerationSpec(generationSpec);
+  if (
+    generationSpec !== undefined &&
+    (!validGenerationSpec || !hasMatchingGenerationDescriptor(corpus, generationSpec))
+  ) {
+    issues.push({ code: "generation_spec_mismatch" });
+  }
+  if (
+    input.executionPacket !== undefined &&
+    (!validGenerationSpec ||
+      !tutorGenerationSpecsEqual(generationSpec, input.executionPacket.generationSpec))
+  ) {
+    issues.push({ code: "generation_spec_mismatch" });
+  }
   const casesById = new Map(dataset.cases.map((tutorEvalCase) => [tutorEvalCase.id, tutorEvalCase]));
   const responseIds = new Set<string>();
   const caseRuns = new Set<string>();
@@ -545,6 +605,28 @@ export function findTutorResponseCorpusValidationIssues(
     caseRuns.add(runKey);
     if (response.provenance !== corpus.provenance) {
       issues.push({ code: "provenance_mismatch", responseId: response.responseId });
+    }
+    if (validGenerationSpec && generationSpec !== undefined) {
+      const expectedResponseId = deriveTutorResponseId({
+        corpusId: corpus.corpusId,
+        corpusVersion: corpus.corpusVersion,
+        datasetId: corpus.datasetId,
+        datasetVersion: corpus.datasetVersion,
+        caseId: response.caseId,
+        caseVersion: response.caseVersion,
+        tutor: corpus.tutor,
+        generationSpec,
+        runIndex: response.runIndex,
+      });
+      if (response.responseId !== expectedResponseId) {
+        issues.push({
+          code: "response_identity_mismatch",
+          responseId: response.responseId,
+          caseId: response.caseId,
+          caseVersion: response.caseVersion,
+          runIndex: response.runIndex,
+        });
+      }
     }
     const tutorEvalCase = casesById.get(response.caseId);
     if (tutorEvalCase === undefined) {

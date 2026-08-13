@@ -19,6 +19,7 @@
     "calibration:report": "npm run build && node dist/src/cli/calibration-report.js",
     "calibration:aggregate": "npm run build && node dist/src/cli/calibration-aggregate.js",
     "tutor:export-cases": "npm run build && node dist/src/cli/tutor-export-cases.js",
+    "tutor:export-execution": "npm run build && node dist/src/cli/tutor-export-execution.js",
     "tutor:corpus:validate": "npm run build && node dist/src/cli/tutor-corpus-validate.js",
     "benchmark:corpus": "npm run build && node dist/src/cli/benchmark-corpus.js",
     "website:build": "npm run build && node dist/src/cli/website-build.js",

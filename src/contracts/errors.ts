@@ -13,6 +13,8 @@ export type BenchmarkErrorCode =
   | "calibration_data_invalid"
   | "calibration_packet_invalid"
   | "calibration_reference_invalid"
+  | "tutor_generation_spec_invalid"
+  | "tutor_execution_packet_invalid"
   | "tutor_response_corpus_invalid"
   | "adapter_failed"
   | "evaluation_failed"
@@ -33,6 +35,8 @@ const stableMessages: Record<BenchmarkErrorCode, string> = {
   calibration_data_invalid: "Calibration data is invalid.",
   calibration_packet_invalid: "Calibration packet is invalid.",
   calibration_reference_invalid: "Calibration reference set is invalid.",
+  tutor_generation_spec_invalid: "Tutor generation specification is invalid.",
+  tutor_execution_packet_invalid: "Tutor execution packet is invalid.",
   tutor_response_corpus_invalid: "Tutor response corpus is invalid.",
   adapter_failed: "Tutor adapter failed for this scenario.",
   evaluation_failed: "Evaluator failed for this scenario.",
@@ -55,6 +59,8 @@ export class BenchmarkConfigurationError extends Error {
     | "calibration_data_invalid"
     | "calibration_packet_invalid"
     | "calibration_reference_invalid"
+    | "tutor_generation_spec_invalid"
+    | "tutor_execution_packet_invalid"
     | "tutor_response_corpus_invalid";
 
   constructor(
@@ -73,6 +79,8 @@ export class BenchmarkConfigurationError extends Error {
       | "calibration_data_invalid"
       | "calibration_packet_invalid"
       | "calibration_reference_invalid"
+      | "tutor_generation_spec_invalid"
+      | "tutor_execution_packet_invalid"
       | "tutor_response_corpus_invalid",
   ) {
     super(stableMessages[code]);

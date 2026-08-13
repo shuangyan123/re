@@ -71,6 +71,9 @@ export async function runTutorResponseCorpus(
     selectedCaseCount: selected.cases.length,
     availableResponseCount: options.corpus.responses.length,
     missingCaseCount,
+    ...(options.corpus.generationSpec === undefined
+      ? {}
+      : { generationSpec: options.corpus.generationSpec }),
     tutor: options.corpus.tutor,
     evaluation,
   };
