@@ -651,19 +651,13 @@ export function findTutorResponseCorpusValidationIssues(
   if (input.requireFull === true && corpus.coverage !== "full") {
     issues.push({ code: "coverage_mismatch" });
   }
-  const selectedCaseIds = [...responsesByCase.keys()].sort((left, right) => left.localeCompare(right));
-  for (const caseId of selectedCaseIds) {
-    const runs = responsesByCase.get(caseId) ?? new Set<number>();
-    for (let runIndex = 1; runIndex <= corpus.runsPerCase; runIndex += 1) {
-      if (!runs.has(runIndex)) {
-        issues.push({ code: "missing_response", caseId, runIndex });
-      }
-    }
-  }
   if (requireFull) {
     for (const tutorEvalCase of dataset.cases) {
-      if (!responsesByCase.has(tutorEvalCase.id)) {
-        issues.push({ code: "missing_response", caseId: tutorEvalCase.id });
+      const runs = responsesByCase.get(tutorEvalCase.id) ?? new Set<number>();
+      for (let runIndex = 1; runIndex <= corpus.runsPerCase; runIndex += 1) {
+        if (!runs.has(runIndex)) {
+          issues.push({ code: "missing_response", caseId: tutorEvalCase.id, runIndex });
+        }
       }
     }
     if (responsesByCase.size !== dataset.cases.length) {

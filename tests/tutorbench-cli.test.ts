@@ -8,6 +8,8 @@ import { test } from "node:test";
 
 import * as publicApi from "../src/index.js";
 import { parseTutorbenchArgs } from "../src/cli/tutorbench.js";
+import { parseTutorbenchCollectArgs } from "../src/cli/tutorbench-collect.js";
+import { parseBenchmarkCorpusCliOptions } from "../src/cli/tutorbench-evaluate.js";
 
 interface CliResult {
   readonly exitCode: number | null;
@@ -60,7 +62,7 @@ test("tutorbench parser supports the small run option set", () => {
     "artifacts/result.json",
   ]);
   assert.equal(parsed.help, false);
-  if (parsed.help) {
+  if (parsed.help || !("run" in parsed)) {
     return;
   }
   assert.deepEqual(parsed.run, {
@@ -90,6 +92,56 @@ test("tutorbench parser supports the small run option set", () => {
       ]),
     /cannot be combined/,
   );
+});
+
+test("tutorbench exposes collect and evaluate command parsers with explicit identity", () => {
+  const collect = parseTutorbenchArgs([
+    "collect",
+    "--http",
+    "http://localhost:8000/respond",
+    "--provider",
+    "openai",
+    "--model",
+    "gpt-example",
+    "--provenance",
+    "recorded_model",
+    "--model-version=2026-08-13",
+    "--limit=2",
+    "--runs",
+    "2",
+    "--dry-run",
+  ]);
+  assert.equal(collect.help, false);
+  if (collect.help || !("collect" in collect) || collect.collect.help) {
+    return;
+  }
+  assert.equal(collect.collect.provider, "openai");
+  assert.equal(collect.collect.model, "gpt-example");
+  assert.equal(collect.collect.provenance, "recorded_model");
+  assert.equal(collect.collect.limit, 2);
+  assert.equal(collect.collect.runsPerCase, 2);
+  assert.equal(collect.collect.dryRun, true);
+
+  const evaluate = parseTutorbenchArgs([
+    "evaluate",
+    "--corpus",
+    "artifacts/corpus.json",
+    "--output",
+    "artifacts/result.json",
+  ]);
+  assert.equal(evaluate.help, false);
+  if (evaluate.help || !("evaluate" in evaluate) || evaluate.evaluate.help) {
+    return;
+  }
+  assert.equal(evaluate.evaluate.corpusPath, resolve(process.cwd(), "artifacts/corpus.json"));
+  assert.equal(evaluate.evaluate.outputPath, resolve(process.cwd(), "artifacts/result.json"));
+  assert.deepEqual(parseTutorbenchCollectArgs(["--help"]), { help: true });
+  assert.deepEqual(parseBenchmarkCorpusCliOptions(["--help"]), {
+    corpusPath: "",
+    requireFull: false,
+    liveJudge: false,
+    help: true,
+  });
 });
 
 test("tutorbench executable supports help and rejects invalid commands", async () => {
@@ -153,6 +205,142 @@ test("tutorbench run maps HTTP Tutor output to TutorEvalRunResult and --output",
     });
     await rm(outputDirectory, { recursive: true, force: true });
   }
+});
+
+test("tutorbench collect performs fake HTTP evidence collection and keeps failures out of the corpus", async () => {
+  let requestCount = 0;
+  const server = createServer(async (_request, response) => {
+    requestCount += 1;
+    response.setHeader("content-type", "application/json");
+    if (requestCount === 2) {
+      response.statusCode = 503;
+      response.end(JSON.stringify({ error: "synthetic failure" }));
+      return;
+    }
+    response.end(JSON.stringify({
+      text: "A frozen synthetic Tutor response.",
+      metrics: { latencyMs: 5, tokenUsage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 } },
+      metadata: { rawProviderPayload: "must not be persisted" },
+    }));
+  });
+  await new Promise<void>((resolveListen, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolveListen);
+  });
+  const address = server.address();
+  assert.ok(address !== null && typeof address !== "string");
+  const endpoint = `http://127.0.0.1:${address.port}/respond`;
+  const outputDirectory = await mkdtemp(join(tmpdir(), "tutorbench-collect-"));
+  const corpusPath = join(outputDirectory, "corpus.json");
+  const reportPath = join(outputDirectory, "report.json");
+  const evaluationPath = join(outputDirectory, "evaluation.json");
+
+  try {
+    const result = await runCli([
+      "collect",
+      "--http",
+      endpoint,
+      "--provider",
+      "fixture-provider",
+      "--model",
+      "fixture-model",
+      "--provenance",
+      "synthetic",
+      "--limit",
+      "2",
+      "--output",
+      corpusPath,
+      "--report",
+      reportPath,
+    ]);
+    assert.equal(result.exitCode, 0);
+    assert.match(result.stdout, /Coverage: partial/);
+    assert.match(result.stdout, /Corpus validation: passed/);
+    assert.equal(requestCount, 2);
+
+    const corpus = JSON.parse(await readFile(corpusPath, "utf8")) as {
+      readonly coverage: string;
+      readonly responses: readonly { readonly caseId: string; readonly metrics?: unknown }[];
+      readonly tutor: { readonly provider: string; readonly model: string };
+    };
+    const report = JSON.parse(await readFile(reportPath, "utf8")) as {
+      readonly requestedCaseCount: number;
+      readonly completedResponseCount: number;
+      readonly failedTutorCallCount: number;
+      readonly failures: readonly { readonly code: string }[];
+    };
+    assert.equal(corpus.coverage, "partial");
+    assert.equal(corpus.responses.length, 1);
+    assert.deepEqual(corpus.responses[0]?.metrics, {
+      latencyMs: 5,
+      tokenUsage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 },
+    });
+    assert.deepEqual(corpus.tutor, {
+      provider: "fixture-provider",
+      model: "fixture-model",
+      promptId: "tutor-baseline-system",
+      promptVersion: "0.1",
+    });
+    assert.doesNotMatch(JSON.stringify(corpus), /127\.0\.0\.1|rawProviderPayload|synthetic failure/);
+    assert.equal(report.requestedCaseCount, 2);
+    assert.equal(report.completedResponseCount, 1);
+    assert.equal(report.failedTutorCallCount, 1);
+    assert.equal(report.failures[0]?.code, "tutor_call_failed");
+
+    const evaluation = await runCli([
+      "evaluate",
+      "--corpus",
+      corpusPath,
+      "--output",
+      evaluationPath,
+    ]);
+    assert.equal(evaluation.exitCode, 0);
+    assert.match(evaluation.stdout, /Status: preliminary/);
+    assert.match(evaluation.stdout, /Calibration: uncalibrated/);
+    const evaluationArtifact = JSON.parse(await readFile(evaluationPath, "utf8")) as {
+      readonly artifactMetadata: {
+        readonly status: string;
+        readonly calibrationStatus: string;
+        readonly publicLeaderboardEligible: boolean;
+      };
+      readonly coverage: string;
+      readonly evaluation: { readonly errorCount: number };
+    };
+    assert.deepEqual(evaluationArtifact.artifactMetadata, {
+      status: "preliminary",
+      calibrationStatus: "uncalibrated",
+      publicLeaderboardEligible: false,
+    });
+    assert.equal(evaluationArtifact.coverage, "partial");
+    assert.equal(evaluationArtifact.evaluation.errorCount, 0);
+  } finally {
+    await new Promise<void>((resolveClose, reject) => {
+      server.close((error) => (error === undefined ? resolveClose() : reject(error)));
+    });
+    await rm(outputDirectory, { recursive: true, force: true });
+  }
+});
+
+test("tutorbench collect dry-run makes zero HTTP calls and prints the planned call count", async () => {
+  const output = await runCli([
+    "collect",
+    "--http",
+    "http://127.0.0.1:1/respond",
+    "--provider",
+    "fixture-provider",
+    "--model",
+    "fixture-model",
+    "--provenance",
+    "synthetic",
+    "--limit",
+    "2",
+    "--runs",
+    "2",
+    "--dry-run",
+  ]);
+  assert.equal(output.exitCode, 0);
+  assert.match(output.stdout, /Planned Tutor calls: 4/);
+  assert.match(output.stdout, /Tutor calls made: 0/);
 });
 
 test("package bin points to the built shebang executable", async () => {

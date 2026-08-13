@@ -60,8 +60,9 @@ pairwise or statistical evaluation claim is included.
 - [x] Direct generic Tutor runner and stable package-root public API
 - [x] Provider-neutral external Tutor protocol documented and implemented as HTTP v1
 - [x] Generic external HTTP adapter, `tutorbench run` CLI, and cross-language example
+- [x] Local real-model response collection pipeline with full/partial evidence semantics
 - [ ] Optional Review Workspace integration
-- [ ] Real model response collection
+- [ ] Actual real-model response collection and reviewed baseline artifacts
 - [ ] Broader model adapters if required
 
 See [the 0.4A.2 generation and response corpus guide](tutor-eval-v0.4a.md).

@@ -181,7 +181,10 @@ and supports repeated `--case`, `--limit`, and `--all`. The existing
 
 The repository also contains a dry executor that consumes only an execution
 packet and emits a synthetic, generation-bound corpus. It does not call a
-provider or inspect dataset internals, rubrics, or Judge configuration.
+provider or inspect dataset internals, rubrics, or Judge configuration. The
+local `tutorbench collect` command separately orchestrates an externally hosted
+Tutor through the existing HTTP adapter and freezes successful outputs into the
+same corpus contract; it does not implement provider credentials or SDKs.
 
 The corpus version is immutable evidence. If response text or its semantic
 generation identity changes, create a new response/corpus version. Do not edit
@@ -230,6 +233,8 @@ npm run tutor:export-cases -- -- --case fraction-misconception-001
 npm run tutor:export-execution -- -- --case fraction-misconception-001
 npm run tutor:corpus:validate -- -- --corpus path/to/corpus.json
 npm run benchmark:corpus -- -- --corpus path/to/corpus.json
+tutorbench collect --help
+tutorbench evaluate --corpus path/to/corpus.json
 ```
 
 The validation command validates the corpus schema, dataset identity, case
@@ -325,8 +330,9 @@ packet as hidden Tutor instructions.
 
 0.4 remains partial. 0.4A.2 completes the portable baseline profile on top of
 the canonical generation-spec and execution-packet contract. The public local
-runner is intentionally simpler than this official-run path; no real external
-bridge or model response collection is included:
+runner is intentionally simpler than this official-run path; the local
+collection CLI is an evidence wrapper around the provider-neutral HTTP
+boundary and does not itself perform provider/model calls:
 
 ```text
 0.4 Tutor Integration Layer — PARTIAL: public runner + portable reproducibility
@@ -340,9 +346,10 @@ bridge or model response collection is included:
 [x] calibration integration
 [x] direct generic runner and package-root public API
 [x] provider-neutral external integration contract
-[ ] generic external adapter example or runtime transport adapter
+[x] generic external adapter example or runtime transport adapter
 [ ] optional Review Workspace integration
-[ ] real model response collection
+[x] local real-model response collection pipeline with sanitized partial failure reporting
+[ ] actual real-model response collection and reviewed evidence
 [ ] broader model adapters if required
 ```
 

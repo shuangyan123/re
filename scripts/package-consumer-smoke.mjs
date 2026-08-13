@@ -118,6 +118,7 @@ async function main() {
       "dist/src/index.d.ts",
       "dist/src/cli/tutorbench.js",
       "scenarios/tutor-eval-v0.2a/cases.json",
+      "prompts/tutor-baseline-system-v0.1.md",
     ]) {
       assertCondition(files.has(required), `Package is missing ${required}.`);
     }
@@ -225,6 +226,32 @@ console.log("consumer API smoke passed");
     assertCondition(
       /tutorbench run --http <url>/.test(help.stdout),
       "Installed tutorbench executable did not print help.",
+    );
+    assertCondition(
+      /tutorbench collect --http <url>/.test(help.stdout),
+      "Installed tutorbench executable did not expose collection help.",
+    );
+    const collectHelp = await run(
+      executable,
+      ["collect", "--help"],
+      consumerRoot,
+      environment,
+      { shell: process.platform === "win32" },
+    );
+    assertCondition(
+      /Collects frozen Tutor responses sequentially/.test(collectHelp.stdout),
+      "Installed tutorbench executable did not run collect --help.",
+    );
+    const evaluateHelp = await run(
+      executable,
+      ["evaluate", "--help"],
+      consumerRoot,
+      environment,
+      { shell: process.platform === "win32" },
+    );
+    assertCondition(
+      /Frozen responses are replayed locally/.test(evaluateHelp.stdout),
+      "Installed tutorbench executable did not run evaluate --help.",
     );
     console.log(`Package consumer smoke passed: ${packInfo.filename}`);
   } finally {

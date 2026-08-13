@@ -15,7 +15,7 @@ The repository already has the following responsibilities:
 | Benchmark Definition | `src/contracts/`, `scenarios/`, `rubrics/`, `src/datasets/`, `src/evaluators/`, `src/scoring/` | Cases, visible/evaluator-only separation, rubrics, deterministic checks, Judge contracts, aggregation, and result validation |
 | Generic Runner | `src/runner/`, `src/reporting/` | Executes a `TutorUnderTest`, evaluates cases in stable order, isolates failures, and emits typed results/reports |
 | Tutor / Provider Integration | `src/adapters/`, `src/providers/openai/`, `src/cli/tutorbench.ts`, `examples/http-python-tutor/` | Adapts a product, model, callback, recorded response, or external HTTP service to the provider-independent boundary |
-| Advanced Reproducibility | `src/corpus/`, `src/contracts/tutor-generation.ts`, `src/contracts/tutor-execution.ts`, `src/contracts/tutor-response-corpus.ts` | Records, replays, freezes generation identity, and validates official-run evidence |
+| Advanced Reproducibility | `src/corpus/`, `src/collection/`, `src/contracts/tutor-generation.ts`, `src/contracts/tutor-execution.ts`, `src/contracts/tutor-response-corpus.ts`, `src/cli/tutorbench-collect.ts` | Collects externally hosted Tutor outputs, records sanitized reports, replays frozen responses, freezes generation identity, and validates evidence |
 | Calibration | `src/calibration/`, `fixtures/calibration/` | Provides provider-independent annotation packets, agreement metrics, and adjudication contracts; synthetic fixtures are not human calibration claims |
 | Website | `src/site/`, `website/` | Consumes public benchmark artifacts and does not execute Tutors or change scoring |
 
@@ -172,8 +172,8 @@ types part of the default import path.
 ## Developer modes
 
 1. Local evaluation: direct `TutorUnderTest` execution and scoring.
-2. Reproducible evaluation: frozen response corpus, replay, and evaluator
-   comparison.
+2. Evidence collection and reproducible evaluation: externally hosted Tutor
+responses, frozen corpus, replay, and evaluator comparison.
 3. Official/public evaluation: canonical generation profile, repeated runs,
    validated evidence, and calibrated public artifacts.
 
