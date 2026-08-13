@@ -196,6 +196,21 @@ as an optional peer so stable package-root and HTTP usage do not install or
 load OpenAI. Consumers explicitly using the OpenAI provider must install that
 optional peer.
 
+### Real-model evidence
+
+An external Tutor host can collect local, ignored frozen evidence without
+giving the benchmark provider credentials:
+
+```bash
+tutorbench collect --help
+tutorbench evaluate --corpus artifacts/real-model/baseline.json
+```
+
+Collection is sequential, has no automatic Tutor retry, preserves successful
+responses on partial failure, and validates the existing `TutorResponseCorpus`
+before success. Results are preliminary and uncalibrated; they are not public
+leaderboard runs. See [the real-model baseline guide](docs/real-model-baselines.md).
+
 ## Public website / Developer Preview
 
 The static website consumes secret-free benchmark artifacts. It does not run a

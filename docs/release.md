@@ -25,6 +25,11 @@ The normal CI workflow runs both checks. The release validation workflow is
 manual or tag-triggered and also runs the typecheck, lint, tests, build,
 synthetic benchmark, website build, package smoke, and artifact checks.
 
+The installed `tutorbench` executable also exposes `collect` and `evaluate`.
+Package smoke checks the collection help path without making a live Tutor call.
+Real-model response files remain local/ignored evidence until they pass a
+separate privacy, license, provider-terms, and publication review.
+
 ## Version and tags
 
 Package versions follow Semantic Versioning intent while the project remains a

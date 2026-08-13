@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   digestTutorPrompt,
@@ -15,14 +16,27 @@ export const TUTOR_BASELINE_GENERATION_SPEC_VERSION = "0.4a.2" as const;
 export const TUTOR_BASELINE_MAX_OUTPUT_TOKENS = 1024 as const;
 
 export async function loadTutorBaselinePrompt(): Promise<string> {
-  return readFile(
-    resolve(
-      process.cwd(),
-      "prompts",
-      "tutor-baseline-system-v0.1.md",
-    ),
-    "utf8",
-  );
+  const promptName = "tutor-baseline-system-v0.1.md";
+  const moduleDirectory = dirname(fileURLToPath(import.meta.url));
+  const filePaths = [
+    resolve(process.cwd(), "prompts", promptName),
+    resolve(moduleDirectory, "../../../prompts", promptName),
+  ];
+  for (const filePath of [...new Set(filePaths)]) {
+    try {
+      return await readFile(filePath, "utf8");
+    } catch (error) {
+      if (
+        typeof error !== "object" ||
+        error === null ||
+        !("code" in error) ||
+        error.code !== "ENOENT"
+      ) {
+        throw error;
+      }
+    }
+  }
+  throw new Error("Tutor baseline prompt asset was not found.");
 }
 
 function buildTutorBaselineGenerationSpecBase(

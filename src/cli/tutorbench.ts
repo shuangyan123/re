@@ -5,21 +5,35 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createHttpTutor, DEFAULT_HTTP_TUTOR_TIMEOUT_MS } from "../adapters/http-tutor.js";
-import { TUTOR_EVAL_DATASET_ID, type TutorEvalDataset } from "../contracts/index.js";
+import { BenchmarkConfigurationError, TUTOR_EVAL_DATASET_ID, type TutorEvalDataset } from "../contracts/index.js";
 import { loadTutorEvalDataset } from "../datasets/index.js";
 import { formatTutorEvalSummary, writeTutorEvalResult } from "../reporting/index.js";
 import { runTutorBenchmark } from "../runner/index.js";
 import {
+  buildTutorBaselineEvaluationArtifact,
+  evaluateTutorResponseCorpus,
+  parseBenchmarkCorpusCliOptions,
+  printBenchmarkCorpusHelp,
+  printTutorResponseCorpusEvaluation,
+  type BenchmarkCorpusCliOptions,
+} from "./tutorbench-evaluate.js";
+import {
+  parseTutorbenchCollectArgs,
+  printTutorbenchCollectHelp,
+  runTutorbenchCollect,
+  type TutorbenchCollectCliOptions,
+} from "./tutorbench-collect.js";
+import {
+  nextTutorbenchValue,
+  positiveTutorbenchInteger,
+  tutorbenchOptionValue,
+  TutorbenchCliUsageError,
+} from "./tutorbench-common.js";
+import {
   selectTutorEvalCases,
   type TutorCaseSelectionOptions,
+  writeTutorCliJson,
 } from "./tutor-case-common.js";
-
-class TutorbenchCliUsageError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "TutorbenchCliUsageError";
-  }
-}
 
 export interface TutorbenchRunOptions {
   readonly endpoint: string;
@@ -32,49 +46,28 @@ export interface TutorbenchRunOptions {
 }
 
 export type TutorbenchCliOptions =
-  | { readonly help: true }
-  | { readonly help: false; readonly run: TutorbenchRunOptions };
-
-function nextValue(
-  args: readonly string[],
-  index: number,
-  option: string,
-): string {
-  const value = args[index + 1];
-  if (value === undefined || value.trim().length === 0 || value.startsWith("--")) {
-    throw new TutorbenchCliUsageError(`${option} requires a value.`);
-  }
-  return value.trim();
-}
-
-function positiveInteger(value: string, option: string): number {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new TutorbenchCliUsageError(`${option} must be a positive integer.`);
-  }
-  return parsed;
-}
-
-function optionValue(
-  argument: string,
-  option: string,
-): string | undefined {
-  const prefix = `${option}=`;
-  if (!argument.startsWith(prefix)) {
-    return undefined;
-  }
-  const value = argument.slice(prefix.length).trim();
-  if (value.length === 0) {
-    throw new TutorbenchCliUsageError(`${option} requires a value.`);
-  }
-  return value;
-}
+  | { readonly help: true; readonly helpCommand?: "collect" | "evaluate" }
+  | { readonly help: false; readonly run: TutorbenchRunOptions }
+  | { readonly help: false; readonly collect: TutorbenchCollectCliOptions }
+  | { readonly help: false; readonly evaluate: BenchmarkCorpusCliOptions };
 
 export function parseTutorbenchArgs(
   args: readonly string[],
 ): TutorbenchCliOptions {
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
     return { help: true };
+  }
+  if (args[0] === "collect") {
+    const collect = parseTutorbenchCollectArgs(args.slice(1));
+    return collect.help
+      ? { help: true, helpCommand: "collect" }
+      : { help: false, collect };
+  }
+  if (args[0] === "evaluate") {
+    const evaluate = parseBenchmarkCorpusCliOptions(args.slice(1));
+    return evaluate.help
+      ? { help: true, helpCommand: "evaluate" }
+      : { help: false, evaluate };
   }
   if (args[0] !== "run") {
     throw new TutorbenchCliUsageError(
@@ -99,74 +92,74 @@ export function parseTutorbenchArgs(
       return { help: true };
     }
     if (argument === "--http") {
-      endpoint = nextValue(args, index, "--http");
+      endpoint = nextTutorbenchValue(args, index, "--http");
       index += 1;
       continue;
     }
-    const httpValue = optionValue(argument, "--http");
+    const httpValue = tutorbenchOptionValue(argument, "--http");
     if (httpValue !== undefined) {
       endpoint = httpValue;
       continue;
     }
     if (argument === "--dataset") {
-      datasetId = nextValue(args, index, "--dataset");
+      datasetId = nextTutorbenchValue(args, index, "--dataset");
       index += 1;
       continue;
     }
-    const datasetValue = optionValue(argument, "--dataset");
+    const datasetValue = tutorbenchOptionValue(argument, "--dataset");
     if (datasetValue !== undefined) {
       datasetId = datasetValue;
       continue;
     }
     if (argument === "--case") {
-      caseIds.push(nextValue(args, index, "--case"));
+      caseIds.push(nextTutorbenchValue(args, index, "--case"));
       index += 1;
       continue;
     }
-    const caseValue = optionValue(argument, "--case");
+    const caseValue = tutorbenchOptionValue(argument, "--case");
     if (caseValue !== undefined) {
       caseIds.push(caseValue);
       continue;
     }
     if (argument === "--limit") {
-      limit = positiveInteger(nextValue(args, index, "--limit"), "--limit");
+      limit = positiveTutorbenchInteger(nextTutorbenchValue(args, index, "--limit"), "--limit");
       index += 1;
       continue;
     }
-    const limitValue = optionValue(argument, "--limit");
+    const limitValue = tutorbenchOptionValue(argument, "--limit");
     if (limitValue !== undefined) {
-      limit = positiveInteger(limitValue, "--limit");
+      limit = positiveTutorbenchInteger(limitValue, "--limit");
       continue;
     }
     if (argument === "--runs") {
-      runsPerCase = positiveInteger(nextValue(args, index, "--runs"), "--runs");
+      runsPerCase = positiveTutorbenchInteger(nextTutorbenchValue(args, index, "--runs"), "--runs");
       index += 1;
       continue;
     }
-    const runsValue = optionValue(argument, "--runs");
+    const runsValue = tutorbenchOptionValue(argument, "--runs");
     if (runsValue !== undefined) {
-      runsPerCase = positiveInteger(runsValue, "--runs");
+      runsPerCase = positiveTutorbenchInteger(runsValue, "--runs");
       continue;
     }
     if (argument === "--timeout-ms") {
-      timeoutMs = positiveInteger(
-        nextValue(args, index, "--timeout-ms"),
+      timeoutMs = positiveTutorbenchInteger(
+        nextTutorbenchValue(args, index, "--timeout-ms"),
         "--timeout-ms",
       );
       index += 1;
       continue;
     }
-    const timeoutValue = optionValue(argument, "--timeout-ms");
+    const timeoutValue = tutorbenchOptionValue(argument, "--timeout-ms");
     if (timeoutValue !== undefined) {
-      timeoutMs = positiveInteger(timeoutValue, "--timeout-ms");
+      timeoutMs = positiveTutorbenchInteger(timeoutValue, "--timeout-ms");
       continue;
     }
     if (argument === "--output") {
-      outputPath = resolve(nextValue(args, index, "--output"));
+      outputPath = resolve(nextTutorbenchValue(args, index, "--output"));
       index += 1;
       continue;
     }
-    const outputValue = optionValue(argument, "--output");
+    const outputValue = tutorbenchOptionValue(argument, "--output");
     if (outputValue !== undefined) {
       outputPath = resolve(outputValue);
       continue;
@@ -200,8 +193,15 @@ function printHelp(): void {
 
 Usage:
   tutorbench run --http <url> [options]
+  tutorbench collect --http <url> --provider <id> --model <id> --provenance <value> [options]
+  tutorbench evaluate --corpus <path> [options]
 
-Options:
+Commands:
+  run                   Quick local evaluation; responses are not frozen
+  collect               Sequential frozen response evidence collection
+  evaluate              Offline corpus replay and preliminary evaluation
+
+Run options:
   --http <url>          POST TutorTurnInput JSON to this http(s) endpoint
   --dataset <id>        Dataset id (default: ${TUTOR_EVAL_DATASET_ID})
   --case <id>           Select one case; repeat for a subset
@@ -212,7 +212,9 @@ Options:
   --help                Show this help
 
 The external Tutor response must be JSON shaped as { "text": string, "metrics"?: object }.
-No automatic retry is performed.`);
+No automatic retry is performed.
+
+Use \`tutorbench collect --help\` and \`tutorbench evaluate --help\` for command-specific options.`);
 }
 
 function selectedDataset(
@@ -267,13 +269,50 @@ export async function runTutorbench(
   }
 }
 
+async function runTutorbenchEvaluate(
+  options: BenchmarkCorpusCliOptions,
+): Promise<void> {
+  const result = await evaluateTutorResponseCorpus(options);
+  const outputPath = options.outputPath ?? resolve(
+    process.cwd(),
+    "artifacts",
+    "preliminary-tutor-eval-corpus-result.json",
+  );
+  const artifact = buildTutorBaselineEvaluationArtifact(result);
+  await writeTutorCliJson(artifact, outputPath);
+  printTutorResponseCorpusEvaluation(result, outputPath, true);
+  if (result.evaluation.errorCount > 0) {
+    process.exitCode = 1;
+  }
+}
+
 export async function main(args = process.argv.slice(2)): Promise<void> {
   const options = parseTutorbenchArgs(args);
   if (options.help) {
-    printHelp();
+    if (options.helpCommand === "collect") {
+      printTutorbenchCollectHelp();
+    } else if (options.helpCommand === "evaluate") {
+      printBenchmarkCorpusHelp();
+    } else {
+      printHelp();
+    }
     return;
   }
-  await runTutorbench(options.run);
+  if ("run" in options) {
+    await runTutorbench(options.run);
+  } else if ("collect" in options) {
+    if (options.collect.help) {
+      printTutorbenchCollectHelp();
+      return;
+    }
+    await runTutorbenchCollect(options.collect);
+  } else {
+    if (options.evaluate.help) {
+      printBenchmarkCorpusHelp();
+      return;
+    }
+    await runTutorbenchEvaluate(options.evaluate);
+  }
 }
 
 async function runAsExecutable(): Promise<void> {
@@ -282,6 +321,7 @@ async function runAsExecutable(): Promise<void> {
   } catch (error) {
     console.error(
       error instanceof TutorbenchCliUsageError ||
+      error instanceof BenchmarkConfigurationError ||
       (error instanceof Error && error.name === "HttpTutorConfigurationError")
         ? error.message
         : "Tutor Benchmark CLI failed.",
