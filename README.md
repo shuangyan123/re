@@ -12,9 +12,12 @@ This repository evaluates a `TutorUnderTest`. It is not a tutor product, chat
 application, prompt playground, model leaderboard, or Review Workspace
 module.
 
-## Quick start
+## Install
 
 Requirements: Node 22 (`>=22 <23`).
+
+The package is not published to npm yet. The current verified installation
+path is a repository clone:
 
 ```bash
 git clone https://github.com/shuangyan123/re.git
@@ -28,7 +31,16 @@ prints a summary, and writes an ignored JSON result under `artifacts/`.
 Judge-required rubrics remain explicitly unresolved when no Judge is supplied;
 the runner never turns missing evidence into a passing score.
 
-## Use your own Tutor
+When distributed as a package, the intended install command is:
+
+```bash
+npm install tutor-benchmark
+```
+
+Package artifacts are release-ready, but npm registry availability and package
+publication are intentionally separate maintainer decisions.
+
+## Use your Tutor
 
 The default developer path is a small provider-neutral contract:
 
@@ -79,7 +91,8 @@ example:
 python examples/http-python-tutor/server.py
 ```
 
-In another terminal, after installing the package, run:
+In another terminal, use the installed package command when the package has been
+intentionally published:
 
 ```bash
 tutorbench run \
@@ -87,11 +100,18 @@ tutorbench run \
   --limit 3
 ```
 
-From a repository clone, use `node dist/src/cli/tutorbench.js` in place of
-`tutorbench` after `npm run build`.
+The three CLI paths are deliberately distinct:
 
-The package also supports `npx tutor-benchmark run --http <url>`. The HTTP v1
-contract is deliberately small:
+```text
+Repository clone:       node dist/src/cli/tutorbench.js ...
+Installed package:      tutorbench ...
+After npm publication:  npx tutor-benchmark ...
+```
+
+From a repository clone, use `node dist/src/cli/tutorbench.js` after
+`npm run build`.
+
+The HTTP v1 contract is deliberately small:
 
 ```text
 POST /respond
@@ -187,6 +207,26 @@ npm run website:build
 npm run website:dev
 ```
 
+The website is deployed from `main` through GitHub Pages after a clean build;
+the repository does not hard-code an unverified public URL. The Pages workflow
+supplies the project base path at build time, while local preview remains
+available at the root path. The generated `website/dist/` directory is ignored.
+
+## Package and website validation
+
+Maintainers can validate the public delivery surfaces without a registry,
+OpenAI key, or live model:
+
+```bash
+npm run test:package
+npm run test:website
+```
+
+The package smoke installs the local tarball into a temporary empty consumer,
+imports `runTutorBenchmark`, `createHttpTutor`, and `loadTutorEvalDataset`,
+executes one package-root run, and invokes the installed `tutorbench --help`.
+The optional OpenAI peer is not installed by this smoke.
+
 ## Relationship with other products
 
 Review Workspace (`shuangyan123/demo`) is one optional future Tutor adapter.
@@ -197,7 +237,7 @@ external services can participate through the same `TutorUnderTest` boundary.
 The provider-neutral external protocol and the architecture rationale are in
 [the product-boundary note](docs/benchmark-product-boundary.md).
 
-## Development
+## Repository development
 
 The normal local gates are:
 
@@ -208,13 +248,15 @@ npm test
 npm run build
 npm run benchmark
 npm run website:build
+npm run test:package
+npm run test:website
 git diff --check
 ```
 
-See [the roadmap](docs/roadmap.md) and the versioned TutorEval guides under
-`docs/` for methodology and phase boundaries.
+See [the roadmap](docs/roadmap.md), [release notes](docs/release.md), and the
+versioned TutorEval guides under `docs/` for delivery and methodology phase
+boundaries.
 
 ## License
 
-License: not specified yet. This is a public Developer Preview; licensing is
-still a public-adoption blocker.
+License: not specified yet. This is a public Developer Preview.

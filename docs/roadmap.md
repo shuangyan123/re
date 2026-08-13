@@ -71,12 +71,18 @@ future product integrations should consume the provider-neutral boundary.
 See [the product-boundary note](benchmark-product-boundary.md) for the
 dependency map and public API classification.
 
-## Public Website — Developer Preview
+## Public Delivery — PARTIAL
 
-This is a separate public website/productization track. It consumes the
-provider-independent benchmark through a static, secret-free public artifact
-boundary and does not change the methodology phases above.
+This is a separate package and website productization track. It consumes the
+provider-independent benchmark through stable package and static, secret-free
+artifact boundaries and does not change the methodology phases above.
 
+- [x] Stable package-root API and `tutorbench` CLI
+- [x] Generic external HTTP Tutor adapter and cross-language example
+- [x] Package tarball allow-list and local consumer smoke without OpenAI
+- [x] Release validation workflow with tag/version checking and artifacts
+- [x] Static website build and GitHub Pages deployment workflow
+- [x] Project-site base path support and generated artifact firewall
 - [x] Read-only static website shell and Developer Preview status
 - [x] Public TutorEval case serializer with evaluator-only field exclusion
 - [x] Coverage-backed case explorer and responsive route layout
@@ -84,6 +90,8 @@ boundary and does not change the methodology phases above.
 - [x] Local adapter/corpus run guide and methodology limitations
 - [ ] Public result artifact pipeline for reproducible model runs
 - [ ] Public submission/review workflow (separate phase)
+- [ ] First intentional npm package publication
+- [ ] Reproducible real-model response collection
 
 ## 0.5 Statistical Evaluation — NOT STARTED
 

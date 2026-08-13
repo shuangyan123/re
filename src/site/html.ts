@@ -11,6 +11,7 @@ type SiteFooterBenchmark = Pick<PublicBenchmarkArtifact, "statusLabel"> & {
 
 export interface SiteRenderContext {
   readonly siteUrl?: string;
+  readonly basePath?: string;
   readonly benchmark?: SiteFooterBenchmark;
 }
 
@@ -19,6 +20,47 @@ export interface SitePage {
   readonly description: string;
   readonly route: string;
   readonly content: string;
+}
+
+/**
+ * Normalizes the path under which a project site is hosted, such as `/re`.
+ * GitHub Pages supplies this value separately from the full canonical URL.
+ */
+export function normalizeSiteBasePath(value: string | undefined): string {
+  const trimmed = value?.trim() ?? "";
+  if (trimmed.length === 0 || trimmed === "/") {
+    return "";
+  }
+  if (
+    !trimmed.startsWith("/") ||
+    trimmed.includes("//") ||
+    /[\\?#\s<>"']/.test(trimmed) ||
+    !/^\/[A-Za-z0-9._~!$&()*+,;=:@/-]+$/.test(trimmed)
+  ) {
+    throw new Error("Site base path must be a URL path such as /re.");
+  }
+  return trimmed.replace(/\/+$/, "");
+}
+
+function sitePath(basePath: string, route: string): string {
+  if (!route.startsWith("/")) {
+    return route;
+  }
+  return `${basePath}${route}`;
+}
+
+/** Prefixes generated internal href/src attributes without touching external URLs or code text. */
+function prefixInternalPaths(markup: string, basePath: string): string {
+  if (basePath.length === 0) {
+    return markup;
+  }
+  return markup.replace(
+    /((?:href|src)=['"])(\/[^'"]*)/g,
+    (match, attribute, path) =>
+      path === basePath || path.startsWith(`${basePath}/`)
+        ? match
+        : `${attribute}${basePath}${path}`,
+  );
 }
 
 export function escapeHtml(value: unknown): string {
@@ -82,27 +124,32 @@ export function renderKeyValueList(items: readonly [string, string][]): string {
     .join("")}</dl>`;
 }
 
-function navLink(label: string, href: string, activeRoute: string): string {
+function navLink(
+  label: string,
+  route: string,
+  activeRoute: string,
+  basePath: string,
+): string {
   const active =
-    activeRoute === href ||
-    (href === "/data/" && activeRoute.startsWith("/data/"));
-  return `<a href="${escapeHtml(href)}"${active ? ' aria-current="page"' : ""}>${escapeHtml(label)}</a>`;
+    activeRoute === route ||
+    (route === "/data/" && activeRoute.startsWith("/data/"));
+  return `<a href="${escapeHtml(sitePath(basePath, route))}"${active ? ' aria-current="page"' : ""}>${escapeHtml(label)}</a>`;
 }
 
-function renderHeader(activeRoute: string): string {
+function renderHeader(activeRoute: string, basePath: string): string {
   return `<header class="site-header">
     <div class="shell header-inner">
-      <a class="wordmark" href="/" aria-label="Tutor Benchmark home">
+      <a class="wordmark" href="${escapeHtml(sitePath(basePath, "/"))}" aria-label="Tutor Benchmark home">
         <span class="wordmark-mark" aria-hidden="true">TB</span>
         <span>Tutor Benchmark</span>
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">Menu</button>
       <nav id="primary-navigation" class="nav-links" aria-label="Primary navigation">
-        ${navLink("Leaderboard", "/leaderboard/", activeRoute)}
-        ${navLink("Data", "/data/", activeRoute)}
-        ${navLink("Run", "/run/", activeRoute)}
-        ${navLink("Methodology", "/methodology/", activeRoute)}
-        ${navLink("Docs", "/docs/", activeRoute)}
+        ${navLink("Leaderboard", "/leaderboard/", activeRoute, basePath)}
+        ${navLink("Data", "/data/", activeRoute, basePath)}
+        ${navLink("Run", "/run/", activeRoute, basePath)}
+        ${navLink("Methodology", "/methodology/", activeRoute, basePath)}
+        ${navLink("Docs", "/docs/", activeRoute, basePath)}
         <a href="${escapeHtml(SITE_GITHUB_URL)}" rel="noreferrer">GitHub ↗</a>
       </nav>
     </div>
@@ -133,9 +180,10 @@ function renderFooter(
 }
 
 export function renderPage(page: SitePage, context: SiteRenderContext = {}): string {
+  const basePath = normalizeSiteBasePath(context.basePath);
   const siteUrl = context.siteUrl?.replace(/\/$/, "");
   const canonicalUrl = siteUrl === undefined ? undefined : `${siteUrl}${page.route}`;
-  return `<!doctype html>
+  const pageMarkup = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
@@ -146,12 +194,12 @@ export function renderPage(page: SitePage, context: SiteRenderContext = {}): str
     <meta property="og:title" content="${escapeHtml(page.title)}">
     <meta property="og:description" content="${escapeHtml(page.description)}">
     ${canonicalUrl === undefined ? "" : `<meta property="og:url" content="${escapeHtml(canonicalUrl)}"><link rel="canonical" href="${escapeHtml(canonicalUrl)}">`}
-    <link rel="stylesheet" href="/assets/styles.css">
-    <script src="/assets/site.js" defer></script>
+    <link rel="stylesheet" href="${escapeHtml(sitePath(basePath, "/assets/styles.css"))}">
+    <script src="${escapeHtml(sitePath(basePath, "/assets/site.js"))}" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
-    ${renderHeader(page.route)}
+    ${renderHeader(page.route, basePath)}
     <main id="main-content">${page.content}</main>
     ${renderFooter(context.benchmark ?? ({
       statusLabel: "Developer Preview",
@@ -160,4 +208,5 @@ export function renderPage(page: SitePage, context: SiteRenderContext = {}): str
   </body>
 </html>
 `;
+  return prefixInternalPaths(pageMarkup, basePath);
 }
