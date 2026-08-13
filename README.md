@@ -89,6 +89,22 @@ Use `--judge-openai` only when the existing explicit live Judge provider is
 intentionally selected. The corpus contract records sanitized Tutor identity
 and response provenance, never credentials or raw provider payloads.
 
+## Public website / Developer Preview
+
+This repository includes a static, read-only benchmark explorer. It is built
+from the canonical public TutorEval dataset and does not require secrets,
+database services, or live Judge calls:
+
+```bash
+npm run website:build
+npm run website:dev
+```
+
+The generated site is written to `website/dist/`. Public model rankings and
+trial records remain empty until reproducible, versioned, and calibrated public
+artifacts are available. The website's public case serializer deliberately
+excludes evaluator-only answers, misconceptions, rubrics, and hidden evidence.
+
 The live Judge CLI requires an explicit `OPENAI_JUDGE_MODEL` and reads the API
 key only from the runtime `OPENAI_API_KEY` environment variable. It never
 prints or persists the key. Use `--case`, `--limit`, or `--all` to select the
