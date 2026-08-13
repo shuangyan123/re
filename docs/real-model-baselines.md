@@ -1,136 +1,173 @@
 # Real-model baseline collection
 
-Tutor Benchmark now has a local evidence-collection path for an externally
-hosted Tutor. It freezes successful response text and the existing
-`baseline-native-default` generation identity into the existing
-`TutorResponseCorpus` contract. It does not add a provider SDK, credential
-store, model registry, or another evaluator.
+Tutor Benchmark has two deliberately separate frozen-evidence paths. Both
+produce the same `TutorResponseCorpus`, can be replayed and evaluated offline,
+and remain preliminary until independently reviewed and calibrated.
 
-## What this is
+| Path | Transport body | Evidence meaning | Corpus generation identity |
+| --- | --- | --- | --- |
+| Product Tutor | `TutorTurnInput` | A product or external Tutor response | absent |
+| Canonical model | `TutorExecutionPacketFile` with one case | A response from the exact canonical request and generation spec sent to a model host | `baseline-native-default` |
 
-There are two valid baseline conditions, and they must not be mixed:
+## Product Tutor evidence
 
-- A model baseline sends the canonical benchmark-visible input to a model host.
-- A product Tutor baseline sends the same benchmark case through a product's
-  orchestration, persona, memory, or other product behavior.
-
-The collection command records the declared Tutor descriptor and transport,
-but it cannot prove what an external host added around the request. A host may
-only be described as a canonical model baseline when it actually uses the
-canonical benchmark messages and does not prepend hidden prompts, inject
-memory, rewrite the student message, or truncate the case. Otherwise use
-`external` or `review_workspace` provenance and describe it as a product Tutor
-evaluation.
-
-The first results are always:
+`tutorbench collect` is the Product / External Tutor path. It sends the
+provider-independent Tutor HTTP v1 request:
 
 ```text
-status: preliminary
-calibrationStatus: uncalibrated
-publicLeaderboardEligible: false
+POST /respond
+body: TutorTurnInput
 ```
 
-They are not scientifically validated rankings, stable scores, or public
-leaderboard submissions. Human/Judge calibration, repeated-run variance,
-confidence intervals, statistical comparison, and public review are separate
-later work.
+The body contains Tutor-visible case context such as `currentStudentMessage`,
+`studentState`, conversation, and the learning objective. It does not contain
+evaluator-only annotations. The external product may use persona, memory,
+tools, hidden product prompts, or product-specific model routing; those are
+part of what is being evaluated.
 
-## Collect responses
-
-The host owns provider credentials and model API behavior. The benchmark only
-uses the provider-neutral HTTP Tutor adapter:
+The Product Tutor descriptor must identify the actual configuration:
 
 ```bash
-npm run build
-node dist/src/cli/tutorbench.js collect \
+tutorbench collect \
   --http http://127.0.0.1:8000/respond \
-  --provider openai \
-  --model <actual-model-id> \
-  --provenance recorded_model \
+  --provider my-product \
+  --model tutor-product \
+  --model-version product-release-2026-08 \
+  --prompt-id product-tutor-config \
+  --prompt-version product-config-v3 \
+  --provenance external \
+  --output artifacts/product/product.json \
+  --report artifacts/product/product.report.json
+```
+
+`--prompt-version` is a stable Product Tutor/orchestration configuration
+identity. It is not the benchmark baseline prompt. Product collection writes
+no `generationSpec`, and its ordinary provenance is `external` or
+`review_workspace`. `synthetic` remains available for local fixtures. Passing
+`--provenance recorded_model` fails with:
+
+```text
+recorded_model requires canonical model collection
+```
+
+## Canonical model evidence
+
+`tutorbench collect-model` is the only path that can write
+`recorded_model` provenance and `baseline-native-default` generation identity:
+
+```bash
+tutorbench collect-model \
+  --http http://127.0.0.1:9000/generate \
+  --provider example-provider \
+  --model example-model \
+  --model-version example-snapshot \
   --limit 3 \
   --runs 1 \
-  --output artifacts/real-model/baseline.json \
-  --report artifacts/real-model/baseline.report.json
+  --output artifacts/real-model/model.json \
+  --report artifacts/real-model/model.report.json
 ```
 
-`--provider` and `--model` are evidence metadata supplied by the caller. They
-do not cause the benchmark to look for `OPENAI_API_KEY` or call a vendor API.
-`--provenance` is explicit so an opaque product Tutor cannot be mislabeled as
-a direct model recording. Use `recorded_model` only for a direct commercial or
-foundation-model host, `external` for a generic external Tutor, and
-`review_workspace` for that product integration.
+For each case/run, the collector calls the existing
+`buildTutorExecutionPacketFile()` and sends one validated packet directly to
+the host. The request has this shape and no Product Tutor fields:
 
-The command supports `--dataset`, repeated `--case`, `--limit`, `--runs`,
-`--timeout-ms`, `--model-version`, `--corpus-id`, `--output`, `--report`, and
-`--dry-run`. Execution is sequential, has no automatic Tutor retry, and
-prints the planned call count before making requests. `--dry-run` loads and
-selects the dataset but makes zero Tutor calls.
+```json
+{
+  "schemaVersion": 1,
+  "datasetId": "tutor-eval-v0.2a",
+  "datasetVersion": "...",
+  "generationSpec": {
+    "specId": "tutor-baseline-generation",
+    "specVersion": "0.4a.2",
+    "prompt": { "id": "tutor-baseline-system", "version": "0.1", "sha256": "..." },
+    "maxOutputTokens": 1024
+  },
+  "cases": [{ "caseId": "...", "caseVersion": "...", "messages": [] }]
+}
+```
 
-The default output is under ignored `artifacts/real-model/`. Real output is
-not automatically committed or copied into `website/public-data`.
+The packet builder is the source of truth for the canonical system prompt,
+prompt SHA, visible context, conversation messages, and message order. The
+collector does not prepend a prompt, inject memory/persona, rewrite or
+truncate messages, or add a second hidden-data sanitizer. The packet firewall
+excludes evaluator-only annotations, ground truth, misconceptions, rubrics,
+critical failures, Judge prompts, reference answers, human annotations, and
+disclosure-policy fields.
 
-## Failure and coverage semantics
+The canonical host returns a small provider-neutral envelope:
 
-Only successful Tutor outputs become corpus responses. A transport failure,
-non-2xx response, invalid JSON, invalid Tutor output, or timeout is a failed
-case/run, not a response containing an error string. Completed responses are
-retained and the collection report records only sanitized failure identities:
+```json
+{
+  "output": { "text": "...", "metrics": {} },
+  "executionSupport": { "maxOutputTokens": true }
+}
+```
+
+The response is runtime-validated. `executionSupport` must be present and
+declare the required `maxOutputTokens` control. Any optional control specified
+by a future generation spec (`temperature`, `reasoningEffort`, or `seed`) must
+also be attested as supported. The collector reuses
+`assertTutorGenerationSpecExecutionSupport()` and fails closed before recording
+a response when a required control is unsupported or the attestation is
+missing/invalid.
+
+The canonical Tutor descriptor derives `promptId` and `promptVersion` from the
+generation spec. `recorded_model` is fixed by `collect-model`; there is no
+`--provenance` or `--prompt-version` flag on that command.
+
+## What the protocol proves
+
+The HTTP protocol proves what the benchmark serialized and sent: the exact
+validated packet, messages, generation spec, and the host's explicit support
+attestation. It cannot cryptographically prove that a remote server did not
+silently modify the request internally after receipt. Reviewed canonical
+evidence therefore still requires a trusted host implementation, provider-
+direct integration, or a publication attestation. The evidence levels are:
 
 ```text
-caseId, caseVersion, runIndex, stable failure code
+Product evidence
+  Product-defined orchestration received TutorTurnInput.
+
+Canonical-request evidence
+  The benchmark sent the exact TutorExecutionPacket and generation spec.
+
+Reviewed canonical evidence
+  The host implementation and provider forwarding were independently reviewed.
 ```
 
-The corpus is `full` only when every selected case and run succeeded and the
-selection covers the complete canonical dataset. A subset or any failed
-case/run is `partial`. Partial corpora may be validated and replayed as the
-available evidence; `--full` evaluation still fails closed when canonical
-coverage is incomplete.
+The local `examples/canonical-model-host/` server is a synthetic protocol
+fixture only. It contains no provider SDK or credentials and must not be used
+to claim a real baseline.
 
-Resume is intentionally not implemented in v0.1. A safe resume needs to
-verify dataset, generation spec, Tutor descriptor, corpus identity, and each
-missing `(caseId, runIndex)` before making another billable or stateful call.
-One-shot collection keeps that boundary explicit.
+## Failure, retry, and coverage semantics
 
-## Validate, replay, and evaluate
+Collection is sequential and performs no automatic retry. A network failure,
+timeout, non-2xx response, invalid JSON, invalid output, invalid support
+attestation, or unsupported generation control is an execution failure, not a
+Tutor response containing an error string. Successful responses are retained
+on partial failure; failure reports contain only case/version/run identity and
+a stable failure code.
 
-Collection validates the generated corpus before reporting success. The same
-file can be replayed without contacting the Tutor:
+Coverage is `full` only when all selected executions succeed and the selection
+covers the complete dataset. A subset or any failed execution is `partial`.
+Both corpus modes validate, replay through `RecordedTutor`, and evaluate with
+the existing `tutorbench evaluate` path. The evaluator and scoring contracts do
+not infer evidence mode from provenance.
 
-```bash
-node dist/src/cli/tutorbench.js evaluate \
-  --corpus artifacts/real-model/baseline.json \
-  --output artifacts/real-model/baseline.result.json
-```
+`responseId` continues to use `deriveTutorResponseId()` as the identity source
+of truth. Product responses omit generation identity; canonical responses
+include the complete generation spec identity. Existing generation-bound and
+legacy corpora remain readable.
 
-`evaluate` reuses the existing `runTutorResponseCorpus` path and existing
-`TutorEvalRunResult` scoring contract. Deterministic rubrics run locally;
-Judge-required rubrics remain unresolved by default. `--judge-openai` is an
-explicit opt-in to the existing OpenAI Judge provider, and any such result
-still remains uncalibrated. The evaluation artifact adds only outer metadata;
-the core result contract is unchanged.
+## Dry-run and publication boundary
 
-The compatibility command remains available:
+Both commands support `--dry-run`. Product dry-run reports `generation spec =
+none`; canonical dry-run prepares the canonical cases/messages and reports
+`0` host calls. Neither dry-run reads provider credentials or makes network
+requests.
 
-```bash
-npm run benchmark:corpus -- -- --corpus artifacts/real-model/baseline.json
-```
-
-## Privacy and publication boundary
-
-The corpus stores Tutor text, stable case/run identity, truthful Tutor
-descriptor metadata, generation identity, provenance, and sanitized metrics
-(`latencyMs`, `tokenUsage`, and `cost` when trustworthy). It never stores the
-HTTP endpoint, authorization headers, cookies, API keys, credentials, raw
-provider payloads, provider stack traces, hidden reasoning, or evaluator-only
-annotations.
-
-The HTTP endpoint may still return output containing URLs, personal-data-like
-text, private prompts, or provider diagnostics. Before any intentional public
-promotion, review copyright, provider terms, PII, private prompts,
-credentials, and unexpected model disclosure. The sanitizer is not a complete
-publication review.
-
-No live endpoint or credentials are required in CI. Repository tests use a
-local fake HTTP Tutor and synthetic fixtures. A fake response is never labeled
-`recorded_model`; without an actual external model/product call there is no
-real-model baseline artifact to report.
+Artifacts are written under ignored local paths by default, remain
+`preliminary`, `uncalibrated`, and `publicLeaderboardEligible: false`, and are
+never copied into website public data automatically. This repository does not
+call a commercial model, require provider credentials, publish a leaderboard,
+or claim that a synthetic fixture is real-model evidence.

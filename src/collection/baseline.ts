@@ -21,20 +21,28 @@ import { toTutorTurnInput } from "../contracts/tutor-eval.js";
 
 export const TUTOR_BASELINE_COLLECTION_MANIFEST_SCHEMA_VERSION = 1 as const;
 export const TUTOR_BASELINE_COLLECTION_REPORT_SCHEMA_VERSION = 1 as const;
+export const PRODUCT_TUTOR_COLLECTION_CORPUS_VERSION = "product-v1" as const;
 
+export type TutorCollectionMode = "product_tutor" | "canonical_model";
 export type TutorBaselineCollectionTransport = "http" | "tutor";
 export type TutorBaselineCollectionFailureCode =
   | "tutor_call_failed"
-  | "tutor_output_invalid";
+  | "tutor_output_invalid"
+  | "execution_failed";
+export type ProductTutorProvenance = Exclude<
+  TutorResponseProvenance,
+  "recorded_model"
+>;
 
 export interface TutorBaselineCollectionManifest {
   readonly schemaVersion: typeof TUTOR_BASELINE_COLLECTION_MANIFEST_SCHEMA_VERSION;
+  readonly collectionMode: TutorCollectionMode;
   readonly baselineId: string;
   readonly datasetId: string;
   readonly datasetVersion: string;
   readonly transport: TutorBaselineCollectionTransport;
   readonly tutor: TutorEvalTutorDescriptor;
-  readonly generationSpec: TutorGenerationSpec;
+  readonly generationSpec?: TutorGenerationSpec;
   readonly runsPerCase: number;
   readonly corpusId: string;
   readonly corpusVersion: string;
@@ -55,6 +63,7 @@ export interface TutorBaselineArtifactMetadata {
 
 export interface TutorBaselineCollectionReport {
   readonly schemaVersion: typeof TUTOR_BASELINE_COLLECTION_REPORT_SCHEMA_VERSION;
+  readonly collectionMode: TutorCollectionMode;
   readonly artifactMetadata: TutorBaselineArtifactMetadata;
   readonly manifest: TutorBaselineCollectionManifest;
   readonly requestedCaseCount: number;
@@ -70,11 +79,30 @@ export interface TutorBaselineCollectionReport {
   readonly outputPath?: string;
 }
 
+export interface CollectTutorEvidenceOptions {
+  readonly dataset: TutorEvalDataset;
+  readonly selectedCases?: readonly TutorEvalCase[];
+  readonly generationSpec?: TutorGenerationSpec;
+  readonly tutorDescriptor: TutorEvalTutorDescriptor;
+  readonly provenance: TutorResponseProvenance;
+  readonly runsPerCase?: number;
+  readonly baselineId?: string;
+  readonly corpusId: string;
+  readonly corpusVersion?: string;
+  readonly transport?: TutorBaselineCollectionTransport;
+  readonly outputPath?: string;
+  readonly now?: () => Date;
+  readonly collectionMode: TutorCollectionMode;
+  readonly executeResponse: (
+    tutorEvalCase: TutorEvalCase,
+    runIndex: number,
+  ) => Promise<unknown>;
+}
+
 export interface CollectTutorBaselineOptions {
   readonly tutor: TutorUnderTest;
   readonly dataset: TutorEvalDataset;
   readonly selectedCases?: readonly TutorEvalCase[];
-  readonly generationSpec: TutorGenerationSpec;
   readonly tutorDescriptor: TutorEvalTutorDescriptor;
   readonly provenance: TutorResponseProvenance;
   readonly runsPerCase?: number;
@@ -144,13 +172,10 @@ function assertCollectionDescriptor(
 }
 
 function assertCollectionConfiguration(
-  options: CollectTutorBaselineOptions,
+  options: CollectTutorEvidenceOptions,
   runsPerCase: number,
 ): void {
   if (
-    typeof options.tutor !== "object" ||
-    options.tutor === null ||
-    typeof options.tutor.respond !== "function" ||
     typeof options.corpusId !== "string" ||
     options.corpusId.trim().length === 0 ||
     (options.corpusVersion !== undefined &&
@@ -159,10 +184,24 @@ function assertCollectionConfiguration(
       (typeof options.baselineId !== "string" || options.baselineId.trim().length === 0)) ||
     !["synthetic", "recorded_model", "review_workspace", "external"].includes(options.provenance) ||
     !["http", "tutor"].includes(options.transport ?? "tutor") ||
+    !["product_tutor", "canonical_model"].includes(options.collectionMode) ||
     typeof options.tutorDescriptor !== "object" ||
     options.tutorDescriptor === null ||
+    typeof options.executeResponse !== "function" ||
     !Number.isInteger(runsPerCase) ||
     runsPerCase < 1
+  ) {
+    throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
+  }
+  if (
+    options.collectionMode === "product_tutor" &&
+    (options.generationSpec !== undefined || options.provenance === "recorded_model")
+  ) {
+    throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
+  }
+  if (
+    options.collectionMode === "canonical_model" &&
+    (options.generationSpec === undefined || options.provenance !== "recorded_model")
   ) {
     throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
   }
@@ -184,15 +223,9 @@ function sanitizeMetrics(
   const sanitizedTokenUsage = tokenUsage === undefined
     ? undefined
     : {
-        ...(validTokenCount(inputTokens)
-          ? { inputTokens }
-          : {}),
-        ...(validTokenCount(outputTokens)
-          ? { outputTokens }
-          : {}),
-        ...(validTokenCount(totalTokens)
-          ? { totalTokens }
-          : {}),
+        ...(validTokenCount(inputTokens) ? { inputTokens } : {}),
+        ...(validTokenCount(outputTokens) ? { outputTokens } : {}),
+        ...(validTokenCount(totalTokens) ? { totalTokens } : {}),
       };
   const hasTokenUsage = sanitizedTokenUsage !== undefined &&
     Object.keys(sanitizedTokenUsage).length > 0;
@@ -209,20 +242,23 @@ function sanitizeMetrics(
 }
 
 function manifestFor(
-  options: CollectTutorBaselineOptions,
+  options: CollectTutorEvidenceOptions,
   dataset: TutorEvalDataset,
-  generationSpec: TutorGenerationSpec,
+  generationSpec: TutorGenerationSpec | undefined,
   runsPerCase: number,
 ): TutorBaselineCollectionManifest {
-  const corpusVersion = options.corpusVersion ?? generationSpec.specVersion;
+  const corpusVersion = options.corpusVersion ??
+    generationSpec?.specVersion ??
+    PRODUCT_TUTOR_COLLECTION_CORPUS_VERSION;
   return {
     schemaVersion: TUTOR_BASELINE_COLLECTION_MANIFEST_SCHEMA_VERSION,
+    collectionMode: options.collectionMode,
     baselineId: options.baselineId ?? options.corpusId,
     datasetId: dataset.id,
     datasetVersion: dataset.version,
     transport: options.transport ?? "tutor",
     tutor: options.tutorDescriptor,
-    generationSpec,
+    ...(generationSpec === undefined ? {} : { generationSpec }),
     runsPerCase,
     corpusId: options.corpusId,
     corpusVersion,
@@ -241,18 +277,24 @@ function isFullSelection(
 }
 
 /**
- * Collects frozen Tutor responses without evaluating rubrics or invoking a
- * Judge. Execution is sequential and failures never become fake responses.
+ * Shared evidence assembly for the two explicit collection modes. The
+ * execution callback is the only mode-specific boundary; all corpus identity,
+ * sanitization, coverage, and failure behavior stays in one implementation.
  */
-export async function collectTutorBaseline(
-  options: CollectTutorBaselineOptions,
+export async function collectTutorEvidence(
+  options: CollectTutorEvidenceOptions,
 ): Promise<TutorBaselineCollectionResult> {
   const dataset = parseTutorEvalDataset(options.dataset);
   const selectedCases = orderedCases(dataset, options.selectedCases);
-  const generationSpec = parseTutorGenerationSpec(options.generationSpec);
+  const generationSpec = options.generationSpec === undefined
+    ? undefined
+    : parseTutorGenerationSpec(options.generationSpec);
   const runsPerCase = options.runsPerCase ?? 1;
-  assertCollectionConfiguration(options, runsPerCase);
-  const manifest = manifestFor(options, dataset, generationSpec, runsPerCase);
+  const configuredOptions = generationSpec === undefined
+    ? options
+    : { ...options, generationSpec };
+  assertCollectionConfiguration(configuredOptions, runsPerCase);
+  const manifest = manifestFor(configuredOptions, dataset, generationSpec, runsPerCase);
   const plannedTutorCallCount = selectedCases.length * runsPerCase;
   const now = options.now ?? (() => new Date());
   const startedAt = now().toISOString();
@@ -261,15 +303,17 @@ export async function collectTutorBaseline(
 
   for (const tutorEvalCase of selectedCases) {
     for (let runIndex = 1; runIndex <= runsPerCase; runIndex += 1) {
-      let output: Awaited<ReturnType<TutorUnderTest["respond"]>>;
+      let output: unknown;
       try {
-        output = await options.tutor.respond(toTutorTurnInput(tutorEvalCase, runIndex));
+        output = await options.executeResponse(tutorEvalCase, runIndex);
       } catch {
         failures.push({
           caseId: tutorEvalCase.id,
           caseVersion: tutorEvalCase.version,
           runIndex,
-          code: "tutor_call_failed",
+          code: options.collectionMode === "canonical_model"
+            ? "execution_failed"
+            : "tutor_call_failed",
         });
         continue;
       }
@@ -293,7 +337,7 @@ export async function collectTutorBaseline(
           caseId: tutorEvalCase.id,
           caseVersion: tutorEvalCase.version,
           tutor: manifest.tutor,
-          generationSpec,
+          ...(generationSpec === undefined ? {} : { generationSpec }),
           runIndex,
         }),
         caseId: tutorEvalCase.id,
@@ -315,6 +359,7 @@ export async function collectTutorBaseline(
       : "partial";
   const report: TutorBaselineCollectionReport = {
     schemaVersion: TUTOR_BASELINE_COLLECTION_REPORT_SCHEMA_VERSION,
+    collectionMode: options.collectionMode,
     artifactMetadata: {
       status: "preliminary",
       calibrationStatus: "uncalibrated",
@@ -350,10 +395,41 @@ export async function collectTutorBaseline(
     coverage,
     runsPerCase,
     provenance: options.provenance,
-    generationSpec,
+    ...(generationSpec === undefined ? {} : { generationSpec }),
     tutor: manifest.tutor,
     responses,
   });
   assertValidTutorResponseCorpus({ corpus, dataset });
   return { corpus, report };
+}
+
+/**
+ * Product / external Tutor collection. It deliberately has no generation
+ * specification because the transport only executes TutorTurnInput.
+ */
+export async function collectTutorBaseline(
+  options: CollectTutorBaselineOptions,
+): Promise<TutorBaselineCollectionResult> {
+  const legacyGenerationSpec = (options as CollectTutorBaselineOptions & {
+    readonly generationSpec?: TutorGenerationSpec;
+  }).generationSpec;
+  if (legacyGenerationSpec !== undefined) {
+    throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
+  }
+  return collectTutorEvidence({
+    dataset: options.dataset,
+    ...(options.selectedCases === undefined ? {} : { selectedCases: options.selectedCases }),
+    tutorDescriptor: options.tutorDescriptor,
+    provenance: options.provenance,
+    ...(options.runsPerCase === undefined ? {} : { runsPerCase: options.runsPerCase }),
+    ...(options.baselineId === undefined ? {} : { baselineId: options.baselineId }),
+    corpusId: options.corpusId,
+    ...(options.corpusVersion === undefined ? {} : { corpusVersion: options.corpusVersion }),
+    ...(options.transport === undefined ? {} : { transport: options.transport }),
+    ...(options.outputPath === undefined ? {} : { outputPath: options.outputPath }),
+    ...(options.now === undefined ? {} : { now: options.now }),
+    collectionMode: "product_tutor",
+    executeResponse: (tutorEvalCase, runIndex) =>
+      options.tutor.respond(toTutorTurnInput(tutorEvalCase, runIndex)),
+  });
 }

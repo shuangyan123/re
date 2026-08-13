@@ -7,8 +7,10 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 
 import * as publicApi from "../src/index.js";
+import { parseTutorExecutionPacketFile } from "../src/contracts/index.js";
 import { parseTutorbenchArgs } from "../src/cli/tutorbench.js";
 import { parseTutorbenchCollectArgs } from "../src/cli/tutorbench-collect.js";
+import { parseTutorbenchCollectModelArgs } from "../src/cli/tutorbench-collect-model.js";
 import { parseBenchmarkCorpusCliOptions } from "../src/cli/tutorbench-evaluate.js";
 
 interface CliResult {
@@ -103,8 +105,10 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
     "openai",
     "--model",
     "gpt-example",
+    "--prompt-version",
+    "product-config-v3",
     "--provenance",
-    "recorded_model",
+    "external",
     "--model-version=2026-08-13",
     "--limit=2",
     "--runs",
@@ -117,10 +121,47 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
   }
   assert.equal(collect.collect.provider, "openai");
   assert.equal(collect.collect.model, "gpt-example");
-  assert.equal(collect.collect.provenance, "recorded_model");
+  assert.equal(collect.collect.promptVersion, "product-config-v3");
+  assert.equal(collect.collect.provenance, "external");
   assert.equal(collect.collect.limit, 2);
   assert.equal(collect.collect.runsPerCase, 2);
   assert.equal(collect.collect.dryRun, true);
+
+  const reviewWorkspace = parseTutorbenchCollectArgs([
+    "--http",
+    "http://localhost:8000/respond",
+    "--provider",
+    "review-workspace",
+    "--model",
+    "product-config",
+    "--prompt-version",
+    "product-config-v3",
+    "--provenance",
+    "review_workspace",
+  ]);
+  assert.equal(reviewWorkspace.help, false);
+  if (reviewWorkspace.help) {
+    return;
+  }
+  assert.equal(reviewWorkspace.provenance, "review_workspace");
+
+  const collectModel = parseTutorbenchArgs([
+    "collect-model",
+    "--http",
+    "http://localhost:9000/generate",
+    "--provider",
+    "openai",
+    "--model",
+    "gpt-example",
+    "--dry-run",
+  ]);
+  assert.equal(collectModel.help, false);
+  if (collectModel.help || !("collectModel" in collectModel) || collectModel.collectModel.help) {
+    return;
+  }
+  assert.equal(collectModel.collectModel.provider, "openai");
+  assert.equal(collectModel.collectModel.model, "gpt-example");
+  assert.equal(collectModel.collectModel.dryRun, true);
 
   const evaluate = parseTutorbenchArgs([
     "evaluate",
@@ -136,6 +177,7 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
   assert.equal(evaluate.evaluate.corpusPath, resolve(process.cwd(), "artifacts/corpus.json"));
   assert.equal(evaluate.evaluate.outputPath, resolve(process.cwd(), "artifacts/result.json"));
   assert.deepEqual(parseTutorbenchCollectArgs(["--help"]), { help: true });
+  assert.deepEqual(parseTutorbenchCollectModelArgs(["--help"]), { help: true });
   assert.deepEqual(parseBenchmarkCorpusCliOptions(["--help"]), {
     corpusPath: "",
     requireFull: false,
@@ -148,6 +190,7 @@ test("tutorbench executable supports help and rejects invalid commands", async (
   const help = await runCli(["--help"]);
   assert.equal(help.exitCode, 0);
   assert.match(help.stdout, /tutorbench run --http <url>/);
+  assert.match(help.stdout, /tutorbench collect-model --http <url>/);
 
   const invalid = await runCli(["unknown"]);
   assert.equal(invalid.exitCode, 1);
@@ -209,8 +252,14 @@ test("tutorbench run maps HTTP Tutor output to TutorEvalRunResult and --output",
 
 test("tutorbench collect performs fake HTTP evidence collection and keeps failures out of the corpus", async () => {
   let requestCount = 0;
-  const server = createServer(async (_request, response) => {
+  const requestBodies: Record<string, unknown>[] = [];
+  const server = createServer(async (request, response) => {
     requestCount += 1;
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) {
+      chunks.push(Buffer.from(chunk));
+    }
+    requestBodies.push(JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>);
     response.setHeader("content-type", "application/json");
     if (requestCount === 2) {
       response.statusCode = 503;
@@ -244,8 +293,10 @@ test("tutorbench collect performs fake HTTP evidence collection and keeps failur
       "fixture-provider",
       "--model",
       "fixture-model",
+      "--prompt-version",
+      "product-config-v3",
       "--provenance",
-      "synthetic",
+      "external",
       "--limit",
       "2",
       "--output",
@@ -260,8 +311,10 @@ test("tutorbench collect performs fake HTTP evidence collection and keeps failur
 
     const corpus = JSON.parse(await readFile(corpusPath, "utf8")) as {
       readonly coverage: string;
+      readonly generationSpec?: unknown;
+      readonly collectionMode?: string;
       readonly responses: readonly { readonly caseId: string; readonly metrics?: unknown }[];
-      readonly tutor: { readonly provider: string; readonly model: string };
+      readonly tutor: { readonly provider: string; readonly model: string; readonly promptVersion: string; readonly promptId?: string };
     };
     const report = JSON.parse(await readFile(reportPath, "utf8")) as {
       readonly requestedCaseCount: number;
@@ -270,6 +323,8 @@ test("tutorbench collect performs fake HTTP evidence collection and keeps failur
       readonly failures: readonly { readonly code: string }[];
     };
     assert.equal(corpus.coverage, "partial");
+    assert.equal(corpus.collectionMode, undefined);
+    assert.equal(corpus.generationSpec, undefined);
     assert.equal(corpus.responses.length, 1);
     assert.deepEqual(corpus.responses[0]?.metrics, {
       latencyMs: 5,
@@ -278,9 +333,18 @@ test("tutorbench collect performs fake HTTP evidence collection and keeps failur
     assert.deepEqual(corpus.tutor, {
       provider: "fixture-provider",
       model: "fixture-model",
-      promptId: "tutor-baseline-system",
-      promptVersion: "0.1",
+      promptVersion: "product-config-v3",
     });
+    assert.equal(requestBodies.length, 2);
+    assert.equal(requestBodies[0]?.generationSpec, undefined);
+    assert.equal(typeof requestBodies[0]?.currentStudentMessage, "string");
+    const reportWithMode = JSON.parse(await readFile(reportPath, "utf8")) as {
+      readonly collectionMode: string;
+      readonly manifest: { readonly collectionMode: string; readonly generationSpec?: unknown };
+    };
+    assert.equal(reportWithMode.collectionMode, "product_tutor");
+    assert.equal(reportWithMode.manifest.collectionMode, "product_tutor");
+    assert.equal(reportWithMode.manifest.generationSpec, undefined);
     assert.doesNotMatch(JSON.stringify(corpus), /127\.0\.0\.1|rawProviderPayload|synthetic failure/);
     assert.equal(report.requestedCaseCount, 2);
     assert.equal(report.completedResponseCount, 1);
@@ -330,8 +394,10 @@ test("tutorbench collect dry-run makes zero HTTP calls and prints the planned ca
     "fixture-provider",
     "--model",
     "fixture-model",
+    "--prompt-version",
+    "product-config-v1",
     "--provenance",
-    "synthetic",
+    "external",
     "--limit",
     "2",
     "--runs",
@@ -341,6 +407,158 @@ test("tutorbench collect dry-run makes zero HTTP calls and prints the planned ca
   assert.equal(output.exitCode, 0);
   assert.match(output.stdout, /Planned Tutor calls: 4/);
   assert.match(output.stdout, /Tutor calls made: 0/);
+});
+
+test("tutorbench collect-model dry-run prepares canonical packets without HTTP calls", async () => {
+  const output = await runCli([
+    "collect-model",
+    "--http",
+    "http://127.0.0.1:1/generate",
+    "--provider",
+    "fixture-provider",
+    "--model",
+    "fixture-model",
+    "--limit",
+    "2",
+    "--dry-run",
+  ]);
+  assert.equal(output.exitCode, 0);
+  assert.match(output.stdout, /Collection mode: canonical_model/);
+  assert.match(output.stdout, /Canonical cases\/messages prepared/);
+  assert.match(output.stdout, /Model calls made: 0/);
+});
+
+test("tutorbench collect rejects recorded_model and canonical collection preserves packet evidence", async () => {
+  assert.throws(
+    () => parseTutorbenchCollectArgs([
+      "--http",
+      "http://localhost:8000/respond",
+      "--provider",
+      "fixture-provider",
+      "--model",
+      "fixture-model",
+      "--prompt-version",
+      "product-config-v1",
+      "--provenance",
+      "recorded_model",
+    ]),
+    /recorded_model requires canonical model collection/,
+  );
+
+  let requestCount = 0;
+  const packets: Record<string, unknown>[] = [];
+  const server = createServer(async (request, response) => {
+    requestCount += 1;
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) {
+      chunks.push(Buffer.from(chunk));
+    }
+    const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+    packets.push(body);
+    if (requestCount === 2) {
+      response.statusCode = 503;
+      response.end(JSON.stringify({ error: "synthetic host failure" }));
+      return;
+    }
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({
+      output: {
+        text: "Canonical synthetic host response.",
+        metrics: { latencyMs: 4, tokenUsage: { inputTokens: 7, outputTokens: 5, totalTokens: 12 } },
+      },
+      executionSupport: { maxOutputTokens: true },
+    }));
+  });
+  await new Promise<void>((resolveListen, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolveListen);
+  });
+  const address = server.address();
+  assert.ok(address !== null && typeof address !== "string");
+  const endpoint = `http://127.0.0.1:${address.port}/generate`;
+  const outputDirectory = await mkdtemp(join(tmpdir(), "tutorbench-collect-model-"));
+  const corpusPath = join(outputDirectory, "model.json");
+  const reportPath = join(outputDirectory, "model.report.json");
+  const evaluationPath = join(outputDirectory, "model.evaluation.json");
+
+  try {
+    const result = await runCli([
+      "collect-model",
+      "--http",
+      endpoint,
+      "--provider",
+      "fixture-provider",
+      "--model",
+      "fixture-model",
+      "--limit",
+      "2",
+      "--output",
+      corpusPath,
+      "--report",
+      reportPath,
+    ]);
+    assert.equal(result.exitCode, 0);
+    assert.match(result.stdout, /Collection mode: canonical_model/);
+    assert.match(result.stdout, /Coverage: partial/);
+    assert.equal(requestCount, 2);
+    assert.equal(packets.length, 2);
+    const packet = parseTutorExecutionPacketFile(packets[0]);
+    assert.equal(packet.cases.length, 1);
+    assert.equal(packet.generationSpec.specVersion, "0.4a.2");
+    assert.equal(packet.generationSpec.maxOutputTokens, 1024);
+    assert.equal(packet.cases[0]?.messages[0]?.role, "system");
+    assert.equal("currentStudentMessage" in packets[0]!, false);
+    assert.equal("studentState" in packets[0]!, false);
+    assert.equal("evaluatorOnly" in packets[0]!, false);
+
+    const corpus = JSON.parse(await readFile(corpusPath, "utf8")) as {
+      readonly provenance: string;
+      readonly generationSpec?: { readonly specVersion: string; readonly maxOutputTokens: number };
+      readonly tutor: { readonly promptId?: string; readonly promptVersion: string };
+      readonly responses: readonly { readonly responseText: string }[];
+    };
+    assert.equal(corpus.provenance, "recorded_model");
+    assert.equal(corpus.generationSpec?.specVersion, "0.4a.2");
+    assert.equal(corpus.generationSpec?.maxOutputTokens, 1024);
+    assert.equal(corpus.tutor.promptId, "tutor-baseline-system");
+    assert.equal(corpus.tutor.promptVersion, "0.1");
+    assert.equal(corpus.responses.length, 1);
+    assert.equal(corpus.responses[0]?.responseText, "Canonical synthetic host response.");
+    assert.doesNotMatch(JSON.stringify(corpus), /synthetic host failure/);
+
+    const report = JSON.parse(await readFile(reportPath, "utf8")) as {
+      readonly collectionMode: string;
+      readonly failures: readonly { readonly code: string }[];
+      readonly manifest: { readonly generationSpec?: unknown; readonly collectionMode: string };
+    };
+    assert.equal(report.collectionMode, "canonical_model");
+    assert.equal(report.manifest.collectionMode, "canonical_model");
+    assert.equal(report.manifest.generationSpec !== undefined, true);
+    const failedPacket = parseTutorExecutionPacketFile(packets[1]!);
+    const failedPacketCase = failedPacket.cases[0];
+    assert.ok(failedPacketCase);
+    assert.deepEqual(report.failures, [{
+      caseId: failedPacketCase.caseId,
+      caseVersion: failedPacketCase.caseVersion,
+      runIndex: 1,
+      code: "execution_failed",
+    }]);
+
+    const evaluation = await runCli([
+      "evaluate",
+      "--corpus",
+      corpusPath,
+      "--output",
+      evaluationPath,
+    ]);
+    assert.equal(evaluation.exitCode, 0);
+    assert.match(evaluation.stdout, /Coverage: partial/);
+  } finally {
+    await new Promise<void>((resolveClose, reject) => {
+      server.close((error) => (error === undefined ? resolveClose() : reject(error)));
+    });
+    await rm(outputDirectory, { recursive: true, force: true });
+  }
 });
 
 test("package bin points to the built shebang executable", async () => {

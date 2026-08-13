@@ -60,15 +60,17 @@ pairwise or statistical evaluation claim is included.
 - [x] Direct generic Tutor runner and stable package-root public API
 - [x] Provider-neutral external Tutor protocol documented and implemented as HTTP v1
 - [x] Generic external HTTP adapter, `tutorbench run` CLI, and cross-language example
-- [x] Local real-model response collection pipeline with full/partial evidence semantics
+- [x] Product Tutor response collection with explicit product provenance and absent generation identity
+- [x] Canonical model evidence execution boundary with exact packet transport and support attestation
 - [ ] Optional Review Workspace integration
-- [ ] Actual real-model response collection and reviewed baseline artifacts
+- [ ] Actual reviewed real-model baseline artifacts
 - [ ] Broader model adapters if required
 
-See [the 0.4A.2 generation and response corpus guide](tutor-eval-v0.4a.md).
-The repository remains independent from Review Workspace. The direct local
-runner is intentionally simpler than the canonical packet/corpus workflow;
-future product integrations should consume the provider-neutral boundary.
+See [the 0.4A.2 generation and response corpus guide](tutor-eval-v0.4a.md) and
+[the real-model evidence guide](real-model-baselines.md). The repository
+remains independent from Review Workspace. Product collection and canonical
+model collection consume separate provider-neutral boundaries; neither path
+creates public model results automatically.
 See [the product-boundary note](benchmark-product-boundary.md) for the
 dependency map and public API classification.
 

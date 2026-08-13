@@ -10,66 +10,49 @@ import {
   type TutorEvalDataset,
   type TutorUnderTest,
 } from "../src/contracts/index.js";
-import {
-  buildTutorBaselineGenerationSpec,
-  deriveTutorResponseId,
-  loadTutorBaselinePrompt,
-} from "../src/corpus/index.js";
+import { deriveTutorResponseId } from "../src/corpus/index.js";
 import { RecordedTutor } from "../src/adapters/index.js";
 import { loadTutorEvalDataset } from "../src/datasets/index.js";
 import { runTutorResponseCorpus } from "../src/runner/index.js";
 
 async function collectionContext(caseCount = 2): Promise<{
   readonly dataset: TutorEvalDataset;
-  readonly prompt: string;
-  readonly generationSpec: Awaited<ReturnType<typeof buildTutorBaselineGenerationSpec>>;
 }> {
-  const [fullDataset, prompt] = await Promise.all([
-    loadTutorEvalDataset("tutor-eval-v0.2a"),
-    loadTutorBaselinePrompt(),
-  ]);
+  const fullDataset = await loadTutorEvalDataset("tutor-eval-v0.2a");
   const dataset = {
     ...fullDataset,
     cases: fullDataset.cases.slice(0, caseCount),
   };
-  return {
-    dataset,
-    prompt,
-    generationSpec: buildTutorBaselineGenerationSpec(prompt),
-  };
+  return { dataset };
 }
 
-function descriptor(
-  generationSpec: Awaited<ReturnType<typeof buildTutorBaselineGenerationSpec>>,
-) {
+function descriptor() {
   return {
     provider: "fixture-provider",
     model: "fixture-model",
-    promptId: generationSpec.prompt.id,
-    promptVersion: generationSpec.prompt.version,
+    promptId: "product-config",
+    promptVersion: "product-config-v1",
   } as const;
 }
 
 function collectionOptions(
   dataset: TutorEvalDataset,
-  generationSpec: Awaited<ReturnType<typeof buildTutorBaselineGenerationSpec>>,
   tutor: TutorUnderTest,
   overrides: Partial<Parameters<typeof collectTutorBaseline>[0]> = {},
 ) {
   return {
     tutor,
     dataset,
-    generationSpec,
-    tutorDescriptor: descriptor(generationSpec),
+    tutorDescriptor: descriptor(),
     provenance: "synthetic" as const,
     corpusId: "fixture-baseline",
-    corpusVersion: generationSpec.specVersion,
+    corpusVersion: "product-v1",
     ...overrides,
   };
 }
 
 test("collection freezes a full synthetic corpus and preserves only sanitized output fields", async () => {
-  const { dataset, generationSpec } = await collectionContext();
+  const { dataset } = await collectionContext();
   const inputs: string[] = [];
   const tutor: TutorUnderTest = {
     id: "fixture-tutor",
@@ -88,7 +71,7 @@ test("collection freezes a full synthetic corpus and preserves only sanitized ou
   };
 
   const result = await collectTutorBaseline(
-    collectionOptions(dataset, generationSpec, tutor, {
+    collectionOptions(dataset, tutor, {
       transport: "tutor",
     }),
   );
@@ -98,8 +81,9 @@ test("collection freezes a full synthetic corpus and preserves only sanitized ou
   assert.equal(result.report.completedResponseCount, 2);
   assert.equal(result.report.failedTutorCallCount, 0);
   assert.deepEqual(inputs, dataset.cases.map((tutorEvalCase) => `${tutorEvalCase.id}:1`));
-  assert.deepEqual(result.corpus.generationSpec, generationSpec);
-  assert.deepEqual(result.corpus.tutor, descriptor(generationSpec));
+  assert.equal(result.corpus.generationSpec, undefined);
+  assert.equal(result.report.collectionMode, "product_tutor");
+  assert.deepEqual(result.corpus.tutor, descriptor());
   assert.deepEqual(result.corpus.responses[0]?.metrics, {
     latencyMs: 12,
     tokenUsage: { inputTokens: 3, outputTokens: 4, totalTokens: 7 },
@@ -123,7 +107,7 @@ test("collection freezes a full synthetic corpus and preserves only sanitized ou
 });
 
 test("partial collection preserves completed responses, records sanitized failures, and never retries", async () => {
-  const { dataset, generationSpec } = await collectionContext(3);
+  const { dataset } = await collectionContext(3);
   const failedCaseId = dataset.cases[1]!.id;
   let callCount = 0;
   const tutor: TutorUnderTest = {
@@ -138,7 +122,7 @@ test("partial collection preserves completed responses, records sanitized failur
   };
 
   const result = await collectTutorBaseline(
-    collectionOptions(dataset, generationSpec, tutor),
+    collectionOptions(dataset, tutor),
   );
 
   assert.ok(result.corpus);
@@ -157,7 +141,7 @@ test("partial collection preserves completed responses, records sanitized failur
 });
 
 test("partial repeated runs keep run identity and allow incomplete evidence without inventing a response", async () => {
-  const { dataset, generationSpec } = await collectionContext(1);
+  const { dataset } = await collectionContext(1);
   const tutor: TutorUnderTest = {
     id: "repeated-fixture-tutor",
     async respond(input) {
@@ -168,7 +152,7 @@ test("partial repeated runs keep run identity and allow incomplete evidence with
     },
   };
   const result = await collectTutorBaseline(
-    collectionOptions(dataset, generationSpec, tutor, {
+    collectionOptions(dataset, tutor, {
       runsPerCase: 2,
       corpusId: "repeated-fixture",
     }),
@@ -182,13 +166,12 @@ test("partial repeated runs keep run identity and allow incomplete evidence with
     result.corpus.responses[0]?.responseId,
     deriveTutorResponseId({
       corpusId: "repeated-fixture",
-      corpusVersion: generationSpec.specVersion,
+      corpusVersion: "product-v1",
       datasetId: dataset.id,
       datasetVersion: dataset.version,
       caseId: dataset.cases[0]!.id,
       caseVersion: dataset.cases[0]!.version,
-      tutor: descriptor(generationSpec),
-      generationSpec,
+      tutor: descriptor(),
       runIndex: 1,
     }),
   );
@@ -196,7 +179,7 @@ test("partial repeated runs keep run identity and allow incomplete evidence with
 });
 
 test("collection with no completed Tutor calls returns a report and no fake corpus", async () => {
-  const { dataset, generationSpec } = await collectionContext(1);
+  const { dataset } = await collectionContext(1);
   const tutor: TutorUnderTest = {
     id: "empty-fixture-tutor",
     async respond() {
@@ -204,7 +187,7 @@ test("collection with no completed Tutor calls returns a report and no fake corp
     },
   };
   const result = await collectTutorBaseline(
-    collectionOptions(dataset, generationSpec, tutor),
+    collectionOptions(dataset, tutor),
   );
 
   assert.equal(result.corpus, null);
@@ -214,7 +197,7 @@ test("collection with no completed Tutor calls returns a report and no fake corp
 });
 
 test("response identity changes with model identity but never includes endpoint material", async () => {
-  const { dataset, generationSpec } = await collectionContext(1);
+  const { dataset } = await collectionContext(1);
   const tutor: TutorUnderTest = {
     id: "identity-fixture-tutor",
     async respond() {
@@ -222,13 +205,13 @@ test("response identity changes with model identity but never includes endpoint 
     },
   };
   const first = await collectTutorBaseline(
-    collectionOptions(dataset, generationSpec, tutor),
+    collectionOptions(dataset, tutor),
   );
   const second = await collectTutorBaseline(
-    collectionOptions(dataset, generationSpec, tutor, {
+    collectionOptions(dataset, tutor, {
       corpusId: "fixture-baseline-model-b",
       tutorDescriptor: {
-        ...descriptor(generationSpec),
+        ...descriptor(),
         model: "fixture-model-b",
       },
     }),

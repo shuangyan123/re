@@ -1,15 +1,20 @@
 import { resolve } from "node:path";
 
 import {
-  createHttpTutor,
-  DEFAULT_HTTP_TUTOR_TIMEOUT_MS,
-} from "../adapters/http-tutor.js";
+  createHttpTutorExecutionHost,
+  DEFAULT_HTTP_TUTOR_EXECUTION_HOST_TIMEOUT_MS,
+  HttpTutorExecutionHostConfigurationError,
+} from "../adapters/http-tutor-execution-host.js";
 import { TUTOR_EVAL_DATASET_ID } from "../contracts/index.js";
+import { buildTutorExecutionPacketFile } from "../contracts/tutor-execution.js";
+import {
+  buildTutorBaselineGenerationSpec,
+  loadTutorBaselinePrompt,
+} from "../corpus/index.js";
 import { loadTutorEvalDataset } from "../datasets/index.js";
 import {
-  collectTutorBaseline,
+  collectCanonicalTutorModel,
   type TutorBaselineCollectionResult,
-  type ProductTutorProvenance,
 } from "../collection/index.js";
 import {
   selectTutorEvalCases,
@@ -23,13 +28,7 @@ import {
   TutorbenchCliUsageError,
 } from "./tutorbench-common.js";
 
-const provenances: readonly ProductTutorProvenance[] = [
-  "synthetic",
-  "review_workspace",
-  "external",
-];
-
-export type TutorbenchCollectCliOptions =
+export type TutorbenchCollectModelCliOptions =
   | { readonly help: true }
   | {
       readonly help: false;
@@ -37,9 +36,6 @@ export type TutorbenchCollectCliOptions =
       readonly provider: string;
       readonly model: string;
       readonly modelVersion?: string;
-      readonly promptId?: string;
-      readonly promptVersion: string;
-      readonly provenance: ProductTutorProvenance;
       readonly datasetId: string;
       readonly caseIds: readonly string[];
       readonly limit: number | null;
@@ -51,20 +47,6 @@ export type TutorbenchCollectCliOptions =
       readonly dryRun: boolean;
     };
 
-function parseProvenance(value: string): ProductTutorProvenance {
-  if (value === "recorded_model") {
-    throw new TutorbenchCliUsageError(
-      "recorded_model requires canonical model collection; use tutorbench collect-model.",
-    );
-  }
-  if (!provenances.includes(value as ProductTutorProvenance)) {
-    throw new TutorbenchCliUsageError(
-      `--provenance must be one of: ${provenances.join(", ")}.`,
-    );
-  }
-  return value as ProductTutorProvenance;
-}
-
 function requiredIdentifier(value: string | undefined, option: string): string {
   if (value === undefined || value.trim().length === 0) {
     throw new TutorbenchCliUsageError(`${option} requires a value.`);
@@ -72,9 +54,9 @@ function requiredIdentifier(value: string | undefined, option: string): string {
   return value.trim();
 }
 
-export function parseTutorbenchCollectArgs(
+export function parseTutorbenchCollectModelArgs(
   args: readonly string[],
-): TutorbenchCollectCliOptions {
+): TutorbenchCollectModelCliOptions {
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
     return { help: true };
   }
@@ -82,13 +64,10 @@ export function parseTutorbenchCollectArgs(
   let provider: string | undefined;
   let model: string | undefined;
   let modelVersion: string | undefined;
-  let promptId: string | undefined;
-  let promptVersion: string | undefined;
-  let provenance: ProductTutorProvenance | undefined;
   let datasetId: string = TUTOR_EVAL_DATASET_ID;
   let limit: number | null = null;
   let runsPerCase = 1;
-  let timeoutMs: number = DEFAULT_HTTP_TUTOR_TIMEOUT_MS;
+  let timeoutMs: number = DEFAULT_HTTP_TUTOR_EXECUTION_HOST_TIMEOUT_MS;
   let corpusId: string | undefined;
   let outputPath: string | undefined;
   let reportPath: string | undefined;
@@ -145,36 +124,6 @@ export function parseTutorbenchCollectArgs(
     const modelVersionValue = tutorbenchOptionValue(argument, "--model-version");
     if (modelVersionValue !== undefined) {
       modelVersion = modelVersionValue;
-      continue;
-    }
-    if (argument === "--prompt-id") {
-      promptId = nextTutorbenchValue(args, index, "--prompt-id");
-      index += 1;
-      continue;
-    }
-    const promptIdValue = tutorbenchOptionValue(argument, "--prompt-id");
-    if (promptIdValue !== undefined) {
-      promptId = promptIdValue;
-      continue;
-    }
-    if (argument === "--prompt-version") {
-      promptVersion = nextTutorbenchValue(args, index, "--prompt-version");
-      index += 1;
-      continue;
-    }
-    const promptVersionValue = tutorbenchOptionValue(argument, "--prompt-version");
-    if (promptVersionValue !== undefined) {
-      promptVersion = promptVersionValue;
-      continue;
-    }
-    if (argument === "--provenance") {
-      provenance = parseProvenance(nextTutorbenchValue(args, index, "--provenance"));
-      index += 1;
-      continue;
-    }
-    const provenanceValue = tutorbenchOptionValue(argument, "--provenance");
-    if (provenanceValue !== undefined) {
-      provenance = parseProvenance(provenanceValue);
       continue;
     }
     if (argument === "--dataset") {
@@ -272,11 +221,6 @@ export function parseTutorbenchCollectArgs(
     provider: requiredIdentifier(provider, "--provider"),
     model: requiredIdentifier(model, "--model"),
     ...(modelVersion === undefined ? {} : { modelVersion }),
-    ...(promptId === undefined ? {} : { promptId }),
-    promptVersion: requiredIdentifier(promptVersion, "--prompt-version"),
-    provenance: provenance ?? (() => {
-      throw new TutorbenchCliUsageError("--provenance requires a value.");
-    })(),
     datasetId,
     caseIds,
     limit,
@@ -289,34 +233,31 @@ export function parseTutorbenchCollectArgs(
   };
 }
 
-export function printTutorbenchCollectHelp(): void {
-  console.log(`Usage: tutorbench collect --http <url> --provider <id> --model <id> --prompt-version <id> --provenance <value> [options]
+export function printTutorbenchCollectModelHelp(): void {
+  console.log(`Usage: tutorbench collect-model --http <url> --provider <id> --model <id> [options]
 
-Collects Product Tutor responses sequentially from the TutorTurnInput HTTP contract.
-It never discovers provider credentials, retries a Tutor call, invokes a Judge,
-or publishes artifacts. Product collection never declares a generation spec.
+Collects canonical foundation-model evidence from a host that executes the
+exact TutorExecutionPacket and TutorGenerationSpec. It fixes provenance to
+recorded_model, never invokes a Judge, never retries, and never publishes artifacts.
 
 Options:
-  --http <url>          HTTP Tutor endpoint (http/https, no embedded credentials)
-  --provider <id>       Provider identity supplied by the external Tutor host
-  --model <id>          Model identity supplied by the external Tutor host
+  --http <url>          Canonical model host endpoint (http/https, no credentials)
+  --provider <id>       Provider identity for the model host
+  --model <id>          Actual model identity
   --model-version <id>  Optional trustworthy model version/snapshot
-  --prompt-id <id>      Optional Product Tutor prompt/config identity
-  --prompt-version <id> Required Product Tutor prompt/config version
-  --provenance <value>  synthetic (fixtures), external, or review_workspace
   --dataset <id>        Dataset id (default: ${TUTOR_EVAL_DATASET_ID})
   --case <id>           Select one case; repeat for a subset
   --limit <n>           Select the first n cases in stable ID order
   --runs <n>            Run each selected case n times (default: 1)
-  --timeout-ms <n>      Request timeout in milliseconds (default: ${DEFAULT_HTTP_TUTOR_TIMEOUT_MS})
+  --timeout-ms <n>      Request timeout in milliseconds (default: ${DEFAULT_HTTP_TUTOR_EXECUTION_HOST_TIMEOUT_MS})
   --corpus-id <id>      Stable output identity (default: generated local id)
   --output <path>       Frozen TutorResponseCorpus JSON path
   --report <path>       Sanitized collection report path
-  --dry-run             Print the plan without calling the Tutor
+  --dry-run             Prepare canonical packets without calling the host
   --help                Show this help
 
-Use tutorbench collect-model for canonical foundation-model evidence and
-recorded_model provenance.`);
+The prompt identity and generation controls come from baseline-native-default;
+use tutorbench collect for Product Tutor evidence.`);
 }
 
 function safePathPart(value: string): string {
@@ -329,49 +270,49 @@ function defaultCorpusId(): string {
 }
 
 function resolveOutputPath(
-  options: Exclude<TutorbenchCollectCliOptions, { readonly help: true }>,
+  options: Exclude<TutorbenchCollectModelCliOptions, { readonly help: true }>,
   corpusId: string,
 ): string {
   return options.outputPath ?? resolve(
     process.cwd(),
     "artifacts",
-    "product",
-    `${safePathPart(options.datasetId)}-${safePathPart(options.provider)}-${safePathPart(options.model)}-product-${safePathPart(corpusId)}.json`,
+    "real-model",
+    `${safePathPart(options.datasetId)}-${safePathPart(options.provider)}-${safePathPart(options.model)}-baseline-native-default-${safePathPart(corpusId)}.json`,
   );
 }
 
 function resolveReportPath(
-  options: Exclude<TutorbenchCollectCliOptions, { readonly help: true }>,
+  options: Exclude<TutorbenchCollectModelCliOptions, { readonly help: true }>,
   outputPath: string,
 ): string {
   return options.reportPath ?? `${outputPath}.report.json`;
 }
 
 function printCollectionPlan(
-  options: Exclude<TutorbenchCollectCliOptions, { readonly help: true }>,
+  options: Exclude<TutorbenchCollectModelCliOptions, { readonly help: true }>,
   corpusId: string,
   outputPath: string,
   reportPath: string,
   selectedCaseCount: number,
   dryRun: boolean,
 ): void {
-  console.log("Tutor Benchmark baseline collection");
-  console.log("Collection mode: product_tutor");
+  console.log("Tutor Benchmark model collection");
+  console.log("Collection mode: canonical_model");
   console.log(`Mode: ${dryRun ? "dry-run" : "collect"}`);
   console.log("Transport: http");
-  console.log(`Tutor: ${options.provider}/${options.model}`);
-  console.log(`Prompt/config version: ${options.promptVersion}`);
-  console.log(`Provenance: ${options.provenance}`);
+  console.log(`Model host: ${options.provider}/${options.model}`);
+  console.log("Provenance: recorded_model");
   console.log(`Dataset: ${options.datasetId}`);
-  console.log("Generation spec: none");
+  console.log("Generation profile: baseline-native-default");
   console.log(`Corpus id: ${corpusId}`);
   console.log(`Selected cases: ${selectedCaseCount}`);
   console.log(`Runs per case: ${options.runsPerCase}`);
-  console.log(`Planned Tutor calls: ${selectedCaseCount * options.runsPerCase}`);
+  console.log(`Planned model calls: ${selectedCaseCount * options.runsPerCase}`);
   console.log(`Output corpus: ${outputPath}`);
   console.log(`Collection report: ${reportPath}`);
   if (dryRun) {
-    console.log("Tutor calls made: 0");
+    console.log("Canonical cases/messages prepared");
+    console.log("Model calls made: 0");
   }
 }
 
@@ -380,7 +321,7 @@ function printCollectionResult(
   outputPath: string,
   reportPath: string,
 ): void {
-  console.log("Tutor Benchmark baseline collection");
+  console.log("Tutor Benchmark model collection");
   console.log(`Corpus: ${result.corpus === null ? "not written" : outputPath}`);
   console.log(`Coverage: ${result.report.coverage}`);
   console.log("Status: preliminary");
@@ -390,53 +331,65 @@ function printCollectionResult(
   console.log(`Failures: ${result.report.failedTutorCallCount}`);
   console.log(`Collection report: ${reportPath}`);
   if (result.corpus === null) {
-    console.log("No Tutor response completed; no corpus was created.");
+    console.log("No canonical model response completed; no corpus was created.");
   } else {
     console.log("Corpus validation: passed");
     console.log("Judge: not invoked");
   }
 }
 
-export async function runTutorbenchCollect(
-  options: Exclude<TutorbenchCollectCliOptions, { readonly help: true }>,
+export async function runTutorbenchCollectModel(
+  options: Exclude<TutorbenchCollectModelCliOptions, { readonly help: true }>,
 ): Promise<void> {
   const corpusId = options.corpusId ?? defaultCorpusId();
   const outputPath = resolveOutputPath(options, corpusId);
   const reportPath = resolveReportPath(options, outputPath);
-  const dataset = await loadTutorEvalDataset(options.datasetId);
+  const [dataset, promptAsset] = await Promise.all([
+    loadTutorEvalDataset(options.datasetId),
+    loadTutorBaselinePrompt(),
+  ]);
   const selectedCases = selectTutorEvalCases(dataset, {
     caseIds: options.caseIds,
     limit: options.limit,
     all: false,
     help: false,
   } satisfies TutorCaseSelectionOptions);
+  const generationSpec = buildTutorBaselineGenerationSpec(promptAsset);
   const descriptor = {
     provider: options.provider,
     model: options.model,
     ...(options.modelVersion === undefined ? {} : { modelVersion: options.modelVersion }),
-    ...(options.promptId === undefined ? {} : { promptId: options.promptId }),
-    promptVersion: options.promptVersion,
+    promptId: generationSpec.prompt.id,
+    promptVersion: generationSpec.prompt.version,
   } as const;
-  const httpTutor = createHttpTutor({
-    id: "http-tutor",
+  const host = createHttpTutorExecutionHost({
     endpoint: options.endpoint,
     timeoutMs: options.timeoutMs,
   });
   if (options.dryRun) {
+    for (const tutorEvalCase of selectedCases) {
+      buildTutorExecutionPacketFile(
+        dataset,
+        [tutorEvalCase],
+        generationSpec,
+        promptAsset,
+      );
+    }
     printCollectionPlan(options, corpusId, outputPath, reportPath, selectedCases.length, true);
     return;
   }
   printCollectionPlan(options, corpusId, outputPath, reportPath, selectedCases.length, false);
-  const result = await collectTutorBaseline({
-    tutor: httpTutor,
+  const result = await collectCanonicalTutorModel({
+    host,
     dataset,
     selectedCases,
+    promptAsset,
+    generationSpec,
     tutorDescriptor: descriptor,
-    provenance: options.provenance,
     runsPerCase: options.runsPerCase,
     baselineId: corpusId,
     corpusId,
-    corpusVersion: "product-v1",
+    corpusVersion: generationSpec.specVersion,
     transport: "http",
     outputPath,
   });
@@ -451,23 +404,23 @@ export async function runTutorbenchCollect(
 }
 
 export async function main(args = process.argv.slice(2)): Promise<void> {
-  const options = parseTutorbenchCollectArgs(args);
+  const options = parseTutorbenchCollectModelArgs(args);
   if (options.help) {
-    printTutorbenchCollectHelp();
+    printTutorbenchCollectModelHelp();
     return;
   }
-  await runTutorbenchCollect(options);
+  await runTutorbenchCollectModel(options);
 }
 
-if (process.argv[1]?.endsWith("tutorbench-collect.js")) {
+if (process.argv[1]?.endsWith("tutorbench-collect-model.js")) {
   try {
     await main();
   } catch (error) {
     console.error(
       error instanceof TutorbenchCliUsageError ||
-      (error instanceof Error && error.name === "HttpTutorConfigurationError")
+      error instanceof HttpTutorExecutionHostConfigurationError
         ? error.message
-        : "Tutor Benchmark collection failed.",
+        : "Tutor Benchmark model collection failed.",
     );
     process.exitCode = 1;
   }

@@ -104,7 +104,10 @@ The 0.4A.1 profile remains valid historical evidence with its original
 reinterpreted as the v2 baseline, and v1 and v2 runs are separate semantic
 identities and leaderboard cohorts.
 
-### Optional control conformance
+### Execution conformance
+
+`maxOutputTokens` is a required canonical control. A host must attest that it
+can honor the packet's output limit before a canonical response is recorded.
 
 `temperature`, `reasoningEffort`, and `seed` remain available on
 `TutorGenerationSpec` for controlled research profiles. When one is present,
@@ -182,9 +185,13 @@ and supports repeated `--case`, `--limit`, and `--all`. The existing
 The repository also contains a dry executor that consumes only an execution
 packet and emits a synthetic, generation-bound corpus. It does not call a
 provider or inspect dataset internals, rubrics, or Judge configuration. The
-local `tutorbench collect` command separately orchestrates an externally hosted
-Tutor through the existing HTTP adapter and freezes successful outputs into the
-same corpus contract; it does not implement provider credentials or SDKs.
+local `tutorbench collect` command orchestrates a Product Tutor through the
+existing HTTP adapter and freezes successful outputs into the same corpus
+contract without a generation spec. The separate advanced
+`tutorbench collect-model` command sends one `TutorExecutionPacketFile` case at
+a time to a canonical model host and is the only collection path that records
+`baseline-native-default` generation identity. Neither command implements
+provider credentials or SDKs.
 
 The corpus version is immutable evidence. If response text or its semantic
 generation identity changes, create a new response/corpus version. Do not edit
