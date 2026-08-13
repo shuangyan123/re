@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "synthetic-fixture",
+  "fixture": {
+    "synthetic": true,
+    "notHumanCalibrationData": true
+  },
+  "datasetId": "tutor-eval-v0.2a",
+  "datasetVersion": "0.2a",
+  "adjudicatorId": "synthetic-adjudicator",
+  "adjudications": [
+    {
+      "schemaVersion": 1,
+      "adjudicationId": "adjudication-001",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "response-001",
+      "rubricId": "fraction-guidance-001",
+      "sourceAnnotationIds": ["annotation-a-002", "annotation-b-002"],
+      "finalLabel": "PARTIAL",
+      "rationale": "The common-denominator direction is present, but the independent next step is under-specified.",
+      "adjudicatorId": "synthetic-adjudicator",
+      "createdAt": "2026-08-13T00:02:00.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "adjudicationId": "adjudication-002",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "response-001",
+      "rubricId": "fraction-actionability-001",
+      "sourceAnnotationIds": ["annotation-a-003", "annotation-b-003"],
+      "finalLabel": "PARTIAL",
+      "rationale": "The response gives a direction, but it does not clearly assign a concrete action to the student.",
+      "adjudicatorId": "synthetic-adjudicator",
+      "createdAt": "2026-08-13T00:02:01.000Z"
+    }
+  ]
+}

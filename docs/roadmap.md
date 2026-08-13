@@ -15,14 +15,16 @@
 - Repeated case runs and reserved counterfactual pair identity
 - Contract tests, Node 22 CI, and repository rules
 
-## 0.2 Rubric & Dataset Design — PARTIAL: 0.2A dataset foundation
+## 0.2 Rubric & Dataset Design — PARTIAL: 0.2A dataset + 0.2B calibration infrastructure
 
 - [x] Versioned pedagogical taxonomy and structured scenario difficulty
 - [x] Curated 24-case synthetic dataset across five subjects
 - [x] Atomic rubric authoring metadata and double-counting rules
 - [x] Disclosure-policy coverage and counterfactual adaptation pairs
 - [x] Dataset integrity validation and deterministic coverage report
-- [ ] Independent rubric review and calibration
+- [x] Calibration contracts, blind packet export, agreement metrics, and adjudication boundary
+- [ ] Independent human rubric review using real reviewers
+- [ ] Adjudication and human reference generation using real reviewer data
 
 ## 0.3 LLM-as-Judge Calibration — PARTIAL: prompt contract only
 
@@ -32,7 +34,7 @@
 - [x] Runtime validation for judge input and result JSON
 - [ ] Judge provider adapter or real model calls
 - [ ] Pairwise evaluation
-- [ ] Calibration and human agreement
+- [ ] Judge-vs-human calibration using a real 0.2B reference set
 
 ## 0.4 Tutor Adapter Layer — NOT STARTED
 
