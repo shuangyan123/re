@@ -281,29 +281,30 @@ messages, and generation spec for model-level comparison. A future
 learner state, orchestration, and micro-assessment output. Those product
 conditions must not be mixed into the same model leaderboard.
 
-The future 0.4B bridge should use Review Workspace's low-level
-`generateWithConnection()` with this packet. It must not use `requestTutorReply()`
-as the baseline executor because that product path adds persona, personal
-memory, learner state, a product system prompt, and structured micro-assessment
-output. This repository does not modify `demo` in 0.4A.2.
+An external production bridge should consume this packet through the generic
+Tutor integration boundary. Review Workspace is one possible host, but it is
+not a required executor and its product path must not be confused with the
+benchmark baseline: persona, personal memory, learner state, a product system
+prompt, and structured micro-assessment output are separate product
+conditions. This repository does not modify `demo` in 0.4A.2.
 
-## Future Review Workspace bridge
+## Future external Tutor integrations
 
-The next phase is 0.4B in `shuangyan123/demo`, not in this repository. Its
-bridge should consume the `TutorExecutionPacket`, pass the exact canonical
-messages to the existing low-level generation boundary, execute the selected
-provider/model using the host's credential boundary, capture only final Tutor
-text and sanitized metrics, and emit a `TutorResponseCorpus` JSON file.
+The next integration may be a Review Workspace bridge, an HTTP Tutor, a local
+model, or another product adapter. It should consume the `TutorExecutionPacket`,
+pass only the visible canonical messages to its host, capture only final Tutor
+text and sanitized metrics, and emit a `TutorResponseCorpus` JSON file when a
+frozen official run is desired.
 
 ```text
 re exports canonical execution packet
-  -> demo host executes exact messages
-  -> demo/re bridge writes corpus
+  -> any external Tutor host executes exact messages
+  -> host/re integration writes corpus
   -> re validates and evaluates frozen corpus
 ```
 
-`re` must not import `demo` internals or store its API keys, encrypted
-credentials, credential IDs, Dexie records, provider registry, or provider raw
+`re` must not import product internals or store API keys, encrypted
+credentials, credential IDs, databases, provider registries, or provider raw
 payloads. This 0.4A change therefore does not copy
 `app/server/ai/provider-adapter.ts`, `provider-transport.ts`,
 `execute-provider-generate.ts`, or `model-directory.ts`.
@@ -323,11 +324,12 @@ packet as hidden Tutor instructions.
 ## Scope status
 
 0.4 remains partial. 0.4A.2 completes the portable baseline profile on top of
-the canonical generation-spec and execution-packet contract, but it does not
-implement a real bridge or collect real model responses:
+the canonical generation-spec and execution-packet contract. The public local
+runner is intentionally simpler than this official-run path; no real external
+bridge or model response collection is included:
 
 ```text
-0.4 Tutor Adapter Layer — PARTIAL: portable canonical generation + response corpus boundary
+0.4 Tutor Integration Layer — PARTIAL: public runner + portable reproducibility
 
 [x] stable Tutor response corpus contract
 [x] canonical Tutor generation spec with prompt digest and output limit
@@ -336,8 +338,10 @@ implement a real bridge or collect real model responses:
 [x] recorded/replay Tutor adapter
 [x] Tutor-visible case export
 [x] calibration integration
-[x] Review Workspace adapter protocol
-[ ] Review Workspace execution bridge (0.4B)
+[x] direct generic runner and package-root public API
+[x] provider-neutral external integration contract
+[ ] generic external adapter example or runtime transport adapter
+[ ] optional Review Workspace integration
 [ ] real model response collection
 [ ] broader model adapters if required
 ```

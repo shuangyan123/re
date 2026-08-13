@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   BenchmarkConfigurationError,
@@ -13,7 +14,7 @@ import {
 import { assertValidTutorEvalDatasetIntegrity } from "./integrity.js";
 
 export async function loadTutorEvalDataset(
-  datasetId: string,
+  datasetId: string = TUTOR_EVAL_DATASET_ID,
 ): Promise<TutorEvalDataset> {
   const datasetSpec =
     datasetId === TUTOR_EVAL_DATASET_ID
@@ -33,13 +34,27 @@ export async function loadTutorEvalDataset(
     throw new BenchmarkConfigurationError("tutor_eval_dataset_invalid");
   }
   try {
-    const filePath = resolve(
-      process.cwd(),
-      "scenarios",
-      datasetSpec.directory,
-      "cases.json",
-    );
-    const value = JSON.parse(await readFile(filePath, "utf8")) as unknown;
+    const moduleDirectory = dirname(fileURLToPath(import.meta.url));
+    const filePaths = [
+      resolve(moduleDirectory, "../../../scenarios", datasetSpec.directory, "cases.json"),
+      resolve(moduleDirectory, "../../scenarios", datasetSpec.directory, "cases.json"),
+      resolve(process.cwd(), "scenarios", datasetSpec.directory, "cases.json"),
+    ];
+    let raw: string | undefined;
+    for (const filePath of [...new Set(filePaths)]) {
+      try {
+        raw = await readFile(filePath, "utf8");
+        break;
+      } catch (error) {
+        if (!isFileNotFound(error)) {
+          throw error;
+        }
+      }
+    }
+    if (raw === undefined) {
+      throw new Error("TutorEval dataset file was not found.");
+    }
+    const value = JSON.parse(raw) as unknown;
     const dataset = parseTutorEvalDataset({
       id: datasetId,
       version: datasetSpec.version,
@@ -59,4 +74,13 @@ export async function loadTutorEvalDataset(
     }
     throw new BenchmarkConfigurationError("tutor_eval_dataset_invalid");
   }
+}
+
+function isFileNotFound(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT"
+  );
 }

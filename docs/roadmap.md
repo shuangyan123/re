@@ -47,7 +47,7 @@ provider guide](tutor-eval-v0.3b.md). The phase remains partial: the provider
 is single-provider and opt-in, Judge results are not human-calibrated, and no
 pairwise or statistical evaluation claim is included.
 
-## 0.4 Tutor Adapter Layer — PARTIAL: 0.4A.2 portable baseline generation profile
+## 0.4 Tutor Integration Layer — PARTIAL: public runner + portable reproducibility
 
 - [x] Stable versioned Tutor response corpus contract
 - [x] Canonical TutorGenerationSpec with prompt SHA-256 identity and output limit
@@ -57,15 +57,19 @@ pairwise or statistical evaluation claim is included.
 - [x] Recorded/replay Tutor adapter
 - [x] Tutor-visible case packet export and hidden-data firewall
 - [x] Existing 0.2B calibration conversion
-- [x] Review Workspace adapter protocol
-- [ ] Review Workspace implementation (0.4B)
+- [x] Direct generic Tutor runner and stable package-root public API
+- [x] Provider-neutral external Tutor protocol documented
+- [ ] Generic external adapter example or runtime transport adapter
+- [ ] Optional Review Workspace integration
 - [ ] Real model response collection
 - [ ] Broader model adapters if required
 
 See [the 0.4A.2 generation and response corpus guide](tutor-eval-v0.4a.md).
-The repository remains independent from Review Workspace; 0.4B should modify
-the bridge in `shuangyan123/demo`, execute this repository's canonical packet,
-and emit its stable corpus contract.
+The repository remains independent from Review Workspace. The direct local
+runner is intentionally simpler than the canonical packet/corpus workflow;
+future product integrations should consume the provider-neutral boundary.
+See [the product-boundary note](benchmark-product-boundary.md) for the
+dependency map and public API classification.
 
 ## Public Website — Developer Preview
 
