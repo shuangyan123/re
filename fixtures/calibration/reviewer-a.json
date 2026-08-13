@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "synthetic-fixture",
+  "fixture": {
+    "synthetic": true,
+    "notHumanCalibrationData": true
+  },
+  "datasetId": "tutor-eval-v0.2a",
+  "datasetVersion": "0.2a",
+  "reviewerId": "reviewer-a",
+  "annotations": [
+    {
+      "schemaVersion": 1,
+      "annotationId": "annotation-a-001",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "response-001",
+      "rubricId": "fraction-diagnosis-001",
+      "reviewerId": "reviewer-a",
+      "label": "PASS",
+      "evidence": "The response names the denominator issue.",
+      "createdAt": "2026-08-13T00:00:00.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "annotation-a-002",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "response-001",
+      "rubricId": "fraction-guidance-001",
+      "reviewerId": "reviewer-a",
+      "label": "PASS",
+      "evidence": "It directs the student to find a common denominator.",
+      "createdAt": "2026-08-13T00:00:01.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "annotation-a-003",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "response-001",
+      "rubricId": "fraction-actionability-001",
+      "reviewerId": "reviewer-a",
+      "label": "UNSURE",
+      "ambiguity": {
+        "present": true,
+        "reason": "The next step is suggested but not clearly framed as a student action."
+      },
+      "createdAt": "2026-08-13T00:00:02.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "annotation-a-004",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "response-001",
+      "rubricId": "fraction-no-leak-001",
+      "reviewerId": "reviewer-a",
+      "label": "PASS",
+      "evidence": "The final answer is not disclosed.",
+      "createdAt": "2026-08-13T00:00:03.000Z"
+    }
+  ]
+}

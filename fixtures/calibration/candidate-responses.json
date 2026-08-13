@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "synthetic-fixture",
+  "fixture": {
+    "synthetic": true,
+    "notHumanCalibrationData": true
+  },
+  "datasetId": "tutor-eval-v0.2a",
+  "datasetVersion": "0.2a",
+  "responses": [
+    {
+      "schemaVersion": 1,
+      "responseId": "response-001",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "tutorDescriptor": {
+        "provider": "synthetic",
+        "model": "synthetic-good",
+        "promptVersion": "fixture-v1"
+      },
+      "sourceRun": {
+        "runId": "fixture-run-001",
+        "runIndex": 1
+      },
+      "responseText": "The denominators are different. Find a common denominator first, then add the numerators.",
+      "provenance": "synthetic"
+    }
+  ]
+}

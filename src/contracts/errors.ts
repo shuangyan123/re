@@ -7,6 +7,12 @@ export type BenchmarkErrorCode =
   | "tutor_eval_result_invalid"
   | "judge_input_invalid"
   | "judge_result_invalid"
+  | "calibration_candidate_invalid"
+  | "calibration_annotation_invalid"
+  | "calibration_adjudication_invalid"
+  | "calibration_data_invalid"
+  | "calibration_packet_invalid"
+  | "calibration_reference_invalid"
   | "adapter_failed"
   | "evaluation_failed"
   | "runner_failed";
@@ -20,6 +26,12 @@ const stableMessages: Record<BenchmarkErrorCode, string> = {
   tutor_eval_result_invalid: "TutorEval result is invalid.",
   judge_input_invalid: "AI Tutor Judge input is invalid.",
   judge_result_invalid: "AI Tutor Judge result is invalid.",
+  calibration_candidate_invalid: "Calibration candidate response is invalid.",
+  calibration_annotation_invalid: "Calibration annotation is invalid.",
+  calibration_adjudication_invalid: "Calibration adjudication is invalid.",
+  calibration_data_invalid: "Calibration data is invalid.",
+  calibration_packet_invalid: "Calibration packet is invalid.",
+  calibration_reference_invalid: "Calibration reference set is invalid.",
   adapter_failed: "Tutor adapter failed for this scenario.",
   evaluation_failed: "Evaluator failed for this scenario.",
   runner_failed: "Benchmark runner failed.",
@@ -34,7 +46,13 @@ export class BenchmarkConfigurationError extends Error {
     | "tutor_eval_rubric_invalid"
     | "tutor_eval_result_invalid"
     | "judge_input_invalid"
-    | "judge_result_invalid";
+    | "judge_result_invalid"
+    | "calibration_candidate_invalid"
+    | "calibration_annotation_invalid"
+    | "calibration_adjudication_invalid"
+    | "calibration_data_invalid"
+    | "calibration_packet_invalid"
+    | "calibration_reference_invalid";
 
   constructor(
     code:
@@ -45,7 +63,13 @@ export class BenchmarkConfigurationError extends Error {
       | "tutor_eval_rubric_invalid"
       | "tutor_eval_result_invalid"
       | "judge_input_invalid"
-      | "judge_result_invalid",
+      | "judge_result_invalid"
+      | "calibration_candidate_invalid"
+      | "calibration_annotation_invalid"
+      | "calibration_adjudication_invalid"
+      | "calibration_data_invalid"
+      | "calibration_packet_invalid"
+      | "calibration_reference_invalid",
   ) {
     super(stableMessages[code]);
     this.name = "BenchmarkConfigurationError";

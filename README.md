@@ -27,15 +27,22 @@ capability metadata, counterfactual pairs, disclosure-policy coverage, runtime
 integrity checks, and a deterministic coverage report. See [the 0.2A design
 guide](docs/tutor-eval-v0.2a.md).
 
+TutorEval 0.2B adds provider-independent calibration infrastructure without
+making human-calibration claims: candidate response records, blind annotation
+packets, pseudonymous reviewer contracts, agreement and ambiguity metrics,
+adjudication, and a future Judge-vs-human identity boundary. See [the 0.2B
+calibration guide](docs/tutor-eval-v0.2b.md). The committed files under
+`fixtures/calibration/` are synthetic pipeline fixtures only.
+
 The contract tests compare a deliberately bad scripted tutor with a guided scripted tutor; the lower score comes from the same rubric and evaluator logic, without tutor-specific exceptions.
 
 ## AI Tutor Judge v0.1
 
 The repository also retains the earlier provider-independent Judge v0.1 contract described in [the legacy system prompt](prompts/ai-tutor-judge-system-v0.1.md) for compatibility. TutorEval's canonical Judge result is the case-scoped `TutorEvalJudgeResult` contract.
 
-The TutorEval Judge boundary is injection-only. This release does not call an LLM, include a provider SDK, perform calibration, or claim that a judge result proves learning impact.
+The TutorEval Judge boundary is injection-only. This release does not call an LLM, include a provider SDK, or perform real human calibration, and it does not claim that a judge result proves learning impact.
 
-Deterministic checks such as answer-leakage and keyword coverage are useful proxies, not a scientific measurement of full tutoring quality. LLM judging, human calibration, variance/statistical analysis across repeated runs, and richer pedagogical dimensions are future work.
+Deterministic checks such as answer-leakage and keyword coverage are useful proxies, not a scientific measurement of full tutoring quality. Real LLM judging, human reviewer calibration, variance/statistical analysis across repeated runs, and richer pedagogical dimensions are future work; 0.2B provides only the calibration infrastructure.
 
 ## Quick start
 
@@ -58,6 +65,19 @@ calls. `npm run coverage` prints the dataset coverage JSON. Generated results
 are ignored by Git. A pedagogical scenario failure is reported but does not
 make the CLI fail; an uncaught setup or runner exception returns a non-zero
 exit code.
+
+Calibration commands use the small synthetic fixtures by default:
+
+```bash
+npm run calibration:export
+npm run calibration:validate
+npm run calibration:report
+npm run calibration:aggregate
+```
+
+They do not call a model API. Synthetic fixture output is explicitly reported
+as not being human calibration data; private reviewer files should be passed
+with repeated `--reviewer` arguments from ignored storage.
 
 ## Repository privacy
 

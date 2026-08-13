@@ -12,7 +12,11 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "build": "tsc -p tsconfig.json",
     "benchmark": "npm run build && node dist/src/cli/benchmark.js",
-    "coverage": "npm run build && node dist/src/cli/dataset-coverage.js"
+    "coverage": "npm run build && node dist/src/cli/dataset-coverage.js",
+    "calibration:export": "npm run build && node dist/src/cli/calibration-export.js",
+    "calibration:validate": "npm run build && node dist/src/cli/calibration-validate.js",
+    "calibration:report": "npm run build && node dist/src/cli/calibration-report.js",
+    "calibration:aggregate": "npm run build && node dist/src/cli/calibration-aggregate.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
