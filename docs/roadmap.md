@@ -62,6 +62,20 @@ See [the 0.4A response corpus guide](tutor-eval-v0.4a.md). The repository
 remains independent from Review Workspace; 0.4B should modify the bridge in
 `shuangyan123/demo` and emit this repository's stable corpus contract.
 
+## Public Website — Developer Preview
+
+This is a separate public website/productization track. It consumes the
+provider-independent benchmark through a static, secret-free public artifact
+boundary and does not change the methodology phases above.
+
+- [x] Read-only static website shell and Developer Preview status
+- [x] Public TutorEval case serializer with evaluator-only field exclusion
+- [x] Coverage-backed case explorer and responsive route layout
+- [x] Empty leaderboard, model, heatmap, and trial contracts without fake runs
+- [x] Local adapter/corpus run guide and methodology limitations
+- [ ] Public result artifact pipeline for reproducible model runs
+- [ ] Public submission/review workflow (separate phase)
+
 ## 0.5 Statistical Evaluation — NOT STARTED
 
 - Repeated runs
