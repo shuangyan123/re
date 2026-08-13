@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -289,6 +290,19 @@ async function runAsExecutable(): Promise<void> {
   }
 }
 
-if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
+function isExecutableInvocation(): boolean {
+  const argumentPath = process.argv[1];
+  if (argumentPath === undefined) {
+    return false;
+  }
+  const modulePath = fileURLToPath(import.meta.url);
+  try {
+    return realpathSync(argumentPath) === realpathSync(modulePath);
+  } catch {
+    return resolve(argumentPath) === modulePath;
+  }
+}
+
+if (isExecutableInvocation()) {
   await runAsExecutable();
 }

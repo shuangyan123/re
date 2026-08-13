@@ -1,0 +1,73 @@
+name: Tutor Benchmark Release Validation
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref to validate when running manually"
+        required: false
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Build and validate release artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - name: Set up Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Read package version
+        id: package
+        shell: bash
+        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+      - name: Check tag and package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: node scripts/validate-release-version.mjs "$GITHUB_REF_NAME"
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Run synthetic benchmark
+        run: npm run benchmark
+      - name: Build public website
+        run: npm run website:build
+      - name: Check public website artifact
+        run: node scripts/website-artifact-smoke.mjs
+      - name: Run package consumer smoke and retain tarball
+        run: npm run test:package -- --output-dir artifacts/release
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tutor-benchmark-${{ steps.package.outputs.version }}
+          path: artifacts/release/tutor-benchmark-*.tgz
+          if-no-files-found: error
+      - name: Upload website artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tutor-benchmark-website-${{ steps.package.outputs.version }}
+          path: website/dist
+          if-no-files-found: error

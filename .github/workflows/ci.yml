@@ -13,9 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Set up Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -31,3 +33,9 @@ jobs:
         run: npm run build
       - name: Run synthetic benchmark
         run: npm run benchmark
+      - name: Build public website
+        run: npm run website:build
+      - name: Check public website artifact
+        run: node scripts/website-artifact-smoke.mjs
+      - name: Run package consumer smoke
+        run: npm run test:package

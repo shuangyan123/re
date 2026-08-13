@@ -36,6 +36,7 @@ const defaultOutputDirectory = resolve(websiteRoot, "dist");
 export interface BuildOptions {
   readonly outputDirectory?: string;
   readonly siteUrl?: string;
+  readonly basePath?: string;
 }
 
 interface RoutePage {
@@ -61,12 +62,17 @@ async function writePage(
   page: SitePage,
   artifacts: PublicBenchmarkArtifacts,
   siteUrl: string | undefined,
+  basePath: string | undefined,
 ): Promise<void> {
   const outputPath = pageOutputPath(outputDirectory, page.route);
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(
     outputPath,
-    renderPage(page, { benchmark: artifacts.benchmark, ...(siteUrl === undefined ? {} : { siteUrl }) }),
+    renderPage(page, {
+      benchmark: artifacts.benchmark,
+      ...(siteUrl === undefined ? {} : { siteUrl }),
+      ...(basePath === undefined ? {} : { basePath }),
+    }),
     "utf8",
   );
 }
@@ -114,7 +120,13 @@ export async function buildWebsite(options: BuildOptions = {}): Promise<number> 
 
   const pages = routePages(artifacts);
   for (const routePage of pages) {
-    await writePage(outputDirectory, routePage.page, artifacts, options.siteUrl);
+    await writePage(
+      outputDirectory,
+      routePage.page,
+      artifacts,
+      options.siteUrl,
+      options.basePath,
+    );
   }
   await writeFile(
     join(outputDirectory, "404.html"),
@@ -125,7 +137,11 @@ export async function buildWebsite(options: BuildOptions = {}): Promise<number> 
         route: "/404.html",
         content: `<section class="page-intro"><div class="shell narrow-shell"><h1>Page not found</h1><p class="lede">This route is not part of the public Developer Preview.</p><a class="button button-primary" href="/">Return home</a></div></section>`,
       },
-      { benchmark: artifacts.benchmark, ...(options.siteUrl === undefined ? {} : { siteUrl: options.siteUrl }) },
+      {
+        benchmark: artifacts.benchmark,
+        ...(options.siteUrl === undefined ? {} : { siteUrl: options.siteUrl }),
+        ...(options.basePath === undefined ? {} : { basePath: options.basePath }),
+      },
     ),
     "utf8",
   );
@@ -149,7 +165,12 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     throw new Error("Website output must stay inside the website directory.");
   }
   const siteUrl = process.env.TUTOR_BENCHMARK_SITE_URL?.trim() || undefined;
-  const routeCount = await buildWebsite({ outputDirectory, ...(siteUrl === undefined ? {} : { siteUrl }) });
+  const basePath = process.env.TUTOR_BENCHMARK_SITE_BASE_PATH?.trim() || undefined;
+  const routeCount = await buildWebsite({
+    outputDirectory,
+    ...(siteUrl === undefined ? {} : { siteUrl }),
+    ...(basePath === undefined ? {} : { basePath }),
+  });
   console.log(`Built Tutor Benchmark website: ${outputDirectory}`);
   console.log(`Routes: ${routeCount}`);
   console.log("Public model rankings: none");

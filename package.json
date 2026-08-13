@@ -1,7 +1,21 @@
 {
   "name": "tutor-benchmark",
   "version": "0.1.0",
-  "description": "An independent, provider-independent foundation for evaluating Tutor behavior.",
+  "description": "A provider-independent Developer Preview for evaluating observable AI tutoring behavior.",
+  "keywords": [
+    "ai tutoring",
+    "benchmark",
+    "evaluation",
+    "tutoreval"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shuangyan123/re.git"
+  },
+  "homepage": "https://github.com/shuangyan123/re#readme",
+  "bugs": {
+    "url": "https://github.com/shuangyan123/re/issues"
+  },
   "type": "module",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
@@ -39,7 +53,9 @@
     "tutor:corpus:validate": "npm run build && node dist/src/cli/tutor-corpus-validate.js",
     "benchmark:corpus": "npm run build && node dist/src/cli/benchmark-corpus.js",
     "website:build": "npm run build && node dist/src/cli/website-build.js",
-    "website:dev": "npm run website:build && node dist/src/cli/website-server.js"
+    "website:dev": "npm run website:build && node dist/src/cli/website-server.js",
+    "test:package": "npm run build && node scripts/package-consumer-smoke.mjs",
+    "test:website": "npm run website:build && node scripts/website-artifact-smoke.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

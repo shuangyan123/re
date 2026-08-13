@@ -109,6 +109,9 @@ test("static website build emits the public artifact files and route shell", asy
     assert.equal(routeCount, 37);
     assert.match(homeHtml, /Developer Preview/);
     assert.match(homeHtml, /No calibrated public model runs yet\./);
+    assert.match(homeHtml, /href="\/leaderboard\//);
+    assert.match(homeHtml, /href="\/assets\/styles\.css"/);
+    assert.match(homeHtml, /src="\/assets\/site\.js"/);
     assert.match(leaderboardHtml, /Leaderboard coming soon/);
     assert.match(runHtml, /tutor:export-execution/);
     assert.match(runHtml, /TutorExecutionPacket/);
@@ -120,6 +123,31 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(methodologyHtml, /provider-native/);
     assert.match(leaderboardHtml, /GenerationSpecId/);
     assert.doesNotMatch(casesJson, /evaluatorOnly|groundTruth|knownMisconception|rubrics|misconceptions/);
+  } finally {
+    await rm(outputDirectory, { recursive: true, force: true });
+  }
+});
+
+test("static website build prefixes project-site paths without changing local defaults", async () => {
+  const outputDirectory = await mkdtemp(join(tmpdir(), "tutor-benchmark-pages-"));
+  try {
+    await buildWebsite({
+      outputDirectory,
+      basePath: "/re/",
+      siteUrl: "https://shuangyan123.github.io/re",
+    });
+    const homeHtml = await readFile(join(outputDirectory, "index.html"), "utf8");
+    const casesHtml = await readFile(
+      join(outputDirectory, "data", "cases", "index.html"),
+      "utf8",
+    );
+
+    assert.match(homeHtml, /href="\/re\/leaderboard\//);
+    assert.match(homeHtml, /href="\/re\/assets\/styles\.css"/);
+    assert.match(homeHtml, /src="\/re\/assets\/site\.js"/);
+    assert.match(homeHtml, /<link rel="canonical" href="https:\/\/shuangyan123\.github\.io\/re\//);
+    assert.match(casesHtml, /href="\/re\/data\/cases\/fraction-misconception-001\//);
+    assert.doesNotMatch(homeHtml, /(?:href|src)="\/(?:leaderboard|assets)\//);
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });
   }
