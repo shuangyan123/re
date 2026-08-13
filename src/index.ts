@@ -12,6 +12,7 @@ export {
   toTutorTurnInput,
 } from "./contracts/index.js";
 export { runTutorBenchmark, runTutorEval } from "./runner/index.js";
+export { createHttpTutor } from "./adapters/http-tutor.js";
 
 export type {
   StudentState,
@@ -27,6 +28,7 @@ export type {
   TutorEvalCase,
   TutorEvalDataset,
 } from "./contracts/tutor-eval.js";
+export type { HttpTutorOptions } from "./adapters/http-tutor.js";
 export type { TutorEvalRubric } from "./contracts/rubric.js";
 export type {
   TutorEvalCaseRunResult,

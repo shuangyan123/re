@@ -1,0 +1,12 @@
+{
+  "text": "Find a common denominator first.",
+  "metrics": {
+    "latencyMs": 12,
+    "tokenUsage": {
+      "inputTokens": 10,
+      "outputTokens": 8,
+      "totalTokens": 18
+    },
+    "cost": 0.001
+  }
+}

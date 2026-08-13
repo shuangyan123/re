@@ -47,7 +47,7 @@ provider guide](tutor-eval-v0.3b.md). The phase remains partial: the provider
 is single-provider and opt-in, Judge results are not human-calibrated, and no
 pairwise or statistical evaluation claim is included.
 
-## 0.4 Tutor Integration Layer — PARTIAL: public runner + portable reproducibility
+## 0.4 Tutor Integration Layer — PARTIAL: public runner + portable reproducibility + HTTP adapter
 
 - [x] Stable versioned Tutor response corpus contract
 - [x] Canonical TutorGenerationSpec with prompt SHA-256 identity and output limit
@@ -58,8 +58,8 @@ pairwise or statistical evaluation claim is included.
 - [x] Tutor-visible case packet export and hidden-data firewall
 - [x] Existing 0.2B calibration conversion
 - [x] Direct generic Tutor runner and stable package-root public API
-- [x] Provider-neutral external Tutor protocol documented
-- [ ] Generic external adapter example or runtime transport adapter
+- [x] Provider-neutral external Tutor protocol documented and implemented as HTTP v1
+- [x] Generic external HTTP adapter, `tutorbench run` CLI, and cross-language example
 - [ ] Optional Review Workspace integration
 - [ ] Real model response collection
 - [ ] Broader model adapters if required
