@@ -114,6 +114,8 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(runHtml, /TutorExecutionPacket/);
     assert.match(runHtml, /baseline-native-default/);
     assert.match(runHtml, /Controlled optional generation parameters: none/);
+    assert.match(runHtml, /Use any language/);
+    assert.match(runHtml, /tutorbench run/);
     assert.match(methodologyHtml, /Case, spec, packet, corpus/);
     assert.match(methodologyHtml, /provider-native/);
     assert.match(leaderboardHtml, /GenerationSpecId/);

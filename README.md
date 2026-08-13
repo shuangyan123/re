@@ -69,6 +69,44 @@ The canonical 0.2A dataset is the default. It intentionally contains both
 deterministic and Judge-required rubrics; a Judge is optional, but unresolved
 Judge evidence is reported as an error rather than silently omitted.
 
+## Use any language
+
+An external Tutor can implement the same boundary over HTTP without importing
+this package. The repository includes a Python standard-library integration
+example:
+
+```bash
+python examples/http-python-tutor/server.py
+```
+
+In another terminal, after installing the package, run:
+
+```bash
+tutorbench run \
+  --http http://127.0.0.1:8000/respond \
+  --limit 3
+```
+
+From a repository clone, use `node dist/src/cli/tutorbench.js` in place of
+`tutorbench` after `npm run build`.
+
+The package also supports `npx tutor-benchmark run --http <url>`. The HTTP v1
+contract is deliberately small:
+
+```text
+POST /respond
+request:  TutorTurnInput JSON
+response: { "text": string, "metrics"?: { latencyMs?, tokenUsage?, cost? } }
+```
+
+Only Tutor-visible input is sent. The adapter validates and sanitizes the
+response, uses a 30-second timeout by default, accepts only `http`/`https`
+endpoints without embedded credentials, and performs no automatic retry.
+`--dataset`, repeated `--case`, `--limit`, `--runs`, `--timeout-ms`, and
+`--output` are available on `tutorbench run`. Judge-required rubrics remain
+unresolved when no Judge is configured; the HTTP command never requires or
+reads `OPENAI_API_KEY`.
+
 ## What it measures
 
 The core flow is:
@@ -90,6 +128,7 @@ The package root is the stable local-evaluation surface:
 - `runTutorBenchmark` for the small default runner
 - `runTutorEval` for explicit dataset and runner control
 - `loadTutorEvalDataset` for the checked-in public datasets
+- `createHttpTutor` for a provider-neutral HTTP Tutor adapter
 - typed TutorEval dataset and result contracts
 
 Corpus/replay, generation packets, calibration, site generation, and provider
@@ -132,6 +171,10 @@ npm run calibration:aggregate
 
 Corpus replay is offline. The OpenAI Judge adapter is an optional evaluator
 integration; live calls require explicit opt-in and are not part of CI.
+The repository keeps `openai@7.4.0` as a development dependency and exposes it
+as an optional peer so stable package-root and HTTP usage do not install or
+load OpenAI. Consumers explicitly using the OpenAI provider must install that
+optional peer.
 
 ## Public website / Developer Preview
 

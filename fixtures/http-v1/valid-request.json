@@ -1,0 +1,25 @@
+{
+  "scenarioId": "http-fixture-case-001",
+  "caseId": "http-fixture-case-001",
+  "caseVersion": "1.0.0",
+  "runIndex": 1,
+  "learningObjective": "Offer one useful next step.",
+  "initialContext": "A synthetic context.",
+  "conversation": [
+    {
+      "role": "student",
+      "text": "I am stuck."
+    },
+    {
+      "role": "tutor",
+      "text": "What have you tried?"
+    }
+  ],
+  "currentStudentMessage": "I tried adding the denominators.",
+  "studentState": {
+    "knownConcepts": ["fractions"],
+    "misconceptions": [],
+    "level": "developing",
+    "goal": "Learn the next step."
+  }
+}

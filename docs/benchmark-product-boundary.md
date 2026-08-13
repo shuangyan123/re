@@ -14,7 +14,7 @@ The repository already has the following responsibilities:
 | --- | --- | --- |
 | Benchmark Definition | `src/contracts/`, `scenarios/`, `rubrics/`, `src/datasets/`, `src/evaluators/`, `src/scoring/` | Cases, visible/evaluator-only separation, rubrics, deterministic checks, Judge contracts, aggregation, and result validation |
 | Generic Runner | `src/runner/`, `src/reporting/` | Executes a `TutorUnderTest`, evaluates cases in stable order, isolates failures, and emits typed results/reports |
-| Tutor / Provider Integration | `src/adapters/`, `src/providers/openai/`, selected `src/cli/` commands | Adapts a product, model, callback, or recorded response to the provider-independent boundary |
+| Tutor / Provider Integration | `src/adapters/`, `src/providers/openai/`, `src/cli/tutorbench.ts`, `examples/http-python-tutor/` | Adapts a product, model, callback, recorded response, or external HTTP service to the provider-independent boundary |
 | Advanced Reproducibility | `src/corpus/`, `src/contracts/tutor-generation.ts`, `src/contracts/tutor-execution.ts`, `src/contracts/tutor-response-corpus.ts` | Records, replays, freezes generation identity, and validates official-run evidence |
 | Calibration | `src/calibration/`, `fixtures/calibration/` | Provides provider-independent annotation packets, agreement metrics, and adjudication contracts; synthetic fixtures are not human calibration claims |
 | Website | `src/site/`, `website/` | Consumes public benchmark artifacts and does not execute Tutors or change scoring |
@@ -87,7 +87,8 @@ interface TutorTurnOutput {
 
 This is intentionally transport-neutral. A JavaScript callback, local model,
 product API, HTTP service, or another language can implement the boundary.
-For an external HTTP integration, the smallest future protocol is:
+The repository now implements a stable v1 external HTTP integration. It is a
+transport adapter, not a second benchmark runner or provider framework:
 
 ```text
 POST /respond
@@ -126,9 +127,13 @@ The host returns only the public Tutor output shape:
 ```
 
 Authentication, timeouts, retries, provider metadata, and raw error handling
-belong to that integration, not to the benchmark core. This round documents
-the protocol and tests a custom Tutor through the public package surface; it
-does not add a second transport framework.
+are intentionally constrained at the HTTP adapter boundary. v1 validates
+`http`/`https` endpoint URLs, rejects embedded credentials, uses an explicit
+finite timeout, does not retry requests, and retains only the sanitized
+`TutorTurnOutput` fields. It does not implement authentication, credential
+storage, or remote-service retry policy. Non-2xx responses, invalid JSON,
+invalid output, timeouts, and network failures become per-case adapter
+failures through the existing runner isolation.
 
 ### Advanced Reproducibility
 
@@ -150,6 +155,7 @@ The package root is the stable public surface:
 - `TutorUnderTest`, `TutorTurnInput`, `TutorTurnOutput`
 - `runTutorBenchmark`, `runTutorEval`
 - `loadTutorEvalDataset`
+- `createHttpTutor`
 - TutorEval dataset and result types
 
 Advanced or experimental modules remain explicit repository modules:
