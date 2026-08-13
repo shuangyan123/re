@@ -25,6 +25,7 @@ export interface TutorEvalJudgeInput {
   readonly groundTruth: string;
   readonly knownMisconception: string;
   readonly disclosurePolicy: TutorEvalCase["evaluatorOnly"]["disclosurePolicy"];
+  /** Only the Judge-owned rubric subset for this case-scoped request. */
   readonly rubrics: readonly {
     readonly id: string;
     readonly category: TutorEvalCategory;
@@ -38,6 +39,23 @@ export interface TutorEvalJudgeInput {
   }[];
   readonly tutorResponse: string;
 }
+
+/**
+ * Provider-independent execution boundary. A provider adapter owns transport,
+ * retries, and response sanitization; the core runner receives only the
+ * returned value and validates it against the Judge result contract.
+ */
+export interface TutorEvalJudge {
+  evaluate(input: TutorEvalJudgeInput): Promise<unknown>;
+}
+
+export type TutorEvalJudgeFailureCode =
+  | "judge_unavailable"
+  | "judge_result_invalid"
+  | "judge_timeout"
+  | "judge_transport_error"
+  | "judge_rubric_missing"
+  | "judge_rubric_unexpected";
 
 export interface TutorEvalJudgeRubricResult {
   readonly rubricId: string;
@@ -59,6 +77,7 @@ export interface TutorEvalJudgeFactualError {
 export interface TutorEvalJudgeResult {
   readonly schemaVersion: typeof TUTOR_EVAL_JUDGE_SCHEMA_VERSION;
   readonly caseId: string;
+  /** Complete result set for the Judge rubric subset requested for this case. */
   readonly rubricResults: readonly TutorEvalJudgeRubricResult[];
   readonly criticalFailures: readonly TutorEvalJudgeCriticalFailure[];
   readonly factualErrors: readonly TutorEvalJudgeFactualError[];

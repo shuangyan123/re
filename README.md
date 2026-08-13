@@ -14,7 +14,7 @@ This repository is not:
 The current release is a small foundation proving the path:
 
 ```text
-Scenario -> TutorUnderTest adapter -> Tutor output -> deterministic evaluators -> benchmark result -> report
+Scenario -> TutorUnderTest adapter -> Tutor output -> rubric-owned evaluators -> benchmark result -> report
 ```
 
 It contains runtime-validated JSON scenarios and rubrics, a scripted synthetic tutor adapter, pure deterministic evaluators, a failure-isolating runner, human-readable output, and a JSON report writer.
@@ -42,6 +42,11 @@ The repository also retains the earlier provider-independent Judge v0.1 contract
 
 The TutorEval Judge boundary is injection-only. This release does not call an LLM, include a provider SDK, or perform real human calibration, and it does not claim that a judge result proves learning impact.
 
+TutorEval 0.3A adds hybrid orchestration: deterministic rubrics are evaluated
+by deterministic evaluators, Judge rubrics are sent in one case-scoped Judge
+request, and the validated results are merged in stable rubric order. See [the
+0.3A hybrid orchestration guide](docs/tutor-eval-v0.3a.md).
+
 Deterministic checks such as answer-leakage and keyword coverage are useful proxies, not a scientific measurement of full tutoring quality. Real LLM judging, human reviewer calibration, variance/statistical analysis across repeated runs, and richer pedagogical dimensions are future work; 0.2B provides only the calibration infrastructure.
 
 ## Quick start
@@ -59,12 +64,13 @@ npm run benchmark
 
 `npm run benchmark` runs the synthetic guided tutor against the checked-in
 TutorEval 0.2A cases, prints category scores and leakage/failure rates, and
-writes `artifacts/tutor-eval-v0.2a-result.json`. Criteria reserved for the
-future Judge are reported as unavailable because 0.2A makes no real Judge
-calls. `npm run coverage` prints the dataset coverage JSON. Generated results
-are ignored by Git. A pedagogical scenario failure is reported but does not
-make the CLI fail; an uncaught setup or runner exception returns a non-zero
-exit code.
+writes `artifacts/tutor-eval-v0.2a-result.json`. Cases containing Judge rubrics
+remain unresolved when no Judge executor is configured; their deterministic
+rubric evidence is retained and no partial run-level score is reported.
+`npm run coverage` prints the dataset coverage JSON. Generated results are
+ignored by Git. A pedagogical scenario failure is reported but does not make
+the CLI fail; an uncaught setup or runner exception returns a non-zero exit
+code.
 
 Calibration commands use the small synthetic fixtures by default:
 

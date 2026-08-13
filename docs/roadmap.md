@@ -26,15 +26,23 @@
 - [ ] Independent human rubric review using real reviewers
 - [ ] Adjudication and human reference generation using real reviewer data
 
-## 0.3 LLM-as-Judge Calibration — PARTIAL: prompt contract only
+## 0.3 LLM-as-Judge Calibration — PARTIAL: 0.3A hybrid orchestration
 
-- [x] Versioned v0.1 judge system prompt
+- [x] Versioned v0.1 judge system prompt retained for compatibility
+- [x] Versioned v0.2 Judge prompt contract
 - [x] Provider-independent judge input/output contracts
 - [x] Pure pedagogy score and quality-gate calculations
 - [x] Runtime validation for judge input and result JSON
+- [x] Rubric-owned deterministic/Judge routing
+- [x] Provider-independent Judge execution boundary
+- [x] Deterministic and Judge result merge with partial-evidence preservation
 - [ ] Judge provider adapter or real model calls
 - [ ] Pairwise evaluation
 - [ ] Judge-vs-human calibration using a real 0.2B reference set
+
+See [the 0.3A hybrid orchestration guide](tutor-eval-v0.3a.md). The phase
+remains partial: no real Judge provider, real model call, or human calibration
+claim is included.
 
 ## 0.4 Tutor Adapter Layer — NOT STARTED
 

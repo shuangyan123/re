@@ -1,6 +1,7 @@
-import type {
-  TutorEvalCase,
-  TutorEvalRubric,
+import {
+  partitionTutorEvalRubrics,
+  type TutorEvalCase,
+  type TutorEvalRubric,
 } from "../contracts/index.js";
 import type {
   TutorEvalDiagnostic,
@@ -34,7 +35,10 @@ export function evaluateTutorEvalRubric(
   rubric: TutorEvalRubric,
   output: TutorTurnOutput,
 ): TutorEvalRubricResult {
-  if (rubric.evaluationType !== "deterministic" || rubric.evaluatorId === undefined) {
+  const evaluationType =
+    rubric.evaluationType ??
+    (rubric.evaluatorId === undefined ? "judge" : "deterministic");
+  if (evaluationType !== "deterministic" || rubric.evaluatorId === undefined) {
     return errorResult(
       rubric,
       "judge_evaluation_unavailable",
@@ -87,7 +91,7 @@ export function evaluateTutorEvalRubrics(
   tutorEvalCase: TutorEvalCase,
   output: TutorTurnOutput,
 ): readonly TutorEvalRubricResult[] {
-  return tutorEvalCase.evaluatorOnly.rubrics.map((rubric) =>
+  return partitionTutorEvalRubrics(tutorEvalCase).deterministicRubrics.map((rubric) =>
     evaluateTutorEvalRubric(tutorEvalCase, rubric, output),
   );
 }
