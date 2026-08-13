@@ -1,7 +1,8 @@
-import type {
-  PublicBenchmarkArtifacts,
-  PublicBenchmarkArtifact,
-  PublicCaseArtifact,
+import {
+  PUBLIC_BENCHMARK_GENERATION_TRACEABILITY_FIELDS,
+  type PublicBenchmarkArtifacts,
+  type PublicBenchmarkArtifact,
+  type PublicCaseArtifact,
 } from "../../datasets/public.js";
 import {
   escapeHtml,
@@ -208,8 +209,8 @@ function renderLeaderboardSchema(benchmark: PublicBenchmarkArtifact): string {
   return `<div class="schema-grid">
     <div><p class="eyebrow">Tutor capability score</p>${renderDimensionPills(benchmark.dimensions.score)}</div>
     <div><p class="eyebrow">Operational signals</p>${renderDimensionPills(benchmark.dimensions.operational)}</div>
-    <div><p class="eyebrow">Traceability fields</p>${renderDimensionPills(["datasetVersion", "generationSpecVersion", "promptVersion", "promptSha256", "runs"])}</div>
-    <p class="muted">The future table will show: ${escapeHtml(scoreFields.join(", "))}. Operational fields include ${escapeHtml(operationalFields.join(", "))}.</p>
+    <div><p class="eyebrow">Traceability fields</p>${renderDimensionPills([...PUBLIC_BENCHMARK_GENERATION_TRACEABILITY_FIELDS, "promptSha256", "runs"])}</div>
+    <p class="muted">The future table will show: ${escapeHtml(scoreFields.join(", "))}. Operational fields include ${escapeHtml(operationalFields.join(", "))}. Results from different generation profiles are separate cohorts and are not silently mixed.</p>
   </div>`;
 }
 

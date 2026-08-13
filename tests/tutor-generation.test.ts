@@ -5,6 +5,8 @@ import { test } from "node:test";
 
 import {
   BenchmarkConfigurationError,
+  TutorGenerationExecutionError,
+  assertTutorGenerationSpecExecutionSupport,
   buildTutorExecutionPacketFile,
   buildTutorGenerationMessages,
   buildTutorVisibleCasePacketFile,
@@ -23,6 +25,7 @@ import {
 } from "../src/contracts/index.js";
 import {
   buildTutorBaselineGenerationSpec,
+  buildTutorBaselineGenerationSpecV1,
   loadTutorBaselinePrompt,
 } from "../src/corpus/index.js";
 import { deriveTutorResponseId } from "../src/corpus/index.js";
@@ -81,6 +84,13 @@ test("TutorGenerationSpec validates bounded parameters and optional values", asy
   });
   assert.deepEqual(parseTutorGenerationSpec(spec), spec);
   assert.equal("temperature" in spec, false);
+  const controlledSpec = createTutorGenerationSpec({
+    ...spec,
+    temperature: 0.2,
+    reasoningEffort: "low",
+    seed: 7,
+  });
+  assert.deepEqual(parseTutorGenerationSpec(controlledSpec), controlledSpec);
   assert.throws(
     () => parseTutorGenerationSpec({ ...spec, maxOutputTokens: 0 }),
     (error: unknown) =>
@@ -97,6 +107,82 @@ test("TutorGenerationSpec validates bounded parameters and optional values", asy
   );
 });
 
+test("baseline v1 remains historical while v2 is the portable default", async () => {
+  const { dataset, promptAsset } = await loadContext();
+  const v1 = buildTutorBaselineGenerationSpecV1(promptAsset);
+  const v2 = buildTutorBaselineGenerationSpec(promptAsset);
+
+  assert.equal(v1.specVersion, "0.4a.1");
+  assert.equal(v1.temperature, 0.2);
+  assert.equal(v1.reasoningEffort, "low");
+  assert.equal(v1.seed, 7);
+  assert.equal(v2.specVersion, "0.4a.2");
+  assert.equal(v2.maxOutputTokens, 1024);
+  assert.equal("temperature" in v2, false);
+  assert.equal("reasoningEffort" in v2, false);
+  assert.equal("seed" in v2, false);
+  assert.notDeepEqual(v1, v2);
+  assert.doesNotThrow(() => parseTutorGenerationSpec(v1));
+  assert.doesNotThrow(() => parseTutorGenerationSpec(v2));
+
+  const v1Packet = buildTutorExecutionPacketFile(
+    dataset,
+    [selectedCase(dataset)],
+    v1,
+    promptAsset,
+  );
+  assert.equal(parseTutorExecutionPacketFile(v1Packet).generationSpec.specVersion, "0.4a.1");
+  const v1Corpus = await runDryTutorExecutionPacket(v1Packet, {
+    corpusId: "v1-corpus",
+    createdAt: "2026-08-13T00:00:00.000Z",
+  });
+  assert.equal(v1Corpus.corpusVersion, "0.4a.1");
+  assert.deepEqual(findTutorResponseCorpusValidationIssues({ corpus: v1Corpus, dataset }), []);
+
+  const tutor = {
+    provider: "test",
+    model: "test-model",
+    promptVersion: v1.prompt.version,
+  } as const;
+  const identityInput = {
+    corpusId: "identity-corpus",
+    corpusVersion: "0.4a",
+    datasetId: "dataset",
+    datasetVersion: "1.0.0",
+    caseId: "case",
+    caseVersion: "1.0.0",
+    tutor,
+    runIndex: 1,
+  } as const;
+  assert.notEqual(
+    deriveTutorResponseId({ ...identityInput, generationSpec: v1 }),
+    deriveTutorResponseId({ ...identityInput, generationSpec: v2 }),
+  );
+});
+
+test("specified optional controls require exact host support or fail closed", async () => {
+  const { promptAsset } = await loadContext();
+  const v1 = buildTutorBaselineGenerationSpecV1(promptAsset);
+  const v2 = buildTutorBaselineGenerationSpec(promptAsset);
+
+  assert.doesNotThrow(() => assertTutorGenerationSpecExecutionSupport(v2, {}));
+  assert.throws(
+    () => assertTutorGenerationSpecExecutionSupport(v1, {
+      temperature: true,
+      reasoningEffort: true,
+    }),
+    (error: unknown) =>
+      error instanceof TutorGenerationExecutionError &&
+      error.code === "tutor_generation_execution_unsupported" &&
+      error.unsupportedFields.join(",") === "seed",
+  );
+  assert.doesNotThrow(() => assertTutorGenerationSpecExecutionSupport(v1, {
+    temperature: true,
+    reasoningEffort: true,
+    seed: true,
+  }));
+});
+
 test("prompt digest is deterministic and changes when prompt content changes", () => {
   const first = digestTutorPrompt("prompt bytes\n");
   assert.equal(first, digestTutorPrompt("prompt bytes\n"));
@@ -107,6 +193,7 @@ test("prompt digest is deterministic and changes when prompt content changes", (
 test("canonical messages preserve roles and are deterministic", async () => {
   const { promptAsset } = await loadContext();
   const generationSpec = buildTutorBaselineGenerationSpec(promptAsset);
+  assert.equal(generationSpec.specVersion, "0.4a.2");
   const visibleCase = visibleFixture();
   const first = buildTutorGenerationMessages(visibleCase, generationSpec, promptAsset);
   const second = buildTutorGenerationMessages(
@@ -168,6 +255,7 @@ test("execution packet is ordered, provider-independent, and blocks hidden data"
     generationSpec,
     promptAsset,
   );
+  assert.equal(first.generationSpec.specVersion, "0.4a.2");
   assert.equal(JSON.stringify(first), JSON.stringify(second));
   assert.deepEqual(
     first.cases.map((caseValue) => caseValue.caseId),
@@ -212,13 +300,13 @@ test("dry executor consumes only the execution packet and emits generation-bound
   const seen: string[] = [];
   const corpus = await runDryTutorExecutionPacket(packet, {
     corpusId: "dry-corpus",
-    corpusVersion: "0.4a.1",
     createdAt: "2026-08-13T00:00:00.000Z",
     respond: (input) => {
       seen.push(`${input.caseId}:${input.messages.length}`);
       return `Dry response for ${input.caseId}.`;
     },
   });
+  assert.equal(corpus.corpusVersion, "0.4a.2");
   assert.deepEqual(seen, ["fraction-misconception-001:3"]);
   assert.deepEqual(corpus.generationSpec, generationSpec);
   assert.equal(corpus.responses[0]?.provenance, "synthetic");
@@ -247,7 +335,7 @@ test("corpus generation identity rejects mismatched spec and response IDs", asyn
   } as const;
   const corpusIdentity = {
     corpusId: "identity-corpus",
-    corpusVersion: "0.4a.1",
+    corpusVersion: "0.4a.2",
   } as const;
   const corpus = parseTutorResponseCorpus({
     schemaVersion: 1,

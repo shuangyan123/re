@@ -47,11 +47,12 @@ provider guide](tutor-eval-v0.3b.md). The phase remains partial: the provider
 is single-provider and opt-in, Judge results are not human-calibrated, and no
 pairwise or statistical evaluation claim is included.
 
-## 0.4 Tutor Adapter Layer — PARTIAL: 0.4A.1 canonical generation boundary
+## 0.4 Tutor Adapter Layer — PARTIAL: 0.4A.2 portable baseline generation profile
 
 - [x] Stable versioned Tutor response corpus contract
 - [x] Canonical TutorGenerationSpec with prompt SHA-256 identity and output limit
 - [x] Canonical TutorExecutionPacket with deterministic messages and hidden-data firewall
+- [x] Portable baseline-native-default generation profile without unsupported shared controls
 - [x] Dry host executor for packet-to-corpus proof
 - [x] Recorded/replay Tutor adapter
 - [x] Tutor-visible case packet export and hidden-data firewall
@@ -61,7 +62,7 @@ pairwise or statistical evaluation claim is included.
 - [ ] Real model response collection
 - [ ] Broader model adapters if required
 
-See [the 0.4A.1 generation and response corpus guide](tutor-eval-v0.4a.md).
+See [the 0.4A.2 generation and response corpus guide](tutor-eval-v0.4a.md).
 The repository remains independent from Review Workspace; 0.4B should modify
 the bridge in `shuangyan123/demo`, execute this repository's canonical packet,
 and emit its stable corpus contract.

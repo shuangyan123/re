@@ -14,6 +14,7 @@ export type BenchmarkErrorCode =
   | "calibration_packet_invalid"
   | "calibration_reference_invalid"
   | "tutor_generation_spec_invalid"
+  | "tutor_generation_execution_unsupported"
   | "tutor_execution_packet_invalid"
   | "tutor_response_corpus_invalid"
   | "adapter_failed"
@@ -36,6 +37,8 @@ const stableMessages: Record<BenchmarkErrorCode, string> = {
   calibration_packet_invalid: "Calibration packet is invalid.",
   calibration_reference_invalid: "Calibration reference set is invalid.",
   tutor_generation_spec_invalid: "Tutor generation specification is invalid.",
+  tutor_generation_execution_unsupported:
+    "Tutor generation specification requires unsupported execution controls.",
   tutor_execution_packet_invalid: "Tutor execution packet is invalid.",
   tutor_response_corpus_invalid: "Tutor response corpus is invalid.",
   adapter_failed: "Tutor adapter failed for this scenario.",
@@ -60,6 +63,7 @@ export class BenchmarkConfigurationError extends Error {
     | "calibration_packet_invalid"
     | "calibration_reference_invalid"
     | "tutor_generation_spec_invalid"
+    | "tutor_generation_execution_unsupported"
     | "tutor_execution_packet_invalid"
     | "tutor_response_corpus_invalid";
 
@@ -80,12 +84,33 @@ export class BenchmarkConfigurationError extends Error {
       | "calibration_packet_invalid"
       | "calibration_reference_invalid"
       | "tutor_generation_spec_invalid"
+      | "tutor_generation_execution_unsupported"
       | "tutor_execution_packet_invalid"
       | "tutor_response_corpus_invalid",
   ) {
     super(stableMessages[code]);
     this.name = "BenchmarkConfigurationError";
     this.code = code;
+  }
+}
+
+export class TutorGenerationExecutionError extends BenchmarkConfigurationError {
+  readonly unsupportedFields: readonly (
+    | "temperature"
+    | "reasoningEffort"
+    | "seed"
+  )[];
+
+  constructor(
+    unsupportedFields: readonly (
+      | "temperature"
+      | "reasoningEffort"
+      | "seed"
+    )[],
+  ) {
+    super("tutor_generation_execution_unsupported");
+    this.name = "TutorGenerationExecutionError";
+    this.unsupportedFields = [...unsupportedFields];
   }
 }
 

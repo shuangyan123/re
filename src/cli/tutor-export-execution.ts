@@ -47,6 +47,7 @@ Options:
   console.log(`Dataset: ${packet.datasetId}@${packet.datasetVersion}`);
   console.log(`Generation spec: ${packet.generationSpec.specId}@${packet.generationSpec.specVersion}`);
   console.log(`Prompt: ${packet.generationSpec.prompt.id}@${packet.generationSpec.prompt.version}`);
+  console.log("Controlled optional generation parameters: none");
   console.log(`Cases: ${packet.cases.length}`);
   console.log("Evaluator-only annotations exported: 0");
 }
