@@ -135,9 +135,14 @@ Reviewed canonical evidence
   The host implementation and provider forwarding were independently reviewed.
 ```
 
-The local `examples/canonical-model-host/` server is a synthetic protocol
-fixture only. It contains no provider SDK or credentials and must not be used
-to claim a real baseline.
+The local `examples/canonical-model-host/server.py` server is a synthetic
+protocol fixture only. It contains no provider SDK or credentials and must not
+be used to claim a real baseline. The same directory also contains an
+OpenAI-specific `openai-server.mjs` example. That host is intentionally local
+integration code, not Benchmark Core or a package runtime dependency; it reads
+credentials from `OPENAI_API_KEY`, requires `OPENAI_MODEL`, and is never
+invoked by CI. See [the first real baseline procedure](first-real-baseline.md)
+for its dry-run, smoke, full-collection, validation, replay, and review order.
 
 ## Failure, retry, and coverage semantics
 
@@ -169,5 +174,7 @@ requests.
 Artifacts are written under ignored local paths by default, remain
 `preliminary`, `uncalibrated`, and `publicLeaderboardEligible: false`, and are
 never copied into website public data automatically. This repository does not
-call a commercial model, require provider credentials, publish a leaderboard,
-or claim that a synthetic fixture is real-model evidence.
+call a commercial model during normal builds, tests, CI, website generation,
+or package smoke; the optional local host requires an intentional credentialed
+run. It does not publish a leaderboard or claim that a synthetic fixture is
+real-model evidence.

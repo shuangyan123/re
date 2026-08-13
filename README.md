@@ -204,6 +204,13 @@ collection sends `TutorTurnInput` to an external orchestration and leaves
 `TutorExecutionPacket` and `baseline-native-default` generation spec to a model
 execution host; only that path uses `recorded_model` provenance.
 
+The repository includes a local OpenAI Responses API host example at
+`examples/canonical-model-host/openai-server.mjs`. It is outside Benchmark Core
+and CI: credentials remain in environment variables, the host disables provider
+retries, and real artifacts remain under ignored `artifacts/real-model/` paths.
+The dry-run, smoke, full-run, validation, replay, and review sequence is in
+[`docs/first-real-baseline.md`](docs/first-real-baseline.md).
+
 ```bash
 tutorbench collect \
   --http http://127.0.0.1:8000/respond \
