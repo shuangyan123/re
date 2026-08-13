@@ -165,9 +165,20 @@ test("specified optional controls require exact host support or fail closed", as
   const v1 = buildTutorBaselineGenerationSpecV1(promptAsset);
   const v2 = buildTutorBaselineGenerationSpec(promptAsset);
 
-  assert.doesNotThrow(() => assertTutorGenerationSpecExecutionSupport(v2, {}));
+  assert.doesNotThrow(() => assertTutorGenerationSpecExecutionSupport(v2, {
+    maxOutputTokens: true,
+  }));
+  assert.throws(
+    () => assertTutorGenerationSpecExecutionSupport(v2, {
+      maxOutputTokens: false,
+    }),
+    (error: unknown) =>
+      error instanceof TutorGenerationExecutionError &&
+      error.unsupportedFields.join(",") === "maxOutputTokens",
+  );
   assert.throws(
     () => assertTutorGenerationSpecExecutionSupport(v1, {
+      maxOutputTokens: true,
       temperature: true,
       reasoningEffort: true,
     }),
@@ -177,6 +188,7 @@ test("specified optional controls require exact host support or fail closed", as
       error.unsupportedFields.join(",") === "seed",
   );
   assert.doesNotThrow(() => assertTutorGenerationSpecExecutionSupport(v1, {
+    maxOutputTokens: true,
     temperature: true,
     reasoningEffort: true,
     seed: true,

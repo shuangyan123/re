@@ -34,10 +34,10 @@ are fixed, while temperature, reasoning, and seed remain provider-native and
 unconstrained. Future public cohorts must retain dataset and generation spec
 identity instead of mixing different profiles.
 
-The Run and Docs pages also describe the local `tutorbench collect` and
-`tutorbench evaluate` workflow. Real-model response artifacts are private and
-ignored by default, remain preliminary and uncalibrated, and are never copied
-into website public data automatically.
+The Run and Docs pages distinguish the local `tutorbench collect` Product
+Tutor path from `tutorbench collect-model` canonical model evidence. Real-model
+response artifacts are private and ignored by default, remain preliminary and
+uncalibrated, and are never copied into website public data automatically.
 
 The serializer defaults to excluding evaluator-only fields. The current
 synthetic development dataset opts into its documented public disclosure and

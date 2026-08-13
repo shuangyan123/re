@@ -24,6 +24,12 @@ import {
   type TutorbenchCollectCliOptions,
 } from "./tutorbench-collect.js";
 import {
+  parseTutorbenchCollectModelArgs,
+  printTutorbenchCollectModelHelp,
+  runTutorbenchCollectModel,
+  type TutorbenchCollectModelCliOptions,
+} from "./tutorbench-collect-model.js";
+import {
   nextTutorbenchValue,
   positiveTutorbenchInteger,
   tutorbenchOptionValue,
@@ -46,9 +52,10 @@ export interface TutorbenchRunOptions {
 }
 
 export type TutorbenchCliOptions =
-  | { readonly help: true; readonly helpCommand?: "collect" | "evaluate" }
+  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" }
   | { readonly help: false; readonly run: TutorbenchRunOptions }
   | { readonly help: false; readonly collect: TutorbenchCollectCliOptions }
+  | { readonly help: false; readonly collectModel: TutorbenchCollectModelCliOptions }
   | { readonly help: false; readonly evaluate: BenchmarkCorpusCliOptions };
 
 export function parseTutorbenchArgs(
@@ -62,6 +69,12 @@ export function parseTutorbenchArgs(
     return collect.help
       ? { help: true, helpCommand: "collect" }
       : { help: false, collect };
+  }
+  if (args[0] === "collect-model") {
+    const collectModel = parseTutorbenchCollectModelArgs(args.slice(1));
+    return collectModel.help
+      ? { help: true, helpCommand: "collect-model" }
+      : { help: false, collectModel };
   }
   if (args[0] === "evaluate") {
     const evaluate = parseBenchmarkCorpusCliOptions(args.slice(1));
@@ -193,12 +206,14 @@ function printHelp(): void {
 
 Usage:
   tutorbench run --http <url> [options]
-  tutorbench collect --http <url> --provider <id> --model <id> --provenance <value> [options]
+  tutorbench collect --http <url> --provider <id> --model <id> --prompt-version <id> --provenance <value> [options]
+  tutorbench collect-model --http <url> --provider <id> --model <id> [options]
   tutorbench evaluate --corpus <path> [options]
 
 Commands:
   run                   Quick local evaluation; responses are not frozen
-  collect               Sequential frozen response evidence collection
+  collect               Freeze Product Tutor responses from TutorTurnInput
+  collect-model         Freeze canonical model responses from ExecutionPacket
   evaluate              Offline corpus replay and preliminary evaluation
 
 Run options:
@@ -214,7 +229,8 @@ Run options:
 The external Tutor response must be JSON shaped as { "text": string, "metrics"?: object }.
 No automatic retry is performed.
 
-Use \`tutorbench collect --help\` and \`tutorbench evaluate --help\` for command-specific options.`);
+  Use \`tutorbench collect --help\`, \`tutorbench collect-model --help\`, and
+  \`tutorbench evaluate --help\` for command-specific options.`);
 }
 
 function selectedDataset(
@@ -291,6 +307,8 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   if (options.help) {
     if (options.helpCommand === "collect") {
       printTutorbenchCollectHelp();
+    } else if (options.helpCommand === "collect-model") {
+      printTutorbenchCollectModelHelp();
     } else if (options.helpCommand === "evaluate") {
       printBenchmarkCorpusHelp();
     } else {
@@ -306,6 +324,12 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       return;
     }
     await runTutorbenchCollect(options.collect);
+  } else if ("collectModel" in options) {
+    if (options.collectModel.help) {
+      printTutorbenchCollectModelHelp();
+      return;
+    }
+    await runTutorbenchCollectModel(options.collectModel);
   } else {
     if (options.evaluate.help) {
       printBenchmarkCorpusHelp();
@@ -322,7 +346,10 @@ async function runAsExecutable(): Promise<void> {
     console.error(
       error instanceof TutorbenchCliUsageError ||
       error instanceof BenchmarkConfigurationError ||
-      (error instanceof Error && error.name === "HttpTutorConfigurationError")
+      (error instanceof Error && (
+        error.name === "HttpTutorConfigurationError" ||
+        error.name === "HttpTutorExecutionHostConfigurationError"
+      ))
         ? error.message
         : "Tutor Benchmark CLI failed.",
     );

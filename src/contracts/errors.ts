@@ -96,6 +96,7 @@ export class BenchmarkConfigurationError extends Error {
 
 export class TutorGenerationExecutionError extends BenchmarkConfigurationError {
   readonly unsupportedFields: readonly (
+    | "maxOutputTokens"
     | "temperature"
     | "reasoningEffort"
     | "seed"
@@ -103,6 +104,7 @@ export class TutorGenerationExecutionError extends BenchmarkConfigurationError {
 
   constructor(
     unsupportedFields: readonly (
+      | "maxOutputTokens"
       | "temperature"
       | "reasoningEffort"
       | "seed"

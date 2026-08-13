@@ -231,6 +231,10 @@ console.log("consumer API smoke passed");
       /tutorbench collect --http <url>/.test(help.stdout),
       "Installed tutorbench executable did not expose collection help.",
     );
+    assertCondition(
+      /tutorbench collect-model --http <url>/.test(help.stdout),
+      "Installed tutorbench executable did not expose canonical model collection help.",
+    );
     const collectHelp = await run(
       executable,
       ["collect", "--help"],
@@ -239,8 +243,19 @@ console.log("consumer API smoke passed");
       { shell: process.platform === "win32" },
     );
     assertCondition(
-      /Collects frozen Tutor responses sequentially/.test(collectHelp.stdout),
+      /Collects Product Tutor responses sequentially/.test(collectHelp.stdout),
       "Installed tutorbench executable did not run collect --help.",
+    );
+    const collectModelHelp = await run(
+      executable,
+      ["collect-model", "--help"],
+      consumerRoot,
+      environment,
+      { shell: process.platform === "win32" },
+    );
+    assertCondition(
+      /Collects canonical foundation-model evidence/.test(collectModelHelp.stdout),
+      "Installed tutorbench executable did not run collect-model --help.",
     );
     const evaluateHelp = await run(
       executable,

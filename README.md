@@ -198,16 +198,30 @@ optional peer.
 
 ### Real-model evidence
 
-An external Tutor host can collect local, ignored frozen evidence without
-giving the benchmark provider credentials:
+The two collection commands have different evidence semantics. Product Tutor
+collection sends `TutorTurnInput` to an external orchestration and leaves
+`generationSpec` absent. Canonical model collection sends the exact
+`TutorExecutionPacket` and `baseline-native-default` generation spec to a model
+execution host; only that path uses `recorded_model` provenance.
 
 ```bash
-tutorbench collect --help
+tutorbench collect \
+  --http http://127.0.0.1:8000/respond \
+  --provider my-product \
+  --model tutor-product \
+  --prompt-version product-config-v3 \
+  --provenance external
+
+tutorbench collect-model \
+  --http http://127.0.0.1:9000/generate \
+  --provider <provider> \
+  --model <actual-model-id>
+
 tutorbench evaluate --corpus artifacts/real-model/baseline.json
 ```
 
-Collection is sequential, has no automatic Tutor retry, preserves successful
-responses on partial failure, and validates the existing `TutorResponseCorpus`
+Both paths are sequential, have no automatic retry, preserve successful
+responses on partial failure, and validate the same `TutorResponseCorpus`
 before success. Results are preliminary and uncalibrated; they are not public
 leaderboard runs. See [the real-model baseline guide](docs/real-model-baselines.md).
 

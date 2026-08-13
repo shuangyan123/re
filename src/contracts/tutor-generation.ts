@@ -15,6 +15,10 @@ export const TUTOR_GENERATION_OPTIONAL_CONTROLS = [
   "seed",
 ] as const;
 
+export const TUTOR_GENERATION_REQUIRED_CONTROLS = [
+  "maxOutputTokens",
+] as const;
+
 export type TutorGenerationMessageRole = "system" | "user" | "assistant";
 
 export interface TutorGenerationMessage {
@@ -46,13 +50,21 @@ export interface TutorGenerationSpec {
 export type TutorGenerationOptionalControl =
   (typeof TUTOR_GENERATION_OPTIONAL_CONTROLS)[number];
 
+export type TutorGenerationRequiredControl =
+  (typeof TUTOR_GENERATION_REQUIRED_CONTROLS)[number];
+
+export type TutorGenerationExecutionControl =
+  | TutorGenerationRequiredControl
+  | TutorGenerationOptionalControl;
+
 /**
- * Host capability attestation for optional benchmark controls. A true value
- * means the host will honor every specified value for that control exactly;
- * false or absent means the control cannot be used by the host.
+ * Host capability attestation for generation controls. A true value means the
+ * host will honor every specified value for that control exactly; false or
+ * absent means the control cannot be used by the host. Required controls must
+ * be attested even when they are not optional in the generation spec.
  */
 export type TutorGenerationSpecExecutionSupport = Readonly<
-  Partial<Record<TutorGenerationOptionalControl, boolean>>
+  Partial<Record<TutorGenerationExecutionControl, boolean>>
 >;
 
 type TutorGenerationSpecWithoutVersion = Omit<
@@ -207,9 +219,14 @@ export function assertTutorGenerationSpecExecutionSupport(
   support: TutorGenerationSpecExecutionSupport,
 ): void {
   const canonicalSpec = parseTutorGenerationSpec(spec);
-  const unsupportedFields = TUTOR_GENERATION_OPTIONAL_CONTROLS.filter(
-    (field) => canonicalSpec[field] !== undefined && support[field] !== true,
-  );
+  const unsupportedFields: TutorGenerationExecutionControl[] = [
+    ...TUTOR_GENERATION_REQUIRED_CONTROLS.filter(
+      (field) => support[field] !== true,
+    ),
+    ...TUTOR_GENERATION_OPTIONAL_CONTROLS.filter(
+      (field) => canonicalSpec[field] !== undefined && support[field] !== true,
+    ),
+  ];
   if (unsupportedFields.length > 0) {
     throw new TutorGenerationExecutionError(unsupportedFields);
   }

@@ -15,15 +15,29 @@ The repository already has the following responsibilities:
 | Benchmark Definition | `src/contracts/`, `scenarios/`, `rubrics/`, `src/datasets/`, `src/evaluators/`, `src/scoring/` | Cases, visible/evaluator-only separation, rubrics, deterministic checks, Judge contracts, aggregation, and result validation |
 | Generic Runner | `src/runner/`, `src/reporting/` | Executes a `TutorUnderTest`, evaluates cases in stable order, isolates failures, and emits typed results/reports |
 | Tutor / Provider Integration | `src/adapters/`, `src/providers/openai/`, `src/cli/tutorbench.ts`, `examples/http-python-tutor/` | Adapts a product, model, callback, recorded response, or external HTTP service to the provider-independent boundary |
-| Advanced Reproducibility | `src/corpus/`, `src/collection/`, `src/contracts/tutor-generation.ts`, `src/contracts/tutor-execution.ts`, `src/contracts/tutor-response-corpus.ts`, `src/cli/tutorbench-collect.ts` | Collects externally hosted Tutor outputs, records sanitized reports, replays frozen responses, freezes generation identity, and validates evidence |
+| Advanced Reproducibility | `src/corpus/`, `src/collection/`, `src/contracts/tutor-generation.ts`, `src/contracts/tutor-execution.ts`, `src/contracts/tutor-response-corpus.ts`, `src/cli/tutorbench-collect.ts`, `src/cli/tutorbench-collect-model.ts` | Separates Product Tutor collection from canonical model collection; records sanitized reports, replays frozen responses, and validates evidence |
 | Calibration | `src/calibration/`, `fixtures/calibration/` | Provides provider-independent annotation packets, agreement metrics, and adjudication contracts; synthetic fixtures are not human calibration claims |
 | Website | `src/site/`, `website/` | Consumes public benchmark artifacts and does not execute Tutors or change scoring |
 
 The intended direction is one-way:
 
 ```text
-Benchmark Definition -> Generic Runner -> Tutor adapter
-                                  \-> evaluator/Judge -> result/report
+                         Benchmark Cases
+                              |
+                 +------------+------------+
+                 |                         |
+                 v                         v
+          Product Tutor path       Canonical Model path
+          TutorTurnInput            ExecutionPacket/messages
+                 |                         |
+                 v                         v
+          Product Tutor             Model Execution Host
+                 |                         |
+                 +------------+------------+
+                              v
+                    TutorResponseCorpus
+                              v
+                           evaluate
 
 Advanced reproducibility and the website consume stable contracts;
 they do not become prerequisites for local evaluation.
@@ -138,15 +152,25 @@ failures through the existing runner isolation.
 ### Advanced Reproducibility
 
 `TutorResponseCorpus`, `TutorGenerationSpec`, and `TutorExecutionPacket` stay
-in the repository. They are the frozen evidence and official-run layer:
+in the repository. They are the frozen evidence and official-run layer, but
+the two collection modes have different meanings:
 
 ```text
-Local:    case -> TutorUnderTest -> evaluator -> result
-Official: case -> generation packet -> Tutor host -> corpus -> replay/Judge
+Product:   case -> TutorTurnInput -> Product Tutor -> corpus -> replay/evaluate
+Canonical: case -> ExecutionPacket -> Model Host -> corpus -> replay/evaluate
 ```
 
-The strict path is valuable for public comparability, cross-host replay, and
-calibration. It is not a prerequisite for a developer's first smoke run.
+`tutorbench collect` owns the first path and never writes a generation spec.
+`tutorbench collect-model` owns the second path and is the only collector that
+can write `recorded_model` plus `baseline-native-default`. The strict canonical
+path is valuable for public comparability and cross-host replay; it is not a
+provider SDK or a prerequisite for a developer's first smoke run.
+
+The canonical HTTP adapter sends the validated `TutorExecutionPacketFile`
+directly and is intentionally not a `TutorUnderTest` implementation. The
+existing `HttpTutor` continues to send only `TutorTurnInput`. This transport
+separation prevents Product Tutor orchestration evidence from being mislabeled
+as canonical foundation-model evidence.
 
 ## Public API classification
 
@@ -172,10 +196,13 @@ types part of the default import path.
 ## Developer modes
 
 1. Local evaluation: direct `TutorUnderTest` execution and scoring.
-2. Evidence collection and reproducible evaluation: externally hosted Tutor
-responses, frozen corpus, replay, and evaluator comparison.
-3. Official/public evaluation: canonical generation profile, repeated runs,
-   validated evidence, and calibrated public artifacts.
+2. Product evidence collection: `tutorbench collect`, Product Tutor
+   orchestration, and a corpus without `generationSpec`.
+3. Canonical model evidence collection: `tutorbench collect-model`, exact
+   packet execution, validated support attestation, and a generation-bound
+   corpus.
+4. Public evaluation: reviewed and calibrated artifacts only after the earlier
+   evidence boundaries are satisfied.
 
 The modes are additive. A product integration is one possible Tutor, not the
 execution host required by the benchmark.
