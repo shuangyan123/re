@@ -100,6 +100,34 @@ export interface TutorEvalCase {
   readonly adaptationVariant?: string;
 }
 
+export interface TutorEvalRubricPartition {
+  readonly deterministicRubrics: readonly TutorEvalRubric[];
+  readonly judgeRubrics: readonly TutorEvalRubric[];
+}
+
+/**
+ * Routes each rubric to exactly one authoritative evaluator boundary.
+ * Parsed cases always carry evaluationType; the fallback keeps callers that
+ * construct a legacy-shaped case in memory compatible with the parser rules.
+ */
+export function partitionTutorEvalRubrics(
+  tutorEvalCase: TutorEvalCase,
+): TutorEvalRubricPartition {
+  const deterministicRubrics: TutorEvalRubric[] = [];
+  const judgeRubrics: TutorEvalRubric[] = [];
+  for (const rubric of tutorEvalCase.evaluatorOnly.rubrics) {
+    const evaluationType =
+      rubric.evaluationType ??
+      (rubric.evaluatorId === undefined ? "judge" : "deterministic");
+    if (evaluationType === "deterministic") {
+      deterministicRubrics.push(rubric);
+    } else {
+      judgeRubrics.push(rubric);
+    }
+  }
+  return { deterministicRubrics, judgeRubrics };
+}
+
 export interface TutorEvalDataset {
   readonly id: string;
   readonly version: string;

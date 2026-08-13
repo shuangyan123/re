@@ -1,6 +1,7 @@
 import { BenchmarkConfigurationError } from "./errors.js";
 import {
   TUTOR_EVAL_CASE_SCHEMA_VERSION,
+  partitionTutorEvalRubrics,
   type DisclosurePolicy,
   type TutorCriticalFailure,
   type TutorCriticalFailureSeverity,
@@ -777,6 +778,7 @@ export function buildTutorEvalJudgeInput(
 ): TutorEvalJudgeInput {
   const tutorInput = tutorEvalCase.tutorInput;
   const hidden = tutorEvalCase.evaluatorOnly;
+  const { judgeRubrics } = partitionTutorEvalRubrics(tutorEvalCase);
   return {
     caseId: tutorEvalCase.id,
     learningObjective: tutorInput.learningObjective,
@@ -787,7 +789,7 @@ export function buildTutorEvalJudgeInput(
     groundTruth: JSON.stringify(hidden.groundTruth ?? {}),
     knownMisconception: hidden.knownMisconception ?? "",
     disclosurePolicy: hidden.disclosurePolicy,
-    rubrics: hidden.rubrics.map((rubric) => ({
+    rubrics: judgeRubrics.map((rubric) => ({
       id: rubric.id,
       category: rubric.category,
       criterion: rubric.criterion,

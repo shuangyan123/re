@@ -9,7 +9,6 @@ import {
   parseTutorEvalDataset,
   type TutorEvalCase,
   type TutorEvalDataset,
-  type TutorEvalJudgeResult,
   type TutorEvalRunResult,
   type TutorEvalCaseRunResult,
   type TutorEvalCriticalFailure,
@@ -17,8 +16,8 @@ import {
   type TutorEvalTutorDescriptor,
   type TutorEvalRubricResult,
   type TutorUnderTest,
-  buildTutorEvalJudgeInput,
-  parseTutorEvalJudgeResult,
+  type TutorEvalJudge,
+  partitionTutorEvalRubrics,
   toTutorTurnInput,
 } from "../contracts/index.js";
 import {
@@ -32,11 +31,10 @@ import {
   evaluateTutorEvalRubrics,
   tutorEvalRubricResultHasAnswerLeak,
 } from "../evaluators/index.js";
+import { executeTutorEvalJudge } from "./tutor-eval-judge-execution.js";
 
 export interface TutorEvalJudgeRunOptions extends TutorEvalJudgeDescriptor {
-  readonly evaluate?: (
-    input: import("../contracts/tutor-eval-judge.js").TutorEvalJudgeInput,
-  ) => Promise<unknown>;
+  readonly evaluate?: TutorEvalJudge["evaluate"];
 }
 
 export interface RunTutorEvalOptions {
@@ -196,91 +194,81 @@ async function resolveDataset(
   return parseTutorEvalDataset(dataset);
 }
 
-function normalizeJudgeResult(
-  tutorEvalCase: TutorEvalCase,
-  value: unknown,
-): TutorEvalJudgeResult {
-  const result = parseTutorEvalJudgeResult(value);
-  if (result.caseId !== tutorEvalCase.id) {
-    throw new BenchmarkConfigurationError("judge_result_invalid");
-  }
-  const rubricIds = new Set(
-    tutorEvalCase.evaluatorOnly.rubrics.map((rubric) => rubric.id),
-  );
-  if (
-    result.rubricResults.some((rubricResult) => !rubricIds.has(rubricResult.rubricId))
-  ) {
-    throw new BenchmarkConfigurationError("judge_result_invalid");
-  }
-  return result;
+type TutorEvalCaseRubric = TutorEvalCase["evaluatorOnly"]["rubrics"][number];
+
+function emptyCategoryScores() {
+  return {
+    correctness: null,
+    diagnosis: null,
+    guidance: null,
+    adaptation: null,
+    actionability: null,
+  } as const;
 }
 
-function judgeRubricResults(
+function tutorAdapterErrorResult(
   tutorEvalCase: TutorEvalCase,
-  result: TutorEvalJudgeResult,
+  runIndex: number,
+  started: number,
+  rawTutorResponse: string | null,
+  message = "Tutor adapter failed for this case.",
+): TutorEvalCaseRunResult {
+  return {
+    caseId: tutorEvalCase.id,
+    caseVersion: tutorEvalCase.version,
+    runIndex,
+    status: "error",
+    passed: false,
+    rawTutorResponse,
+    rawJudgeResult: null,
+    rubricResults: [],
+    categoryScores: emptyCategoryScores(),
+    overallScore: null,
+    qualityGate: "FAIL",
+    criticalFailures: [],
+    answerLeakage: false,
+    latencyMs: Math.round(performance.now() - started),
+    tokenUsage: null,
+    cost: null,
+    diagnostics: stableDiagnostic(
+      "adapter_failed",
+      message,
+    ),
+  };
+}
+
+function mergeRubricResults(
+  rubrics: readonly TutorEvalCaseRubric[],
+  results: readonly TutorEvalRubricResult[],
 ): TutorEvalRubricResult[] {
-  const byId = new Map(result.rubricResults.map((rubricResult) => [rubricResult.rubricId, rubricResult]));
-  return tutorEvalCase.evaluatorOnly.rubrics.map((rubric) => {
-    const judgeResult = byId.get(rubric.id);
-    if (judgeResult === undefined) {
-      return {
-        rubricId: rubric.id,
-        category: rubric.category,
-        result: "ERROR",
-        score: null,
-        weight: rubric.weight,
-        critical: rubric.critical ?? false,
-        diagnostics: stableDiagnostic(
-          "judge_rubric_missing",
-          "Judge result did not include this rubric.",
-        ),
-      };
-    }
-    return {
-      rubricId: rubric.id,
-      category: rubric.category,
-      result: judgeResult.result,
-      score:
-        judgeResult.result === "PASS"
-          ? 1
-          : judgeResult.result === "PARTIAL"
-            ? 0.5
-            : 0,
-      weight: rubric.weight,
-      critical: rubric.critical ?? false,
-      diagnostics:
-        judgeResult.evidence === undefined
-          ? []
-          : stableDiagnostic("judge_evidence", judgeResult.evidence),
-    };
+  const byId = new Map(results.map((result) => [result.rubricId, result]));
+  return rubrics.flatMap((rubric) => {
+    const result = byId.get(rubric.id);
+    return result === undefined ? [] : [result];
   });
 }
 
-function judgeFailures(
-  result: TutorEvalJudgeResult,
+function deterministicCriticalFailures(
+  rubrics: readonly TutorEvalCaseRubric[],
+  results: readonly TutorEvalRubricResult[],
 ): TutorEvalCriticalFailure[] {
-  const failures = result.criticalFailures.map((failure) => ({
-    type: failure.type,
-    severity: failure.severity,
-    evidence: failure.evidence,
-  }));
-  for (const factualError of result.factualErrors) {
+  const byId = new Map(results.map((result) => [result.rubricId, result]));
+  const failures: TutorEvalCriticalFailure[] = [];
+  for (const rubric of rubrics) {
+    const result = byId.get(rubric.id);
     if (
-      (factualError.severity === "major" || factualError.severity === "critical") &&
-      !failures.some(
-        (failure) =>
-          failure.type === "severe_factual_error" &&
-          failure.evidence === factualError.description,
-      )
+      result?.result === "FAIL" &&
+      rubric.criticalFailure !== undefined
     ) {
       failures.push({
-        type: "severe_factual_error",
-        severity: factualError.severity,
-        evidence: factualError.description,
+        type: rubric.criticalFailure.type,
+        severity: rubric.criticalFailure.severity,
+        evidence:
+          result.diagnostics[0]?.message ?? `Rubric ${rubric.id} failed.`,
       });
     }
   }
-  return deduplicateCriticalFailures(failures);
+  return failures;
 }
 
 async function runCase(
@@ -291,138 +279,81 @@ async function runCase(
   scoring: TutorEvalScoringConfig,
 ): Promise<TutorEvalCaseRunResult> {
   const started = performance.now();
-  let rawTutorResponse: string | null = null;
+  let output: Awaited<ReturnType<TutorUnderTest["respond"]>>;
   try {
-    const output = await tutor.respond(toTutorTurnInput(tutorEvalCase));
-    if (!isTutorTurnOutput(output)) {
-      return {
-        caseId: tutorEvalCase.id,
-        caseVersion: tutorEvalCase.version,
-        runIndex,
-        status: "error",
-        passed: false,
-        rawTutorResponse: null,
-        rawJudgeResult: null,
-        rubricResults: [],
-        categoryScores: {
-          correctness: null,
-          diagnosis: null,
-          guidance: null,
-          adaptation: null,
-          actionability: null,
-        },
-        overallScore: null,
-        qualityGate: "FAIL",
-        criticalFailures: [],
-        answerLeakage: false,
-        latencyMs: Math.round(performance.now() - started),
-        tokenUsage: null,
-        cost: null,
-        diagnostics: stableDiagnostic(
-          "adapter_failed",
-          "Tutor adapter returned an invalid response.",
-        ),
-      };
-    }
-    rawTutorResponse = output.text;
-    let rawJudgeResult: TutorEvalJudgeResult | null = null;
-    let rubricResults: TutorEvalRubricResult[];
-    let criticalFailures: TutorEvalCriticalFailure[] = [];
-    if (judge?.evaluate !== undefined) {
-      const judgeInput = buildTutorEvalJudgeInput(tutorEvalCase, output.text);
-      rawJudgeResult = normalizeJudgeResult(
-        tutorEvalCase,
-        await judge.evaluate(judgeInput),
-      );
-      rubricResults = judgeRubricResults(tutorEvalCase, rawJudgeResult);
-      criticalFailures = judgeFailures(rawJudgeResult);
-    } else {
-      rubricResults = [...evaluateTutorEvalRubrics(tutorEvalCase, output)];
-      for (const rubric of tutorEvalCase.evaluatorOnly.rubrics) {
-        const rubricResult = rubricResults.find((result) => result.rubricId === rubric.id);
-        if (
-          rubricResult !== undefined &&
-          rubricResult.result === "FAIL" &&
-          rubric.criticalFailure !== undefined
-        ) {
-          criticalFailures.push({
-            type: rubric.criticalFailure.type,
-            severity: rubric.criticalFailure.severity,
-            evidence:
-              rubricResult.diagnostics[0]?.message ??
-              `Rubric ${rubric.id} failed.`,
-          });
-        }
-      }
-    }
-    criticalFailures = deduplicateCriticalFailures(criticalFailures);
-    const aggregate = aggregateTutorEvalRubrics(
-      tutorEvalCase.evaluatorOnly.rubrics,
-      rubricResults,
-      criticalFailures,
-      scoring,
-    );
-    const hasError = rubricResults.some((result) => result.result === "ERROR");
-    const latencyMs =
-      output.metrics?.latencyMs ?? Math.round(performance.now() - started);
-    return {
-      caseId: tutorEvalCase.id,
-      caseVersion: tutorEvalCase.version,
-      runIndex,
-      status: hasError ? "error" : aggregate.passed ? "passed" : "failed",
-      passed: !hasError && aggregate.passed,
-      rawTutorResponse,
-      rawJudgeResult,
-      rubricResults,
-      categoryScores: aggregate.categoryScores,
-      overallScore: hasError ? null : aggregate.overallScore,
-      qualityGate: hasError ? "FAIL" : aggregate.qualityGate,
-      criticalFailures,
-      answerLeakage:
-        rubricResults.some(tutorEvalRubricResultHasAnswerLeak) ||
-        criticalFailures.some((failure) => failure.type === "answer_leakage"),
-      latencyMs,
-      tokenUsage: output.metrics?.tokenUsage ?? null,
-      cost: output.metrics?.cost ?? null,
-      diagnostics: hasError ? stableDiagnostic("evaluation_failed", "One or more rubrics could not be evaluated.") : [],
-    };
-  } catch (error) {
-    const code =
-      error instanceof BenchmarkConfigurationError &&
-      error.code === "judge_result_invalid"
-        ? "judge_result_invalid"
-        : "adapter_failed";
-    return {
-      caseId: tutorEvalCase.id,
-      caseVersion: tutorEvalCase.version,
-      runIndex,
-      status: "error",
-      passed: false,
-      rawTutorResponse,
-      rawJudgeResult: null,
-      rubricResults: [],
-      categoryScores: {
-        correctness: null,
-        diagnosis: null,
-        guidance: null,
-        adaptation: null,
-        actionability: null,
-      },
-      overallScore: null,
-      qualityGate: "FAIL",
-      criticalFailures: [],
-      answerLeakage: false,
-      latencyMs: Math.round(performance.now() - started),
-      tokenUsage: null,
-      cost: null,
-      diagnostics: stableDiagnostic(
-        code,
-        code === "judge_result_invalid"
-          ? "Judge output failed schema validation."
-          : "Tutor adapter failed for this case.",
-      ),
-    };
+    output = await tutor.respond(toTutorTurnInput(tutorEvalCase));
+  } catch {
+    return tutorAdapterErrorResult(tutorEvalCase, runIndex, started, null);
   }
+  if (!isTutorTurnOutput(output)) {
+    return tutorAdapterErrorResult(
+      tutorEvalCase,
+      runIndex,
+      started,
+      null,
+      "Tutor adapter returned an invalid response.",
+    );
+  }
+
+  const rawTutorResponse = output.text;
+  const { deterministicRubrics, judgeRubrics } =
+    partitionTutorEvalRubrics(tutorEvalCase);
+  const deterministicResults = [...evaluateTutorEvalRubrics(tutorEvalCase, output)];
+  const judgeExecution = await executeTutorEvalJudge(
+    tutorEvalCase,
+    output.text,
+    judgeRubrics,
+    judge,
+  );
+  const judgeFailure = judgeExecution.failure;
+
+  const rubricResults = mergeRubricResults(tutorEvalCase.evaluatorOnly.rubrics, [
+    ...deterministicResults,
+    ...judgeExecution.rubricResults,
+  ]);
+  const criticalFailures = deduplicateCriticalFailures([
+    ...deterministicCriticalFailures(deterministicRubrics, deterministicResults),
+    ...judgeExecution.criticalFailures,
+  ]);
+  const aggregate = aggregateTutorEvalRubrics(
+    tutorEvalCase.evaluatorOnly.rubrics,
+    rubricResults,
+    criticalFailures,
+    scoring,
+  );
+  const hasError =
+    judgeFailure !== null || rubricResults.some((result) => result.result === "ERROR");
+  const latencyMs =
+    output.metrics?.latencyMs ?? Math.round(performance.now() - started);
+  return {
+    caseId: tutorEvalCase.id,
+    caseVersion: tutorEvalCase.version,
+    runIndex,
+    status: hasError ? "error" : aggregate.passed ? "passed" : "failed",
+    passed: !hasError && aggregate.passed,
+    rawTutorResponse,
+    rawJudgeResult: judgeExecution.rawJudgeResult,
+    rubricResults,
+    categoryScores: aggregate.categoryScores,
+    overallScore: hasError ? null : aggregate.overallScore,
+    qualityGate: aggregate.qualityGate,
+    criticalFailures,
+    answerLeakage:
+      rubricResults.some(tutorEvalRubricResultHasAnswerLeak) ||
+      criticalFailures.some((failure) => failure.type === "answer_leakage"),
+    latencyMs,
+    tokenUsage: output.metrics?.tokenUsage ?? null,
+    cost: output.metrics?.cost ?? null,
+    diagnostics:
+      judgeFailure !== null
+        ? stableDiagnostic(judgeFailure.code, judgeFailure.message)
+        : hasError
+          ? stableDiagnostic(
+              "evaluation_failed",
+              "One or more rubrics could not be evaluated.",
+            )
+          : [],
+  };
 }
 
 export async function runTutorEval(
@@ -453,10 +384,15 @@ export async function runTutorEval(
       qualityGate: result.qualityGate,
       passed: result.passed,
     }));
-  const categoryScores = aggregateTutorEvalCategoryScores(aggregates);
-  const overallScore = aggregateTutorEvalOverallScore(
-    caseResults.map((result) => result.overallScore),
-  );
+  const hasEvaluationErrors = caseResults.some((result) => result.status === "error");
+  const categoryScores = hasEvaluationErrors
+    ? emptyCategoryScores()
+    : aggregateTutorEvalCategoryScores(aggregates);
+  const overallScore = hasEvaluationErrors
+    ? null
+    : aggregateTutorEvalOverallScore(
+        caseResults.map((result) => result.overallScore),
+      );
   const failureCount = caseResults.filter((result) => result.criticalFailures.length > 0).length;
   const leakageCount = caseResults.filter((result) => result.answerLeakage).length;
   const finishedAtDate = now();
