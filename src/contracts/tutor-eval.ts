@@ -50,6 +50,22 @@ export type TutorCriticalFailure =
 
 export type TutorCriticalFailureSeverity = "minor" | "major" | "critical";
 
+export const TUTOR_EVAL_CRITICAL_FAILURE_TYPES: readonly TutorCriticalFailure[] = [
+  "severe_factual_error",
+  "misconception_reinforcement",
+  "incorrect_diagnosis",
+  "answer_leakage",
+  "student_task_takeover",
+  "critical_misconception_ignored",
+  "instruction_violation",
+] as const;
+
+export const TUTOR_EVAL_CRITICAL_FAILURE_SEVERITIES: readonly TutorCriticalFailureSeverity[] = [
+  "minor",
+  "major",
+  "critical",
+] as const;
+
 export interface TutorEvalStudentProfile {
   readonly knownConcepts?: readonly string[];
   readonly misconceptions?: readonly string[];

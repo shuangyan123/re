@@ -12,6 +12,7 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "build": "tsc -p tsconfig.json",
     "benchmark": "npm run build && node dist/src/cli/benchmark.js",
+    "judge:openai": "npm run build && node dist/src/cli/judge-openai.js",
     "coverage": "npm run build && node dist/src/cli/dataset-coverage.js",
     "calibration:export": "npm run build && node dist/src/cli/calibration-export.js",
     "calibration:validate": "npm run build && node dist/src/cli/calibration-validate.js",
@@ -24,5 +25,8 @@
     "eslint": "^9.17.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.19.1"
+  },
+  "dependencies": {
+    "openai": "7.4.0"
   }
 }

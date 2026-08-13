@@ -2,13 +2,17 @@ import {
   BenchmarkConfigurationError,
   buildTutorEvalJudgeInput,
   parseTutorEvalJudgeResult,
+  TUTOR_EVAL_JUDGE_FAILURE_MESSAGES,
   type TutorEvalCase,
   type TutorEvalJudge,
+  type TutorEvalJudgeEvaluation,
+  type TutorEvalJudgeMetrics,
   type TutorEvalJudgeFailureCode,
   type TutorEvalJudgeResult,
   type TutorEvalCriticalFailure,
   type TutorEvalRubric,
   type TutorEvalRubricResult,
+  TutorEvalJudgeExecutionError,
 } from "../contracts/index.js";
 
 export interface TutorEvalJudgeFailureDiagnostic {
@@ -20,28 +24,8 @@ export interface TutorEvalJudgeExecution {
   readonly rawJudgeResult: TutorEvalJudgeResult | null;
   readonly rubricResults: readonly TutorEvalRubricResult[];
   readonly criticalFailures: readonly TutorEvalCriticalFailure[];
+  readonly metrics: TutorEvalJudgeMetrics | null;
   readonly failure: TutorEvalJudgeFailureDiagnostic | null;
-}
-
-const judgeFailureMessages: Readonly<Record<TutorEvalJudgeFailureCode, string>> = {
-  judge_unavailable:
-    "This case contains Judge rubrics, but no Judge executor was configured.",
-  judge_result_invalid: "Judge output failed schema or contract validation.",
-  judge_timeout: "Judge execution timed out before a valid result was returned.",
-  judge_transport_error: "Judge execution failed before a valid result was returned.",
-  judge_rubric_missing: "Judge output omitted one or more requested Judge rubrics.",
-  judge_rubric_unexpected:
-    "Judge output returned a rubric outside the requested Judge rubric set.",
-};
-
-class TutorEvalJudgeFailure extends Error {
-  readonly code: TutorEvalJudgeFailureCode;
-
-  constructor(code: TutorEvalJudgeFailureCode) {
-    super(judgeFailureMessages[code]);
-    this.name = "TutorEvalJudgeFailure";
-    this.code = code;
-  }
 }
 
 function normalizeJudgeResult(
@@ -57,12 +41,12 @@ function normalizeJudgeResult(
       error instanceof BenchmarkConfigurationError &&
       error.code === "judge_result_invalid"
     ) {
-      throw new TutorEvalJudgeFailure("judge_result_invalid");
+      throw new TutorEvalJudgeExecutionError("judge_result_invalid");
     }
     throw error;
   }
   if (result.caseId !== tutorEvalCase.id) {
-    throw new TutorEvalJudgeFailure("judge_result_invalid");
+    throw new TutorEvalJudgeExecutionError("judge_result_invalid");
   }
   const requestedRubricIds = new Set(judgeRubrics.map((rubric) => rubric.id));
   if (
@@ -70,10 +54,10 @@ function normalizeJudgeResult(
       (rubricResult) => !requestedRubricIds.has(rubricResult.rubricId),
     )
   ) {
-    throw new TutorEvalJudgeFailure("judge_rubric_unexpected");
+    throw new TutorEvalJudgeExecutionError("judge_rubric_unexpected");
   }
   if (result.rubricResults.length !== requestedRubricIds.size) {
-    throw new TutorEvalJudgeFailure("judge_rubric_missing");
+    throw new TutorEvalJudgeExecutionError("judge_rubric_missing");
   }
   return result;
 }
@@ -88,7 +72,7 @@ function judgeRubricResults(
   return judgeRubrics.map((rubric) => {
     const judgeResult = byId.get(rubric.id);
     if (judgeResult === undefined) {
-      throw new TutorEvalJudgeFailure("judge_rubric_missing");
+      throw new TutorEvalJudgeExecutionError("judge_rubric_missing");
     }
     return {
       rubricId: rubric.id,
@@ -126,8 +110,11 @@ function unresolvedJudgeRubricResults(
 }
 
 function judgeFailureFromError(error: unknown): TutorEvalJudgeFailureDiagnostic {
-  if (error instanceof TutorEvalJudgeFailure) {
-    return { code: error.code, message: judgeFailureMessages[error.code] };
+  if (error instanceof TutorEvalJudgeExecutionError) {
+    return {
+      code: error.code,
+      message: TUTOR_EVAL_JUDGE_FAILURE_MESSAGES[error.code],
+    };
   }
   if (
     error instanceof BenchmarkConfigurationError &&
@@ -135,19 +122,28 @@ function judgeFailureFromError(error: unknown): TutorEvalJudgeFailureDiagnostic 
   ) {
     return {
       code: "judge_result_invalid",
-      message: judgeFailureMessages.judge_result_invalid,
+      message: TUTOR_EVAL_JUDGE_FAILURE_MESSAGES.judge_result_invalid,
     };
   }
   if (
     error instanceof Error &&
     (error.name === "AbortError" || error.name === "TimeoutError")
   ) {
-    return { code: "judge_timeout", message: judgeFailureMessages.judge_timeout };
+    return {
+      code: "judge_timeout",
+      message: TUTOR_EVAL_JUDGE_FAILURE_MESSAGES.judge_timeout,
+    };
   }
   return {
     code: "judge_transport_error",
-    message: judgeFailureMessages.judge_transport_error,
+    message: TUTOR_EVAL_JUDGE_FAILURE_MESSAGES.judge_transport_error,
   };
+}
+
+function judgeMetricsFromError(error: unknown): TutorEvalJudgeMetrics | null {
+  return error instanceof TutorEvalJudgeExecutionError
+    ? error.metrics ?? null
+    : null;
 }
 
 function judgeCriticalFailures(
@@ -181,40 +177,56 @@ export async function executeTutorEvalJudge(
   tutorEvalCase: TutorEvalCase,
   tutorResponse: string,
   judgeRubrics: readonly TutorEvalRubric[],
-  judge: { readonly evaluate?: TutorEvalJudge["evaluate"] } | undefined,
+  judge:
+    | {
+        readonly evaluate?: TutorEvalJudge["evaluate"];
+        readonly evaluateWithMetrics?: TutorEvalJudge["evaluateWithMetrics"];
+      }
+    | undefined,
 ): Promise<TutorEvalJudgeExecution> {
   if (judgeRubrics.length === 0) {
     return {
       rawJudgeResult: null,
       rubricResults: [],
       criticalFailures: [],
+      metrics: null,
       failure: null,
     };
   }
 
-  if (judge?.evaluate === undefined) {
+  const evaluate = judge?.evaluate;
+  const evaluateWithMetrics = judge?.evaluateWithMetrics;
+  if (evaluate === undefined && evaluateWithMetrics === undefined) {
     const failure: TutorEvalJudgeFailureDiagnostic = {
       code: "judge_unavailable",
-      message: judgeFailureMessages.judge_unavailable,
+      message: TUTOR_EVAL_JUDGE_FAILURE_MESSAGES.judge_unavailable,
     };
     return {
       rawJudgeResult: null,
       rubricResults: unresolvedJudgeRubricResults(judgeRubrics, failure),
       criticalFailures: [],
+      metrics: null,
       failure,
     };
   }
 
+  let evaluation: TutorEvalJudgeEvaluation | null = null;
   try {
+    const input = buildTutorEvalJudgeInput(tutorEvalCase, tutorResponse);
+    evaluation =
+      evaluateWithMetrics === undefined
+        ? { result: await evaluate!(input) }
+        : await evaluateWithMetrics(input);
     const result = normalizeJudgeResult(
       tutorEvalCase,
       judgeRubrics,
-      await judge.evaluate(buildTutorEvalJudgeInput(tutorEvalCase, tutorResponse)),
+      evaluation.result,
     );
     return {
       rawJudgeResult: result,
       rubricResults: judgeRubricResults(judgeRubrics, result),
       criticalFailures: judgeCriticalFailures(result),
+      metrics: evaluation.metrics ?? null,
       failure: null,
     };
   } catch (error) {
@@ -223,6 +235,7 @@ export async function executeTutorEvalJudge(
       rawJudgeResult: null,
       rubricResults: unresolvedJudgeRubricResults(judgeRubrics, failure),
       criticalFailures: [],
+      metrics: judgeMetricsFromError(error) ?? evaluation?.metrics ?? null,
       failure,
     };
   }

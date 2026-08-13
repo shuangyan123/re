@@ -40,7 +40,7 @@ The contract tests compare a deliberately bad scripted tutor with a guided scrip
 
 The repository also retains the earlier provider-independent Judge v0.1 contract described in [the legacy system prompt](prompts/ai-tutor-judge-system-v0.1.md) for compatibility. TutorEval's canonical Judge result is the case-scoped `TutorEvalJudgeResult` contract.
 
-The TutorEval Judge boundary is injection-only. This release does not call an LLM, include a provider SDK, or perform real human calibration, and it does not claim that a judge result proves learning impact.
+The TutorEval Judge boundary is provider-independent, while the 0.3B release adds an opt-in OpenAI Responses API adapter. It does not call a model during normal benchmark, test, or CI commands, and it does not claim that a Judge result proves learning impact.
 
 TutorEval 0.3A adds hybrid orchestration: deterministic rubrics are evaluated
 by deterministic evaluators, Judge rubrics are sent in one case-scoped Judge
@@ -48,6 +48,12 @@ request, and the validated results are merged in stable rubric order. See [the
 0.3A hybrid orchestration guide](docs/tutor-eval-v0.3a.md).
 
 Deterministic checks such as answer-leakage and keyword coverage are useful proxies, not a scientific measurement of full tutoring quality. Real LLM judging, human reviewer calibration, variance/statistical analysis across repeated runs, and richer pedagogical dimensions are future work; 0.2B provides only the calibration infrastructure.
+
+TutorEval 0.3B adds a real Judge provider boundary for OpenAI Responses API
+Structured Outputs. Live execution is explicit opt-in through
+`npm run judge:openai -- -- --live`; the default `--dry-run` validates selection,
+prompt, rubric ownership, and request construction without network access. See
+[the 0.3B provider guide](docs/tutor-eval-v0.3b.md).
 
 ## Quick start
 
@@ -61,6 +67,11 @@ npm test
 npm run build
 npm run benchmark
 ```
+
+The live Judge CLI requires an explicit `OPENAI_JUDGE_MODEL` and reads the API
+key only from the runtime `OPENAI_API_KEY` environment variable. It never
+prints or persists the key. Use `--case`, `--limit`, or `--all` to select the
+dataset scope; `--dry-run` is the safe default. Live calls are not part of CI.
 
 `npm run benchmark` runs the synthetic guided tutor against the checked-in
 TutorEval 0.2A cases, prints category scores and leakage/failure rates, and
@@ -89,7 +100,9 @@ with repeated `--reviewer` arguments from ignored storage.
 
 This is a public repository. Only synthetic, public, properly licensed, or reviewed anonymized evaluation assets are allowed. Do not commit real user data, production chat logs, API keys, cookies, tokens, private system prompts, commercial prompts, production database exports, or identifiable datasets. Future private evaluations must use ignored local data or separate private storage.
 
-CI does not require secrets and the Foundation implementation makes no network or real model calls.
+CI does not require secrets and normal repository gates make no network or
+real model calls. Live Judge runs are opt-in and their validated benchmark
+result contains sanitized generic metrics, never the provider response.
 
 ## Benchmark integrity
 
@@ -102,8 +115,10 @@ Review Workspace (`shuangyan123/demo`) is one possible future `TutorUnderTest` a
 ## Roadmap
 
 See [docs/roadmap.md](docs/roadmap.md). The 0.1 execution foundation and 0.2A
-dataset-design foundation are separate from independent rubric calibration,
-real provider/Judge integration, and learning-impact phases.
+dataset-design foundation are separate from independent rubric calibration and
+learning-impact phases. The 0.3 roadmap remains partial because real Judge
+results are not human-calibrated and no multi-provider or statistical phase is
+included.
 
 ## License
 

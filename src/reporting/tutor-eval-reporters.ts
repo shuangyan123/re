@@ -24,10 +24,41 @@ export function formatTutorEvalSummary(result: TutorEvalRunResult): string {
   const categoryLines = categories.map(
     (category) => `${category}: ${formatScore(result.categoryScores[category])}`,
   );
+  const judgeMetrics = result.caseResults.flatMap((caseResult) =>
+    caseResult.judgeMetrics === undefined || caseResult.judgeMetrics === null
+      ? []
+      : [caseResult.judgeMetrics],
+  );
+  const judgeLines =
+    result.judge === null
+      ? []
+      : [
+          `Judge: ${result.judge.provider}/${result.judge.model}`,
+          `Judge prompt: ${result.judge.promptId ?? "unspecified"}@${result.judge.promptVersion}`,
+          ...(judgeMetrics.length === 0
+            ? []
+            : [
+                `Judge calls: ${judgeMetrics.length}`,
+                `Judge latency: ${judgeMetrics.reduce(
+                  (total, metrics) => total + metrics.latencyMs,
+                  0,
+                )}ms`,
+                `Judge tokens: ${judgeMetrics.every(
+                  (metrics) => metrics.tokenUsage === null,
+                )
+                  ? "n/a"
+                  : judgeMetrics.reduce(
+                      (total, metrics) =>
+                        total + (metrics.tokenUsage?.totalTokens ?? 0),
+                      0,
+                    )}`,
+              ]),
+        ];
   return [
     `Dataset: ${result.datasetId}@${result.datasetVersion}`,
     `Tutor: ${result.tutor.provider}/${result.tutor.model}`,
     `Prompt: ${result.tutor.promptVersion}`,
+    ...judgeLines,
     `Cases: ${result.caseCount} (${result.caseRunCount} runs)`,
     `Passed: ${result.passedCount}`,
     `Failed: ${result.failedCount}`,

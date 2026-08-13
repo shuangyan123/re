@@ -26,7 +26,7 @@
 - [ ] Independent human rubric review using real reviewers
 - [ ] Adjudication and human reference generation using real reviewer data
 
-## 0.3 LLM-as-Judge Calibration — PARTIAL: 0.3A hybrid orchestration
+## 0.3 LLM-as-Judge Calibration — PARTIAL: 0.3A hybrid + 0.3B OpenAI provider
 
 - [x] Versioned v0.1 judge system prompt retained for compatibility
 - [x] Versioned v0.2 Judge prompt contract
@@ -36,13 +36,16 @@
 - [x] Rubric-owned deterministic/Judge routing
 - [x] Provider-independent Judge execution boundary
 - [x] Deterministic and Judge result merge with partial-evidence preservation
-- [ ] Judge provider adapter or real model calls
+- [x] Opt-in OpenAI Responses API Judge provider with Structured Outputs
+- [x] Bounded transport retry, timeout, refusal, and invalid-result handling
+- [x] Dry-run/live CLI selection with no live calls in CI
 - [ ] Pairwise evaluation
 - [ ] Judge-vs-human calibration using a real 0.2B reference set
 
-See [the 0.3A hybrid orchestration guide](tutor-eval-v0.3a.md). The phase
-remains partial: no real Judge provider, real model call, or human calibration
-claim is included.
+See [the 0.3A hybrid orchestration guide](tutor-eval-v0.3a.md) and [the 0.3B
+provider guide](tutor-eval-v0.3b.md). The phase remains partial: the provider
+is single-provider and opt-in, Judge results are not human-calibrated, and no
+pairwise or statistical evaluation claim is included.
 
 ## 0.4 Tutor Adapter Layer — NOT STARTED
 
