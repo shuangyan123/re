@@ -1,11 +1,19 @@
 import { createHash } from "node:crypto";
 
-import { BenchmarkConfigurationError } from "./errors.js";
+import {
+  BenchmarkConfigurationError,
+  TutorGenerationExecutionError,
+} from "./errors.js";
 import type { TutorVisibleCasePacket } from "./tutor-response-corpus.js";
 
 export const TUTOR_GENERATION_SPEC_SCHEMA_VERSION = 1 as const;
 export const TUTOR_MIN_OUTPUT_TOKENS = 1 as const;
 export const TUTOR_MAX_OUTPUT_TOKENS = 32_768 as const;
+export const TUTOR_GENERATION_OPTIONAL_CONTROLS = [
+  "temperature",
+  "reasoningEffort",
+  "seed",
+] as const;
 
 export type TutorGenerationMessageRole = "system" | "user" | "assistant";
 
@@ -34,6 +42,18 @@ export interface TutorGenerationSpec {
   readonly reasoningEffort?: string;
   readonly seed?: number;
 }
+
+export type TutorGenerationOptionalControl =
+  (typeof TUTOR_GENERATION_OPTIONAL_CONTROLS)[number];
+
+/**
+ * Host capability attestation for optional benchmark controls. A true value
+ * means the host will honor every specified value for that control exactly;
+ * false or absent means the control cannot be used by the host.
+ */
+export type TutorGenerationSpecExecutionSupport = Readonly<
+  Partial<Record<TutorGenerationOptionalControl, boolean>>
+>;
 
 type TutorGenerationSpecWithoutVersion = Omit<
   TutorGenerationSpec,
@@ -176,6 +196,23 @@ export function parseTutorGenerationSpec(value: unknown): TutorGenerationSpec {
 
 export function assertValidTutorGenerationSpec(spec: TutorGenerationSpec): void {
   parseTutorGenerationSpec(spec);
+}
+
+/**
+ * Fails closed when a host cannot honor a required generation control. The
+ * benchmark core does not infer support from provider names or SDK behavior.
+ */
+export function assertTutorGenerationSpecExecutionSupport(
+  spec: TutorGenerationSpec,
+  support: TutorGenerationSpecExecutionSupport,
+): void {
+  const canonicalSpec = parseTutorGenerationSpec(spec);
+  const unsupportedFields = TUTOR_GENERATION_OPTIONAL_CONTROLS.filter(
+    (field) => canonicalSpec[field] !== undefined && support[field] !== true,
+  );
+  if (unsupportedFields.length > 0) {
+    throw new TutorGenerationExecutionError(unsupportedFields);
+  }
 }
 
 export function createTutorGenerationSpec(

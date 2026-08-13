@@ -55,14 +55,19 @@ Structured Outputs. Live execution is explicit opt-in through
 prompt, rubric ownership, and request construction without network access. See
 [the 0.3B provider guide](docs/tutor-eval-v0.3b.md).
 
-TutorEval 0.4A.1 adds a provider-independent, versioned Tutor generation
-contract. `TutorGenerationSpec` pins prompt ID/version/SHA-256, output limits,
-and benchmark-controlled parameters; `TutorExecutionPacket` pins canonical
+TutorEval 0.4A.2 adds a provider-independent, versioned Tutor generation
+contract and a portable `baseline-native-default` profile. The public profile
+pins prompt ID/version/SHA-256, canonical messages, and a 1024-token output
+cap; it intentionally leaves temperature, reasoning controls, and seed
+unconstrained because the current host/provider boundary cannot promise those
+values across every model. `TutorGenerationSpec` still retains those optional
+fields for future controlled profiles; a specified optional field must be
+honored exactly or fail closed. `TutorExecutionPacket` pins canonical
 messages for an execution host; and `TutorResponseCorpus` can record the same
 generation identity separately from provider/model identity. Use
 `npm run tutor:export-execution` for the canonical benchmark packet and
 `npm run tutor:export-cases` for the earlier semantic Tutor-visible packet.
-See [the 0.4A.1 generation and corpus guide](docs/tutor-eval-v0.4a.md). This
+See [the 0.4A.2 generation and corpus guide](docs/tutor-eval-v0.4a.md). This
 remains partial: no real Tutor provider or Review Workspace implementation is
 included in this repository.
 

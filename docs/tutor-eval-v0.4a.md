@@ -1,9 +1,9 @@
-# Tutor Benchmark 0.4A.1: Canonical Tutor Generation Boundary
+# Tutor Benchmark 0.4A.2: Portable Baseline Generation Profile
 
 0.4A establishes the provider-independent boundary for recorded Tutor
-responses. It does not implement a Tutor, call a real Tutor provider, or
-claim that the checked-in synthetic fixtures represent production Tutor
-behavior.
+responses. 0.4A.2 adds the portable public baseline profile. It does not
+implement a Tutor, call a real Tutor provider, or claim that the checked-in
+synthetic fixtures represent production Tutor behavior.
 
 The lifecycle is deliberately separated:
 
@@ -11,7 +11,7 @@ The lifecycle is deliberately separated:
 generate -> freeze -> evaluate -> annotate -> calibrate
 ```
 
-0.4A.1 adds the missing benchmark generation rule between a case and a
+0.4A.1 added the missing benchmark generation rule between a case and a
 response corpus:
 
 ```text
@@ -79,6 +79,45 @@ response identity also includes the spec ID/version, prompt ID/version/digest,
 and benchmark-controlled output/runtime values. `maxOutputTokens` therefore
 cannot silently change while retaining the same response identity.
 
+## Portable baseline profile (0.4A.2)
+
+The public baseline is the `baseline-native-default` profile. Its canonical
+generation identity fixes only the controls the provider-independent host
+contract can require across the current execution boundary:
+
+```text
+specId: tutor-baseline-generation
+specVersion: 0.4a.2
+prompt: exact ID, version, and SHA-256
+maxOutputTokens: 1024
+temperature: absent
+reasoningEffort: absent
+seed: absent
+```
+
+The absent optional fields mean that the benchmark does not constrain those
+controls. They do not claim that a provider has no internal default. A future
+host must not invent benchmark values for absent fields.
+
+The 0.4A.1 profile remains valid historical evidence with its original
+`temperature: 0.2`, `reasoningEffort: "low"`, and `seed: 7` values. It is not
+reinterpreted as the v2 baseline, and v1 and v2 runs are separate semantic
+identities and leaderboard cohorts.
+
+### Optional control conformance
+
+`temperature`, `reasoningEffort`, and `seed` remain available on
+`TutorGenerationSpec` for controlled research profiles. When one is present,
+the execution host must honor its exact value or fail closed. A host that
+cannot support a specified field must report an execution-conformance error;
+it must never silently drop the field. When a field is absent, the benchmark
+places no requirement on the host's provider-native behavior.
+
+The core helper `assertTutorGenerationSpecExecutionSupport()` accepts a
+provider-independent host attestation. The host supplies `true` only for
+controls it can honor exactly; provider/model capability resolution remains in
+the host and is not imported into this repository.
+
 ## TutorGenerationSpec
 
 The canonical baseline spec is versioned and provider-independent:
@@ -104,7 +143,10 @@ identity is the combination of ID, version, and digest, so changing prompt
 content without updating the version is still detectable.
 
 `maxOutputTokens` is part of benchmark identity because it affects truncation,
-verbosity, completeness, answer leakage, and actionability. Provider/model,
+verbosity, completeness, answer leakage, and actionability. The
+`baseline-native-default` profile does not fix temperature, reasoning effort,
+or seed because those controls are not a common execution contract across
+providers and models. Provider/model,
 API keys, credential IDs, base URLs, connection IDs, and raw provider options
 remain execution-host concerns and are not included in this contract.
 
@@ -243,7 +285,7 @@ The future 0.4B bridge should use Review Workspace's low-level
 `generateWithConnection()` with this packet. It must not use `requestTutorReply()`
 as the baseline executor because that product path adds persona, personal
 memory, learner state, a product system prompt, and structured micro-assessment
-output. This repository does not modify `demo` in 0.4A.1.
+output. This repository does not modify `demo` in 0.4A.2.
 
 ## Future Review Workspace bridge
 
@@ -266,6 +308,11 @@ payloads. This 0.4A change therefore does not copy
 `app/server/ai/provider-adapter.ts`, `provider-transport.ts`,
 `execute-provider-generate.ts`, or `model-directory.ts`.
 
+The future bridge must first validate that the host can honor every required
+field in the packet's generation spec. For the v2 baseline this means the
+prompt identity, canonical messages, and output cap; it does not need to
+pretend that seed, temperature, or reasoning controls are identical.
+
 The future bridge must also keep benchmark evaluator data out of the request:
 the Tutor receives only the visible packet, never rubric IDs, rubric text,
 capability tags, critical status, ground truth, known misconception, or Judge
@@ -275,16 +322,17 @@ packet as hidden Tutor instructions.
 
 ## Scope status
 
-0.4 remains partial. 0.4A.1 completes the canonical generation-spec and
-execution-packet contract, but it does not implement a real bridge or collect
-real model responses:
+0.4 remains partial. 0.4A.2 completes the portable baseline profile on top of
+the canonical generation-spec and execution-packet contract, but it does not
+implement a real bridge or collect real model responses:
 
 ```text
-0.4 Tutor Adapter Layer — PARTIAL: canonical generation + response corpus boundary
+0.4 Tutor Adapter Layer — PARTIAL: portable canonical generation + response corpus boundary
 
 [x] stable Tutor response corpus contract
 [x] canonical Tutor generation spec with prompt digest and output limit
 [x] canonical Tutor execution packet and dry executor
+[x] portable baseline-native-default generation profile (0.4A.2)
 [x] recorded/replay Tutor adapter
 [x] Tutor-visible case export
 [x] calibration integration

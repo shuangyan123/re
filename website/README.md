@@ -21,6 +21,12 @@ npm run website:dev
 `OPENAI_API_KEY`, does not call a Judge, and does not include model rankings or
 trial data that are not present in a validated public artifact.
 
+The Run and Methodology pages describe the 0.4A.2 `baseline-native-default`
+generation profile: the benchmark prompt/messages and 1024-token output cap
+are fixed, while temperature, reasoning, and seed remain provider-native and
+unconstrained. Future public cohorts must retain dataset and generation spec
+identity instead of mixing different profiles.
+
 The serializer defaults to excluding evaluator-only fields. The current
 synthetic development dataset opts into its documented public disclosure and
 adaptation metadata; ground truth, known misconceptions, rubrics, and hidden

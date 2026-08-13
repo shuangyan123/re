@@ -9,6 +9,7 @@ import {
   buildPublicBenchmarkArtifacts,
   loadTutorEvalDataset,
   parsePublicBenchmarkArtifacts,
+  PUBLIC_BENCHMARK_GENERATION_TRACEABILITY_FIELDS,
   toPublicTutorEvalCase,
   type PublicBenchmarkArtifacts,
 } from "../src/datasets/index.js";
@@ -59,6 +60,12 @@ test("public artifacts contain the real dataset and no model or trial rankings",
   assert.equal(artifacts.models.entries.length, 0);
   assert.equal(artifacts.trials.available, false);
   assert.equal(artifacts.trials.entries.length, 0);
+  assert.equal(new Set(artifacts.models.fields).size, artifacts.models.fields.length);
+  assert.equal(new Set(artifacts.trials.fields).size, artifacts.trials.fields.length);
+  for (const field of PUBLIC_BENCHMARK_GENERATION_TRACEABILITY_FIELDS) {
+    assert.ok(artifacts.models.fields.includes(field));
+    assert.ok(artifacts.trials.fields.includes(field));
+  }
   assert.doesNotMatch(serializedCases, /evaluatorOnly|groundTruth|knownMisconception|rubrics|misconceptions/);
   assert.deepEqual(
     artifacts.cases.cases.map((item) => item.id),
@@ -105,7 +112,11 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(leaderboardHtml, /Leaderboard coming soon/);
     assert.match(runHtml, /tutor:export-execution/);
     assert.match(runHtml, /TutorExecutionPacket/);
+    assert.match(runHtml, /baseline-native-default/);
+    assert.match(runHtml, /Controlled optional generation parameters: none/);
     assert.match(methodologyHtml, /Case, spec, packet, corpus/);
+    assert.match(methodologyHtml, /provider-native/);
+    assert.match(leaderboardHtml, /GenerationSpecId/);
     assert.doesNotMatch(casesJson, /evaluatorOnly|groundTruth|knownMisconception|rubrics|misconceptions/);
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });

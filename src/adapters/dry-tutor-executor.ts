@@ -78,7 +78,7 @@ export async function runDryTutorExecutionPacket(
     throw new Error("Dry Tutor execution identity does not match generation spec.");
   }
   const corpusId = options.corpusId ?? "dry-tutor-execution";
-  const corpusVersion = options.corpusVersion ?? "0.4a.1";
+  const corpusVersion = options.corpusVersion ?? generationSpec.specVersion;
   const createdAt = options.createdAt ??
     (options.now ?? (() => new Date()))().toISOString();
   const respond = options.respond ?? ((input: DryTutorExecutionInput) =>

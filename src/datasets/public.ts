@@ -27,6 +27,13 @@ export const PUBLIC_BENCHMARK_OPERATIONAL_DIMENSIONS = [
   "cost",
 ] as const;
 
+export const PUBLIC_BENCHMARK_GENERATION_TRACEABILITY_FIELDS = [
+  "datasetVersion",
+  "generationSpecId",
+  "generationSpecVersion",
+  "promptVersion",
+] as const;
+
 export interface TutorEvalPublicStudentProfile {
   readonly knownConcepts?: readonly string[];
   readonly level?: string;
@@ -309,11 +316,8 @@ export function buildPublicBenchmarkArtifacts(
         "overallTutorCapabilityScore",
         ...PUBLIC_BENCHMARK_SCORE_DIMENSIONS,
         ...PUBLIC_BENCHMARK_OPERATIONAL_DIMENSIONS,
-        "datasetVersion",
-        "generationSpecId",
-        "generationSpecVersion",
+        ...PUBLIC_BENCHMARK_GENERATION_TRACEABILITY_FIELDS,
         "promptId",
-        "promptVersion",
         "promptSha256",
         "maxOutputTokens",
         "runs",
@@ -327,10 +331,8 @@ export function buildPublicBenchmarkArtifacts(
       fields: [
         "model",
         "modelVersion",
-        "promptVersion",
-        "generationSpecVersion",
+        ...PUBLIC_BENCHMARK_GENERATION_TRACEABILITY_FIELDS,
         "promptSha256",
-        "datasetVersion",
         "caseVersion",
         "runIndex",
         "tutorResponse",
