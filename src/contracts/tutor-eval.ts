@@ -168,11 +168,14 @@ function profileToStudentState(
  */
 export function toTutorTurnInput(
   tutorEvalCase: TutorEvalCase,
+  runIndex = 1,
 ): TutorTurnInput {
   const tutorInput = tutorEvalCase.tutorInput;
   return {
     scenarioId: tutorEvalCase.id,
     caseId: tutorEvalCase.id,
+    caseVersion: tutorEvalCase.version,
+    runIndex,
     learningObjective: tutorInput.learningObjective,
     initialContext: tutorInput.problemContext ?? "",
     conversation: tutorInput.conversationHistory ?? [],

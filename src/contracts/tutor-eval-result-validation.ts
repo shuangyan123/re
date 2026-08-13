@@ -118,7 +118,10 @@ function isTutorDescriptor(value: unknown): boolean {
     typeof record.model === "string" &&
     record.model.trim().length > 0 &&
     typeof record.promptVersion === "string" &&
-    record.promptVersion.trim().length > 0
+    record.promptVersion.trim().length > 0 &&
+    (record.reasoningEffort === undefined ||
+      (typeof record.reasoningEffort === "string" &&
+        record.reasoningEffort.trim().length > 0))
   );
 }
 

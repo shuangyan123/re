@@ -47,11 +47,20 @@ provider guide](tutor-eval-v0.3b.md). The phase remains partial: the provider
 is single-provider and opt-in, Judge results are not human-calibrated, and no
 pairwise or statistical evaluation claim is included.
 
-## 0.4 Tutor Adapter Layer — NOT STARTED
+## 0.4 Tutor Adapter Layer — PARTIAL: 0.4A response corpus boundary
 
-- Review Workspace adapter
-- Baseline prompts
-- Model adapters
+- [x] Stable versioned Tutor response corpus contract
+- [x] Recorded/replay Tutor adapter
+- [x] Tutor-visible case packet export and hidden-data firewall
+- [x] Existing 0.2B calibration conversion
+- [x] Review Workspace adapter protocol
+- [ ] Review Workspace implementation (0.4B)
+- [ ] Real model response collection
+- [ ] Broader model adapters if required
+
+See [the 0.4A response corpus guide](tutor-eval-v0.4a.md). The repository
+remains independent from Review Workspace; 0.4B should modify the bridge in
+`shuangyan123/demo` and emit this repository's stable corpus contract.
 
 ## 0.5 Statistical Evaluation — NOT STARTED
 

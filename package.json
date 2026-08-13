@@ -17,7 +17,10 @@
     "calibration:export": "npm run build && node dist/src/cli/calibration-export.js",
     "calibration:validate": "npm run build && node dist/src/cli/calibration-validate.js",
     "calibration:report": "npm run build && node dist/src/cli/calibration-report.js",
-    "calibration:aggregate": "npm run build && node dist/src/cli/calibration-aggregate.js"
+    "calibration:aggregate": "npm run build && node dist/src/cli/calibration-aggregate.js",
+    "tutor:export-cases": "npm run build && node dist/src/cli/tutor-export-cases.js",
+    "tutor:corpus:validate": "npm run build && node dist/src/cli/tutor-corpus-validate.js",
+    "benchmark:corpus": "npm run build && node dist/src/cli/benchmark-corpus.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
