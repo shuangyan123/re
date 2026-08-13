@@ -8,6 +8,7 @@ import {
   type CalibrationCandidateDataKind,
   type CalibrationCandidateResponse,
   type CalibrationCandidateResponseFile,
+  type CalibrationSourceCorpus,
   type CalibrationLabel,
   type CalibrationReferenceSet,
   type HumanRubricAnnotation,
@@ -28,6 +29,9 @@ const responseProvenances = new Set([
   "synthetic",
   "model",
   "human-authored",
+  "recorded_model",
+  "review_workspace",
+  "external",
 ]);
 const candidateDataKinds = new Set(["candidate-corpus", "synthetic-fixture"]);
 const annotationDataKinds = new Set(["human-annotation", "synthetic-fixture"]);
@@ -73,6 +77,19 @@ function readOptionalNonEmptyString(
   return nonEmptyString(record[key]) ? record[key] as string : null;
 }
 
+function readOptionalNonNegativeNumber(
+  record: UnknownRecord,
+  key: string,
+): number | null | undefined {
+  if (!(key in record)) {
+    return undefined;
+  }
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : null;
+}
+
 function parseFixtureMarker(
   value: unknown,
 ): SyntheticFixtureMarker | null | undefined {
@@ -102,18 +119,58 @@ function parseTutorDescriptor(
   }
   const provider = readOptionalNonEmptyString(record, "provider");
   const model = readOptionalNonEmptyString(record, "model");
+  const modelVersion = readOptionalNonEmptyString(record, "modelVersion");
+  const promptId = readOptionalNonEmptyString(record, "promptId");
   const promptVersion = readOptionalNonEmptyString(record, "promptVersion");
-  if (provider === null || model === null || promptVersion === null) {
+  const reasoningEffort = readOptionalNonEmptyString(record, "reasoningEffort");
+  const temperature = readOptionalNonNegativeNumber(record, "temperature");
+  const seed = record.seed;
+  if (
+    provider === null ||
+    model === null ||
+    modelVersion === null ||
+    promptId === null ||
+    promptVersion === null ||
+    reasoningEffort === null ||
+    temperature === null ||
+    (seed !== undefined && (!Number.isInteger(seed) || (seed as number) < 0))
+  ) {
     return null;
   }
-  if (provider === undefined && model === undefined && promptVersion === undefined) {
+  if (
+    provider === undefined &&
+    model === undefined &&
+    modelVersion === undefined &&
+    promptId === undefined &&
+    promptVersion === undefined &&
+    reasoningEffort === undefined &&
+    temperature === undefined &&
+    seed === undefined
+  ) {
     return null;
   }
   return {
     ...(provider === undefined ? {} : { provider }),
     ...(model === undefined ? {} : { model }),
+    ...(modelVersion === undefined ? {} : { modelVersion }),
+    ...(promptId === undefined ? {} : { promptId }),
     ...(promptVersion === undefined ? {} : { promptVersion }),
+    ...(temperature === undefined ? {} : { temperature }),
+    ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+    ...(seed === undefined ? {} : { seed: seed as number }),
   };
+}
+
+function parseSourceCorpus(value: unknown): CalibrationSourceCorpus | null {
+  const record = asRecord(value);
+  if (
+    record === null ||
+    !identifier(record.corpusId) ||
+    !identifier(record.corpusVersion)
+  ) {
+    return null;
+  }
+  return { corpusId: record.corpusId, corpusVersion: record.corpusVersion };
 }
 
 function parseSourceRun(
@@ -156,7 +213,11 @@ function parseCandidateResponseValue(
       : parseTutorDescriptor(record.tutorDescriptor);
   const sourceRun =
     record.sourceRun === undefined ? undefined : parseSourceRun(record.sourceRun);
-  if (tutorDescriptor === null || sourceRun === null) {
+  const sourceCorpus =
+    record.sourceCorpus === undefined
+      ? undefined
+      : parseSourceCorpus(record.sourceCorpus);
+  if (tutorDescriptor === null || sourceRun === null || sourceCorpus === null) {
     return null;
   }
 
@@ -169,6 +230,7 @@ function parseCandidateResponseValue(
     caseVersion: record.caseVersion,
     ...(tutorDescriptor === undefined ? {} : { tutorDescriptor }),
     ...(sourceRun === undefined ? {} : { sourceRun }),
+    ...(sourceCorpus === undefined ? {} : { sourceCorpus }),
     responseText: record.responseText,
     provenance: record.provenance as CalibrationCandidateResponse["provenance"],
   };

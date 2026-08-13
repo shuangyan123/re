@@ -103,6 +103,7 @@ export interface TutorEvalTutorDescriptor {
   readonly promptId?: string;
   readonly promptVersion: string;
   readonly temperature?: number;
+  readonly reasoningEffort?: string;
   readonly seed?: number;
 }
 

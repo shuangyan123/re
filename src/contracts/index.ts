@@ -12,4 +12,6 @@ export * from "./calibration.js";
 export * from "./calibration-validation.js";
 export * from "./tutor-eval-result-validation.js";
 export * from "./tutor-eval-validation.js";
+export * from "./tutor-response-corpus.js";
+export * from "./tutor-response-corpus-validation.js";
 export * from "./validation.js";

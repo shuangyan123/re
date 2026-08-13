@@ -6,6 +6,7 @@ import type {
 } from "./tutor-eval.js";
 import type { TutorEvalRubricBehavior } from "./rubric.js";
 import type { TutorEvalCapabilityTag } from "./tutor-eval-taxonomy.js";
+import type { TutorEvalTutorDescriptor } from "./result.js";
 
 export const CALIBRATION_CONTRACT_SCHEMA_VERSION = 1 as const;
 export const CALIBRATION_PACKET_SCHEMA_VERSION = 1 as const;
@@ -15,19 +16,35 @@ export const CALIBRATION_REPORT_SCHEMA_VERSION = 1 as const;
 export type CalibrationResponseProvenance =
   | "synthetic"
   | "model"
-  | "human-authored";
+  | "human-authored"
+  | "recorded_model"
+  | "review_workspace"
+  | "external";
 
 /** Internal response provenance is never copied into a reviewer packet. */
-export interface CalibrationTutorDescriptor {
-  readonly provider?: string;
-  readonly model?: string;
-  readonly promptVersion?: string;
-}
+export type CalibrationTutorDescriptor = Partial<
+  Pick<
+    TutorEvalTutorDescriptor,
+    | "provider"
+    | "model"
+    | "modelVersion"
+    | "promptId"
+    | "promptVersion"
+    | "temperature"
+    | "reasoningEffort"
+    | "seed"
+  >
+>;
 
 /** Optional identity carried over from a TutorEval run. */
 export interface CalibrationSourceRun {
   readonly runId: string;
   readonly runIndex: number;
+}
+
+export interface CalibrationSourceCorpus {
+  readonly corpusId: string;
+  readonly corpusVersion: string;
 }
 
 export interface CalibrationCandidateResponse {
@@ -39,6 +56,7 @@ export interface CalibrationCandidateResponse {
   readonly caseVersion: string;
   readonly tutorDescriptor?: CalibrationTutorDescriptor;
   readonly sourceRun?: CalibrationSourceRun;
+  readonly sourceCorpus?: CalibrationSourceCorpus;
   readonly responseText: string;
   readonly provenance: CalibrationResponseProvenance;
 }

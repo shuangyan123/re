@@ -59,6 +59,7 @@ export interface TutorEvalTutorOptions {
   readonly promptId?: string;
   readonly promptVersion: string;
   readonly temperature?: number;
+  readonly reasoningEffort?: string;
   readonly seed?: number;
 }
 
@@ -294,7 +295,7 @@ async function runCase(
   const started = performance.now();
   let output: Awaited<ReturnType<TutorUnderTest["respond"]>>;
   try {
-    output = await tutor.respond(toTutorTurnInput(tutorEvalCase));
+    output = await tutor.respond(toTutorTurnInput(tutorEvalCase, runIndex));
   } catch {
     return tutorAdapterErrorResult(tutorEvalCase, runIndex, started, null);
   }

@@ -16,6 +16,10 @@ export interface TutorTurnInput {
   readonly scenarioId: string;
   /** Canonical TutorEval identity; scenarioId remains for Foundation compatibility. */
   readonly caseId?: string;
+  /** Canonical case version used by recorded/replay adapters. */
+  readonly caseVersion?: string;
+  /** One-based generation run identity used by recorded/replay adapters. */
+  readonly runIndex?: number;
   readonly learningObjective?: string;
   readonly initialContext: string;
   readonly conversation: readonly TutorConversationMessage[];

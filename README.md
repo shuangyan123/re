@@ -55,6 +55,14 @@ Structured Outputs. Live execution is explicit opt-in through
 prompt, rubric ownership, and request construction without network access. See
 [the 0.3B provider guide](docs/tutor-eval-v0.3b.md).
 
+TutorEval 0.4A adds a provider-independent, versioned Tutor response corpus
+boundary. A frozen corpus can be replayed through the current hybrid evaluator
+without regenerating Tutor output, and `npm run tutor:export-cases` exports
+only Tutor-visible case fields for a future host adapter. See [the 0.4A
+response corpus guide](docs/tutor-eval-v0.4a.md). This is a partial adapter
+boundary: no real Tutor provider or Review Workspace implementation is included
+in this repository.
+
 ## Quick start
 
 Requirements: Node 22 (`>=22 <23`).
@@ -67,6 +75,19 @@ npm test
 npm run build
 npm run benchmark
 ```
+
+Corpus workflows are explicit and offline by default:
+
+```bash
+npm run tutor:export-cases -- -- --case fraction-misconception-001
+npm run tutor:corpus:validate -- -- --corpus path/to/corpus.json
+npm run benchmark:corpus -- -- --corpus path/to/corpus.json
+```
+
+`benchmark:corpus` replays frozen responses and never calls a Tutor provider.
+Use `--judge-openai` only when the existing explicit live Judge provider is
+intentionally selected. The corpus contract records sanitized Tutor identity
+and response provenance, never credentials or raw provider payloads.
 
 The live Judge CLI requires an explicit `OPENAI_JUDGE_MODEL` and reads the API
 key only from the runtime `OPENAI_API_KEY` environment variable. It never
