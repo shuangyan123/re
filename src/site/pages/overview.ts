@@ -208,7 +208,7 @@ function renderLeaderboardSchema(benchmark: PublicBenchmarkArtifact): string {
   return `<div class="schema-grid">
     <div><p class="eyebrow">Tutor capability score</p>${renderDimensionPills(benchmark.dimensions.score)}</div>
     <div><p class="eyebrow">Operational signals</p>${renderDimensionPills(benchmark.dimensions.operational)}</div>
-    <div><p class="eyebrow">Traceability fields</p>${renderDimensionPills(["datasetVersion", "promptVersion", "runs"])}</div>
+    <div><p class="eyebrow">Traceability fields</p>${renderDimensionPills(["datasetVersion", "generationSpecVersion", "promptVersion", "promptSha256", "runs"])}</div>
     <p class="muted">The future table will show: ${escapeHtml(scoreFields.join(", "))}. Operational fields include ${escapeHtml(operationalFields.join(", "))}.</p>
   </div>`;
 }

@@ -3,7 +3,9 @@ import { readFile } from "node:fs/promises";
 import { BenchmarkConfigurationError } from "../contracts/index.js";
 import {
   parseTutorResponseCorpus,
+  parseTutorExecutionPacketFile,
   parseTutorVisibleCasePacketFile,
+  type TutorExecutionPacketFile,
   type TutorResponseCorpus,
   type TutorVisibleCasePacketFile,
 } from "../contracts/index.js";
@@ -26,4 +28,10 @@ export async function loadTutorVisibleCasePacketFile(
   path: string,
 ): Promise<TutorVisibleCasePacketFile> {
   return parseTutorVisibleCasePacketFile(await readJson(path));
+}
+
+export async function loadTutorExecutionPacketFile(
+  path: string,
+): Promise<TutorExecutionPacketFile> {
+  return parseTutorExecutionPacketFile(await readJson(path));
 }

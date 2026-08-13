@@ -89,6 +89,11 @@ test("static website build emits the public artifact files and route shell", asy
     const routeCount = await buildWebsite({ outputDirectory });
     const casesJson = await readFile(join(outputDirectory, "public-data", "cases.json"), "utf8");
     const homeHtml = await readFile(join(outputDirectory, "index.html"), "utf8");
+    const runHtml = await readFile(join(outputDirectory, "run", "index.html"), "utf8");
+    const methodologyHtml = await readFile(
+      join(outputDirectory, "methodology", "index.html"),
+      "utf8",
+    );
     const leaderboardHtml = await readFile(
       join(outputDirectory, "leaderboard", "index.html"),
       "utf8",
@@ -98,6 +103,9 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(homeHtml, /Developer Preview/);
     assert.match(homeHtml, /No calibrated public model runs yet\./);
     assert.match(leaderboardHtml, /Leaderboard coming soon/);
+    assert.match(runHtml, /tutor:export-execution/);
+    assert.match(runHtml, /TutorExecutionPacket/);
+    assert.match(methodologyHtml, /Case, spec, packet, corpus/);
     assert.doesNotMatch(casesJson, /evaluatorOnly|groundTruth|knownMisconception|rubrics|misconceptions/);
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });

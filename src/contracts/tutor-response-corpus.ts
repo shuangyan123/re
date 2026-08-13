@@ -14,6 +14,7 @@ import type {
   TutorConversationMessage,
   TutorTurnMetrics,
 } from "./tutor.js";
+import type { TutorGenerationSpec } from "./tutor-generation.js";
 
 export const TUTOR_RESPONSE_CORPUS_SCHEMA_VERSION = 1 as const;
 export const TUTOR_VISIBLE_CASE_PACKET_SCHEMA_VERSION = 1 as const;
@@ -52,6 +53,8 @@ export interface TutorResponseCorpus {
   /** All responses in one corpus use the same bounded run count. */
   readonly runsPerCase: number;
   readonly provenance: TutorResponseProvenance;
+  /** Optional for v1 compatibility; present for canonical execution evidence. */
+  readonly generationSpec?: TutorGenerationSpec;
   readonly tutor: TutorEvalTutorDescriptor;
   readonly responses: readonly TutorCandidateResponse[];
 }
@@ -92,6 +95,7 @@ export interface TutorResponseCorpusEvaluationResult {
   readonly selectedCaseCount: number;
   readonly availableResponseCount: number;
   readonly missingCaseCount: number;
+  readonly generationSpec?: TutorGenerationSpec;
   readonly tutor: TutorEvalTutorDescriptor;
   readonly evaluation: TutorEvalRunResult;
 }

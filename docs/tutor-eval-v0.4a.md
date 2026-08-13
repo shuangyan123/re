@@ -1,4 +1,4 @@
-# Tutor Benchmark 0.4A: Real Tutor Response Corpus Boundary
+# Tutor Benchmark 0.4A.1: Canonical Tutor Generation Boundary
 
 0.4A establishes the provider-independent boundary for recorded Tutor
 responses. It does not implement a Tutor, call a real Tutor provider, or
@@ -10,6 +10,29 @@ The lifecycle is deliberately separated:
 ```text
 generate -> freeze -> evaluate -> annotate -> calibrate
 ```
+
+0.4A.1 adds the missing benchmark generation rule between a case and a
+response corpus:
+
+```text
+TutorEval case
+  -> TutorGenerationSpec
+  -> canonical Tutor messages
+  -> TutorExecutionPacket
+  -> execution host/model
+  -> TutorResponseCorpus
+```
+
+The earlier 0.4A visible packet remains supported. It is a semantic adapter
+packet; it is not a complete model-execution specification.
+
+## Why the earlier 0.4A boundary was not enough
+
+`TutorVisibleCasePacket` defined the visible semantic input, but it did not
+pin the prompt bytes, output limit, or the exact message construction. Two
+hosts could therefore receive the same case while choosing different system
+prompts, serializations, conversation mappings, or generation limits. Those
+runs would not be strict reproductions of one model benchmark.
 
 Live Tutor generation is different from recorded response evaluation. Once a
 `TutorResponseCorpus` is frozen, the same candidate response can be evaluated
@@ -24,6 +47,7 @@ The versioned `TutorResponseCorpus` contains:
 - `datasetId` and `datasetVersion`;
 - creation time and explicit `full`/`partial` coverage;
 - the bounded `runsPerCase` value;
+- optional canonical `TutorGenerationSpec` identity for legacy compatibility;
 - one sanitized `TutorEvalTutorDescriptor` for the actual provider/model
   configuration;
 - immutable candidate records with explicit `responseId`, case identity,
@@ -50,7 +74,72 @@ synthetic pipeline fixture.
 `deriveTutorResponseId()` helper can deterministically derive an ID from
 corpus/dataset/case versions, the sanitized Tutor descriptor, and `runIndex`.
 The hash allow-list intentionally excludes credentials, complete prompt text,
-and raw provider payloads.
+and raw provider payloads. When a corpus carries a generation spec, the
+response identity also includes the spec ID/version, prompt ID/version/digest,
+and benchmark-controlled output/runtime values. `maxOutputTokens` therefore
+cannot silently change while retaining the same response identity.
+
+## TutorGenerationSpec
+
+The canonical baseline spec is versioned and provider-independent:
+
+```text
+schemaVersion
+specId
+specVersion
+prompt.id
+prompt.version
+prompt.sha256
+maxOutputTokens
+temperature?
+reasoningEffort?
+seed?
+```
+
+The checked-in source of truth is
+`prompts/tutor-baseline-system-v0.1.md`. `digestTutorPrompt()` hashes its
+exact UTF-8 bytes with SHA-256. Identical bytes produce the same 64-character
+lowercase digest; any byte change produces a different digest. The prompt
+identity is the combination of ID, version, and digest, so changing prompt
+content without updating the version is still detectable.
+
+`maxOutputTokens` is part of benchmark identity because it affects truncation,
+verbosity, completeness, answer leakage, and actionability. Provider/model,
+API keys, credential IDs, base URLs, connection IDs, and raw provider options
+remain execution-host concerns and are not included in this contract.
+
+## Canonical messages and execution packet
+
+`buildTutorGenerationMessages()` emits the same provider-independent sequence
+for every host:
+
+```text
+system    <- baseline prompt asset
+user      <- stable visible benchmark context
+user      <- prior student message
+assistant <- prior Tutor message
+user      <- current student message
+```
+
+The visible context uses an explicit field order for `learningObjective`,
+`studentProfile`, and `problemContext`. Student profile fields are serialized
+as `level`, `knownConcepts`, `misconceptions`, and `goal`; missing optional case
+values become stable empty/default values through `toTutorTurnInput()`.
+
+`TutorExecutionPacketFile` contains only dataset identity, the generation spec,
+and stable case IDs/versions/messages. It is host input; it does not contain
+`TutorEvalCase`, `evaluatorOnly`, ground truth, known misconceptions, rubrics,
+critical failures, rubric IDs, Judge prompts, human annotations, or reference
+labels. The packet builder first calls the existing visible-input conversion,
+so generation does not create a second hidden-data mapping path.
+
+`npm run tutor:export-execution` exports this packet with stable case ordering
+and supports repeated `--case`, `--limit`, and `--all`. The existing
+`npm run tutor:export-cases` remains the semantic adapter packet command.
+
+The repository also contains a dry executor that consumes only an execution
+packet and emits a synthetic, generation-bound corpus. It does not call a
+provider or inspect dataset internals, rubrics, or Judge configuration.
 
 The corpus version is immutable evidence. If response text or its semantic
 generation identity changes, create a new response/corpus version. Do not edit
@@ -96,6 +185,7 @@ On Windows/npm, pass the CLI separator twice as shown below:
 
 ```bash
 npm run tutor:export-cases -- -- --case fraction-misconception-001
+npm run tutor:export-execution -- -- --case fraction-misconception-001
 npm run tutor:corpus:validate -- -- --corpus path/to/corpus.json
 npm run benchmark:corpus -- -- --corpus path/to/corpus.json
 ```
@@ -141,17 +231,31 @@ annotation still has not happened merely because a corpus is recorded.
 The committed `fixtures/calibration/` files remain synthetic pipeline
 fixtures. They are intentionally not replaced by fabricated real responses.
 
+## Benchmark baseline and production Tutor are different benchmarks
+
+The `benchmark_baseline` path defined here uses the same canonical prompt,
+messages, and generation spec for model-level comparison. A future
+`review_workspace_production` evaluation may include product persona, memory,
+learner state, orchestration, and micro-assessment output. Those product
+conditions must not be mixed into the same model leaderboard.
+
+The future 0.4B bridge should use Review Workspace's low-level
+`generateWithConnection()` with this packet. It must not use `requestTutorReply()`
+as the baseline executor because that product path adds persona, personal
+memory, learner state, a product system prompt, and structured micro-assessment
+output. This repository does not modify `demo` in 0.4A.1.
+
 ## Future Review Workspace bridge
 
 The next phase is 0.4B in `shuangyan123/demo`, not in this repository. Its
-adapter should consume the Tutor-visible case packet, map it to the existing
-Review Workspace generation request, execute the selected provider/model using
-the host's credential boundary, capture only final Tutor text and sanitized
-metrics, and emit a `TutorResponseCorpus` JSON file.
+bridge should consume the `TutorExecutionPacket`, pass the exact canonical
+messages to the existing low-level generation boundary, execute the selected
+provider/model using the host's credential boundary, capture only final Tutor
+text and sanitized metrics, and emit a `TutorResponseCorpus` JSON file.
 
 ```text
-re exports visible case packet
-  -> demo host generates response
+re exports canonical execution packet
+  -> demo host executes exact messages
   -> demo/re bridge writes corpus
   -> re validates and evaluates frozen corpus
 ```
@@ -171,17 +275,21 @@ packet as hidden Tutor instructions.
 
 ## Scope status
 
-0.4 is partial and only its response-corpus boundary is implemented:
+0.4 remains partial. 0.4A.1 completes the canonical generation-spec and
+execution-packet contract, but it does not implement a real bridge or collect
+real model responses:
 
 ```text
-0.4 Tutor Adapter Layer — PARTIAL: response corpus boundary
+0.4 Tutor Adapter Layer — PARTIAL: canonical generation + response corpus boundary
 
 [x] stable Tutor response corpus contract
+[x] canonical Tutor generation spec with prompt digest and output limit
+[x] canonical Tutor execution packet and dry executor
 [x] recorded/replay Tutor adapter
 [x] Tutor-visible case export
 [x] calibration integration
 [x] Review Workspace adapter protocol
-[ ] Review Workspace implementation
+[ ] Review Workspace execution bridge (0.4B)
 [ ] real model response collection
 [ ] broader model adapters if required
 ```
