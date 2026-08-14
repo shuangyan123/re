@@ -90,6 +90,16 @@ Use `capabilityTag` for the one primary capability observed by the criterion.
 `rubric score = observed capability`. A `criticalFailure` is a separate risk
 or quality-gate signal; it is not another copy of the same score.
 
+The default quality gate is configured centrally. It includes all seven
+declared critical-failure types at `major` or `critical` severity. A minor
+failure remains a diagnostic signal. Therefore, a high overall rubric score
+does not override a gated critical failure, and a gated failure makes a valid
+case `failed` rather than an evaluator `error`. The disclosure policy remains
+part of the failure context: `answer_leakage` means that the evaluator found a
+disallowed disclosure, not that every complete answer is globally invalid.
+The policy audit and rationale are recorded in
+[`docs/critical-failure-quality-gate-audit.md`](critical-failure-quality-gate-audit.md).
+
 For example, answer disclosure in a `hint_only` case can be one prohibited
 Guidance rubric with an `answer_leakage` critical-failure flag. Do not also
 deduct the same event as separate `student_agency`, `hint_calibration`, and

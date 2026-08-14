@@ -49,10 +49,12 @@ The merge follows the original case rubric order, regardless of how the two
 evaluation paths complete. Deterministic evaluators are proxies; they are not
 semantic substitutes for the Judge.
 
-The current deterministic verifier revision is recorded as evaluator version
-`0.3a.1` in new `TutorEvalRunResult` values. This version is separate from the
-dataset and case identity so an immutable response corpus can be replayed
-without rewriting its evidence.
+The current evaluator revision is recorded as evaluator version `0.3a.2` in
+new `TutorEvalRunResult` values. The `0.3a.2` revision records the audited
+critical-failure quality-gate policy; it is separate from the dataset and case
+identity so an immutable response corpus can be replayed without rewriting its
+evidence. The full taxonomy audit is in
+[`docs/critical-failure-quality-gate-audit.md`](critical-failure-quality-gate-audit.md).
 
 ## Judge input and hidden context
 
@@ -132,6 +134,14 @@ When all rubric results are valid, deterministic and Judge critical failures
 are merged and deduplicated by failure type. A deterministic answer-leakage
 failure cannot disappear because a Judge is present. Judge factual errors and
 semantic critical failures remain owned by the validated Judge result.
+
+The aggregate keeps the ordinary rubric score and the quality gate separate.
+The default gate fails a valid case for any declared critical-failure type at
+`major` or `critical` severity, including a disclosure-policy violation, even
+when the overall rubric score is otherwise high. A gated critical failure is a
+Tutor behavior failure (`status: "failed"`), not an infrastructure or Judge
+evaluation error. Minor failures remain visible as diagnostics and do not gate
+the case by default.
 
 ## Compatibility
 
