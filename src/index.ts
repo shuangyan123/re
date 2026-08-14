@@ -7,6 +7,7 @@ export { loadTutorEvalDataset } from "./datasets/index.js";
 export {
   TUTOR_EVAL_DATASET_ID,
   TUTOR_EVAL_DATASET_VERSION,
+  TUTOR_EVAL_EVALUATOR_VERSION,
   TUTOR_EVAL_LEGACY_DATASET_ID,
   TUTOR_EVAL_LEGACY_DATASET_VERSION,
   toTutorTurnInput,

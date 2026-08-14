@@ -149,6 +149,8 @@ export interface TutorEvalRunResult {
   readonly durationMs: number;
   readonly datasetId: string;
   readonly datasetVersion: string;
+  /** Optional for v1 result compatibility; present for versioned evaluator runs. */
+  readonly evaluatorVersion?: string;
   readonly tutor: TutorEvalTutorDescriptor;
   readonly judge: TutorEvalJudgeDescriptor | null;
   readonly runsPerCase: number;

@@ -143,6 +143,12 @@ not establish that a natural-language explanation is pedagogically complete.
 The canonical dataset marks criteria that need semantic judgment with
 `evaluationType: "judge"`. 0.2A does not call a real LLM Judge.
 
+The deterministic ownership and proxy audit is recorded in
+[`docs/deterministic-verifier-audit.md`](deterministic-verifier-audit.md). The
+dataset/case identity remains `tutor-eval-v0.2a@0.2a`; replay results also carry
+the explicit evaluator semantic version so frozen response evidence is not
+silently compared across verifier revisions.
+
 ## Adding a case
 
 1. Start with one teaching objective and one learner state.

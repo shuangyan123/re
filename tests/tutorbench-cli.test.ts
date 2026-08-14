@@ -233,11 +233,13 @@ test("tutorbench run maps HTTP Tutor output to TutorEvalRunResult and --output",
 
     const output = JSON.parse(await readFile(outputPath, "utf8")) as {
       readonly datasetId: string;
+      readonly evaluatorVersion: string;
       readonly caseCount: number;
       readonly caseRunCount: number;
       readonly tutor: { readonly model: string };
     };
     assert.equal(output.datasetId, "tutor-eval-v0.2a");
+    assert.equal(output.evaluatorVersion, "0.3a.1");
     assert.equal(output.caseCount, 1);
     assert.equal(output.caseRunCount, 2);
     assert.equal(output.tutor.model, "http-tutor");
@@ -358,7 +360,7 @@ test("tutorbench collect performs fake HTTP evidence collection and keeps failur
       "--output",
       evaluationPath,
     ]);
-    assert.equal(evaluation.exitCode, 0);
+    assert.equal(evaluation.exitCode, 1);
     assert.match(evaluation.stdout, /Status: preliminary/);
     assert.match(evaluation.stdout, /Calibration: uncalibrated/);
     const evaluationArtifact = JSON.parse(await readFile(evaluationPath, "utf8")) as {
@@ -368,7 +370,7 @@ test("tutorbench collect performs fake HTTP evidence collection and keeps failur
         readonly publicLeaderboardEligible: boolean;
       };
       readonly coverage: string;
-      readonly evaluation: { readonly errorCount: number };
+      readonly evaluation: { readonly failedCount: number; readonly errorCount: number };
     };
     assert.deepEqual(evaluationArtifact.artifactMetadata, {
       status: "preliminary",
@@ -376,7 +378,8 @@ test("tutorbench collect performs fake HTTP evidence collection and keeps failur
       publicLeaderboardEligible: false,
     });
     assert.equal(evaluationArtifact.coverage, "partial");
-    assert.equal(evaluationArtifact.evaluation.errorCount, 0);
+    assert.equal(evaluationArtifact.evaluation.failedCount, 0);
+    assert.equal(evaluationArtifact.evaluation.errorCount, 1);
   } finally {
     await new Promise<void>((resolveClose, reject) => {
       server.close((error) => (error === undefined ? resolveClose() : reject(error)));
@@ -551,7 +554,7 @@ test("tutorbench collect rejects recorded_model and canonical collection preserv
       "--output",
       evaluationPath,
     ]);
-    assert.equal(evaluation.exitCode, 0);
+    assert.equal(evaluation.exitCode, 1);
     assert.match(evaluation.stdout, /Coverage: partial/);
   } finally {
     await new Promise<void>((resolveClose, reject) => {

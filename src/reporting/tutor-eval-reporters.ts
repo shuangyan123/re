@@ -56,6 +56,7 @@ export function formatTutorEvalSummary(result: TutorEvalRunResult): string {
         ];
   return [
     `Dataset: ${result.datasetId}@${result.datasetVersion}`,
+    `Evaluator: ${result.evaluatorVersion ?? "legacy"}`,
     `Tutor: ${result.tutor.provider}/${result.tutor.model}`,
     `Prompt: ${result.tutor.promptVersion}`,
     ...judgeLines,

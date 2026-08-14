@@ -24,9 +24,9 @@
       "knownMisconception": "The student adds unlike fraction denominators directly.",
       "disclosurePolicy": "hint_only",
       "rubrics": [
-        { "id": "fraction-diagnosis-001", "category": "diagnosis", "criterion": "Identify that the student is adding unlike fraction denominators directly.", "weight": 2, "behavior": "required", "capabilityTag": "misconception_identification", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["denominator"] } },
-        { "id": "fraction-guidance-001", "category": "guidance", "criterion": "Guide the student to look for a common denominator before computing.", "weight": 2, "behavior": "required", "capabilityTag": "scaffolding", "critical": true, "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["common denominator"] } },
-        { "id": "fraction-actionability-001", "category": "actionability", "criterion": "End with a concrete next step the student can perform independently.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["find", "first"], "minimumMatches": 1 } },
+        { "id": "fraction-diagnosis-001", "category": "diagnosis", "criterion": "Identify that the student is adding unlike fraction denominators directly.", "weight": 2, "behavior": "required", "capabilityTag": "misconception_identification", "evaluationType": "judge" },
+        { "id": "fraction-guidance-001", "category": "guidance", "criterion": "Guide the student to look for a common denominator before computing.", "weight": 2, "behavior": "required", "capabilityTag": "scaffolding", "critical": true, "evaluationType": "judge" },
+        { "id": "fraction-actionability-001", "category": "actionability", "criterion": "End with a concrete next step the student can perform independently.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" },
         { "id": "fraction-no-leak-001", "category": "guidance", "criterion": "Do not reveal the final answer when only a hint is requested.", "weight": 1, "behavior": "prohibited", "capabilityTag": "answer_non_disclosure", "evaluationType": "deterministic", "evaluatorId": "direct_answer_leak", "config": { "forbiddenFinalAnswer": "7/12" }, "criticalFailure": { "type": "answer_leakage", "severity": "major" } }
       ]
     }
@@ -57,7 +57,7 @@
       "disclosurePolicy": "hint_only",
       "rubrics": [
         { "id": "equation-hint-no-leak-001", "category": "guidance", "criterion": "Give a first-step hint without stating x=4.", "weight": 2, "behavior": "prohibited", "capabilityTag": "answer_non_disclosure", "critical": true, "evaluationType": "deterministic", "evaluatorId": "direct_answer_leak", "config": { "forbiddenFinalAnswer": "x=4" }, "criticalFailure": { "type": "answer_leakage", "severity": "major" } },
-        { "id": "equation-hint-next-step-001", "category": "actionability", "criterion": "Tell the student exactly which reversible operation to consider first.", "weight": 1, "behavior": "required", "capabilityTag": "clear_next_step", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["subtract"] } },
+        { "id": "equation-hint-next-step-001", "category": "actionability", "criterion": "Tell the student exactly which reversible operation to consider first.", "weight": 1, "behavior": "required", "capabilityTag": "clear_next_step", "evaluationType": "judge" },
         { "id": "equation-hint-agency-001", "category": "guidance", "criterion": "Leave the student responsible for carrying out the first operation.", "weight": 1, "behavior": "desirable", "capabilityTag": "student_agency", "evaluationType": "judge" }
       ]
     }
@@ -87,8 +87,8 @@
       "knownMisconception": "The student does not yet connect multiplication with equal groups or repeated addition.",
       "disclosurePolicy": "partial_solution",
       "rubrics": [
-        { "id": "wrong-reasoning-diagnosis-001", "category": "diagnosis", "criterion": "Name that the answer is correct but the stated reasoning does not represent multiplication.", "weight": 2, "behavior": "required", "capabilityTag": "correct_answer_wrong_reasoning", "critical": true, "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["reasoning"] }, "criticalFailure": { "type": "critical_misconception_ignored", "severity": "major" } },
-        { "id": "wrong-reasoning-concept-001", "category": "correctness", "criterion": "Explain multiplication using equal groups or repeated addition rather than rewarding the invalid explanation.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["groups", "repeated"], "minimumMatches": 1 } },
+        { "id": "wrong-reasoning-diagnosis-001", "category": "diagnosis", "criterion": "Name that the answer is correct but the stated reasoning does not represent multiplication.", "weight": 2, "behavior": "required", "capabilityTag": "correct_answer_wrong_reasoning", "critical": true, "evaluationType": "judge", "criticalFailure": { "type": "critical_misconception_ignored", "severity": "major" } },
+        { "id": "wrong-reasoning-concept-001", "category": "correctness", "criterion": "Explain multiplication using equal groups or repeated addition rather than rewarding the invalid explanation.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
         { "id": "wrong-reasoning-answer-001", "category": "correctness", "criterion": "Preserve the factually correct answer 12.", "weight": 1, "behavior": "required", "capabilityTag": "reasoning_consistency", "evaluationType": "deterministic", "evaluatorId": "matches_ground_truth" }
       ]
     }
@@ -121,8 +121,8 @@
       "disclosurePolicy": "hint_only",
       "rubrics": [
         { "id": "paired-fraction-procedural-adaptation-001", "category": "adaptation", "criterion": "Address the local denominator step without reteaching all fraction concepts.", "weight": 2, "behavior": "required", "capabilityTag": "misconception_specific_adaptation", "evaluationType": "judge" },
-        { "id": "paired-fraction-procedural-guidance-001", "category": "guidance", "criterion": "Ask the student to apply the numerator operation as the next small step.", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["numerator"] } },
-        { "id": "paired-fraction-procedural-action-001", "category": "actionability", "criterion": "Give one executable operation the student can perform next.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["add"] } }
+        { "id": "paired-fraction-procedural-guidance-001", "category": "guidance", "criterion": "Ask the student to apply the numerator operation as the next small step.", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "judge" },
+        { "id": "paired-fraction-procedural-action-001", "category": "actionability", "criterion": "Give one executable operation the student can perform next.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
       ]
     }
   },
@@ -154,8 +154,8 @@
       "disclosurePolicy": "hint_only",
       "rubrics": [
         { "id": "paired-fraction-conceptual-adaptation-001", "category": "adaptation", "criterion": "Explain the denominator as the size of equal parts rather than assuming prior mastery.", "weight": 2, "behavior": "required", "capabilityTag": "prior_knowledge_adaptation", "evaluationType": "judge" },
-        { "id": "paired-fraction-conceptual-guidance-001", "category": "guidance", "criterion": "Use a small comparison that helps the student reason about equal units.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_prompting", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["unit", "whole", "question"], "minimumMatches": 2 } },
-        { "id": "paired-fraction-conceptual-action-001", "category": "actionability", "criterion": "Give the student one concrete next step instead of a full solution.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["try"] } }
+        { "id": "paired-fraction-conceptual-guidance-001", "category": "guidance", "criterion": "Use a small comparison that helps the student reason about equal units.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_prompting", "evaluationType": "judge" },
+        { "id": "paired-fraction-conceptual-action-001", "category": "actionability", "criterion": "Give the student one concrete next step instead of a full solution.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
       ]
     }
   },
@@ -184,9 +184,9 @@
       "knownMisconception": "The student lacks the part-whole model for fractions.",
       "disclosurePolicy": "partial_solution",
       "rubrics": [
-        { "id": "weak-foundation-adaptation-001", "category": "adaptation", "criterion": "Use beginner-friendly concrete language about a whole and equal parts.", "weight": 2, "behavior": "required", "capabilityTag": "explanation_depth_adaptation", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["whole", "equal"], "minimumMatches": 2 } },
-        { "id": "weak-foundation-guidance-001", "category": "guidance", "criterion": "Break the explanation into a small number of understandable steps.", "weight": 1, "behavior": "required", "capabilityTag": "scaffolding", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["step"] } },
-        { "id": "weak-foundation-actionability-001", "category": "actionability", "criterion": "Ask the student to perform one concrete check or drawing next.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["draw", "check"], "minimumMatches": 1 } }
+        { "id": "weak-foundation-adaptation-001", "category": "adaptation", "criterion": "Use beginner-friendly concrete language about a whole and equal parts.", "weight": 2, "behavior": "required", "capabilityTag": "explanation_depth_adaptation", "evaluationType": "judge" },
+        { "id": "weak-foundation-guidance-001", "category": "guidance", "criterion": "Break the explanation into a small number of understandable steps.", "weight": 1, "behavior": "required", "capabilityTag": "scaffolding", "evaluationType": "judge" },
+        { "id": "weak-foundation-actionability-001", "category": "actionability", "criterion": "Ask the student to perform one concrete check or drawing next.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
       ]
     }
   },
@@ -215,9 +215,9 @@
       "knownMisconception": null,
       "disclosurePolicy": "full_solution_allowed",
       "rubrics": [
-        { "id": "full-solution-correctness-001", "category": "correctness", "criterion": "State or verify the correct solution x=4.", "weight": 2, "behavior": "required", "capabilityTag": "factual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["x=4"] } },
-        { "id": "full-solution-disclosure-001", "category": "guidance", "criterion": "Give the requested full solution when the policy allows it.", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "deterministic", "evaluatorId": "direct_answer_leak", "config": { "forbiddenFinalAnswer": "x=4" } },
-        { "id": "full-solution-check-001", "category": "actionability", "criterion": "Show a concrete substitution or verification step.", "weight": 1, "behavior": "required", "capabilityTag": "check_for_understanding", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["check"] } }
+        { "id": "full-solution-correctness-001", "category": "correctness", "criterion": "State or verify the correct solution x=4.", "weight": 2, "behavior": "required", "capabilityTag": "factual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_normalized_expression", "config": { "requiredExpression": "x=4" } },
+        { "id": "full-solution-disclosure-001", "category": "guidance", "criterion": "Give the requested full solution when the policy allows it.", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "judge" },
+        { "id": "full-solution-check-001", "category": "actionability", "criterion": "Show a concrete substitution or verification step.", "weight": 1, "behavior": "required", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
       ]
     }
   },
@@ -311,7 +311,7 @@
       "knownMisconception": null,
       "disclosurePolicy": "no_answer",
       "rubrics": [
-        { "id": "science-density-correctness-001", "category": "correctness", "criterion": "State that density relates mass to volume.", "weight": 2, "behavior": "required", "capabilityTag": "factual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["mass", "volume"] } },
+        { "id": "science-density-correctness-001", "category": "correctness", "criterion": "State that density relates mass to volume.", "weight": 2, "behavior": "required", "capabilityTag": "factual_correctness", "evaluationType": "judge" },
         { "id": "science-density-question-001", "category": "actionability", "criterion": "Offer one short recall question the student can answer next.", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
       ]
     }
@@ -371,7 +371,7 @@
       "knownMisconception": "The student treats sunlight as food rather than energy used in a process.",
       "disclosurePolicy": "full_solution_allowed",
       "rubrics": [
-        { "id": "science-photosynthesis-concept-001", "category": "correctness", "criterion": "Explain that light provides energy for a process using carbon dioxide.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "deterministic", "evaluatorId": "structured_keyword_coverage", "config": { "requiredConcepts": ["light", "carbon dioxide"], "minimumMatches": 2 } },
+        { "id": "science-photosynthesis-concept-001", "category": "correctness", "criterion": "Explain that light provides energy for a process using carbon dioxide.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
         { "id": "science-photosynthesis-no-simplification-001", "category": "correctness", "criterion": "Avoid the misleading simplification that a plant eats sunlight.", "weight": 1, "behavior": "prohibited", "capabilityTag": "misleading_simplification", "evaluationType": "judge" },
         { "id": "science-photosynthesis-check-001", "category": "actionability", "criterion": "Check whether the student can name one input used by the process.", "weight": 1, "behavior": "desirable", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
       ]
@@ -493,7 +493,7 @@
       "knownMisconception": null,
       "disclosurePolicy": "no_answer",
       "rubrics": [
-        { "id": "language-word-context-001", "category": "correctness", "criterion": "Explain that the surrounding context supports the proposed meaning.", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["context"] } },
+        { "id": "language-word-context-001", "category": "correctness", "criterion": "Explain that the surrounding context supports the proposed meaning.", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
         { "id": "language-word-question-001", "category": "actionability", "criterion": "Ask the student to point to one clue in the sentence.", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
       ]
     }
@@ -523,7 +523,7 @@
       "knownMisconception": null,
       "disclosurePolicy": "no_answer",
       "rubrics": [
-        { "id": "history-source-concept-001", "category": "correctness", "criterion": "Explain that source perspective and context shape an account.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["perspective", "context"] } },
+        { "id": "history-source-concept-001", "category": "correctness", "criterion": "Explain that source perspective and context shape an account.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
         { "id": "history-source-question-001", "category": "actionability", "criterion": "Ask the student to identify who created a source and when.", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
       ]
     }
@@ -645,7 +645,7 @@
       "knownMisconception": null,
       "disclosurePolicy": "full_solution_allowed",
       "rubrics": [
-        { "id": "programming-function-correctness-001", "category": "correctness", "criterion": "Distinguish the value passed into a function from the value it returns.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["input", "return"] } },
+        { "id": "programming-function-correctness-001", "category": "correctness", "criterion": "Distinguish the value passed into a function from the value it returns.", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
         { "id": "programming-function-example-001", "category": "guidance", "criterion": "Use one small example without requiring a specific programming language.", "weight": 1, "behavior": "desirable", "capabilityTag": "scaffolding", "evaluationType": "judge" },
         { "id": "programming-function-next-001", "category": "actionability", "criterion": "Ask the student to label one input and one returned value in an example.", "weight": 1, "behavior": "desirable", "capabilityTag": "clear_next_step", "evaluationType": "judge" }
       ]
@@ -706,8 +706,8 @@
       "knownMisconception": "The student confuses array length with the last valid zero-based index.",
       "disclosurePolicy": "partial_solution",
       "rubrics": [
-        { "id": "programming-off-by-one-diagnosis-001", "category": "diagnosis", "criterion": "Identify that the last valid zero-based index is one less than the length.", "weight": 2, "behavior": "required", "capabilityTag": "error_detection", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["zero", "length"] } },
-        { "id": "programming-off-by-one-check-001", "category": "guidance", "criterion": "Ask the student to check the index against the array length before changing code.", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "deterministic", "evaluatorId": "contains_required_concept", "config": { "requiredConcepts": ["check"] } },
+        { "id": "programming-off-by-one-diagnosis-001", "category": "diagnosis", "criterion": "Identify that the last valid zero-based index is one less than the length.", "weight": 2, "behavior": "required", "capabilityTag": "error_detection", "evaluationType": "judge" },
+        { "id": "programming-off-by-one-check-001", "category": "guidance", "criterion": "Ask the student to check the index against the array length before changing code.", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "judge" },
         { "id": "programming-off-by-one-action-001", "category": "actionability", "criterion": "Give one executable index check for the student to perform.", "weight": 1, "behavior": "desirable", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
       ]
     }

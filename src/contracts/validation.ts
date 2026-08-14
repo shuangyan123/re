@@ -24,6 +24,7 @@ type UnknownRecord = Record<string, unknown>;
 const evaluatorIds = new Set<DeterministicEvaluatorId>([
   "contains_forbidden_phrase",
   "contains_required_concept",
+  "contains_normalized_expression",
   "response_length_range",
   "direct_answer_leak",
   "matches_ground_truth",
@@ -186,6 +187,7 @@ function parseConfig(value: unknown): DeterministicEvaluatorConfig | null {
     "forbiddenFinalAnswer",
   );
   const requiredConcepts = readOptionalStringArray(record, "requiredConcepts");
+  const requiredExpression = readOptionalString(record, "requiredExpression");
   const minLength = readOptionalNumber(record, "minLength");
   const maxLength = readOptionalNumber(record, "maxLength");
   const minimumMatches = readOptionalNumber(record, "minimumMatches");
@@ -194,6 +196,7 @@ function parseConfig(value: unknown): DeterministicEvaluatorConfig | null {
     forbiddenPhrases === null ||
     forbiddenFinalAnswer === null ||
     requiredConcepts === null ||
+    requiredExpression === null ||
     minLength === null ||
     maxLength === null ||
     minimumMatches === null
@@ -230,6 +233,7 @@ function parseConfig(value: unknown): DeterministicEvaluatorConfig | null {
     ...(forbiddenPhrases === undefined ? {} : { forbiddenPhrases }),
     ...(forbiddenFinalAnswer === undefined ? {} : { forbiddenFinalAnswer }),
     ...(requiredConcepts === undefined ? {} : { requiredConcepts }),
+    ...(requiredExpression === undefined ? {} : { requiredExpression }),
     ...(minLength === undefined ? {} : { minLength }),
     ...(maxLength === undefined ? {} : { maxLength }),
     ...(minimumMatches === undefined ? {} : { minimumMatches }),
@@ -249,6 +253,8 @@ function isCriterionConfigValid(
       return isNonEmptyStringArray(config?.forbiddenPhrases ?? null);
     case "contains_required_concept":
       return isNonEmptyStringArray(config?.requiredConcepts ?? null);
+    case "contains_normalized_expression":
+      return isNonEmptyString(config?.requiredExpression);
     case "response_length_range":
       return (
         config !== undefined &&

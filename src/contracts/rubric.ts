@@ -10,6 +10,7 @@ export const RUBRIC_SCHEMA_VERSION = 1 as const;
 export type DeterministicEvaluatorId =
   | "contains_forbidden_phrase"
   | "contains_required_concept"
+  | "contains_normalized_expression"
   | "response_length_range"
   | "direct_answer_leak"
   | "matches_ground_truth"
@@ -20,6 +21,7 @@ export interface DeterministicEvaluatorConfig {
   readonly forbiddenPhrases?: readonly string[];
   readonly forbiddenFinalAnswer?: string;
   readonly requiredConcepts?: readonly string[];
+  readonly requiredExpression?: string;
   readonly minLength?: number;
   readonly maxLength?: number;
   readonly minimumMatches?: number;

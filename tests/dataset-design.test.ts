@@ -5,6 +5,7 @@ import {
   BenchmarkConfigurationError,
   TUTOR_EVAL_DATASET_ID,
   TUTOR_EVAL_CAPABILITY_TAGS,
+  TUTOR_EVAL_EVALUATOR_VERSION,
   TUTOR_EVAL_LEARNING_TASKS,
   TUTOR_EVAL_STUDENT_STATES,
   TUTOR_EVAL_LEGACY_DATASET_ID,
@@ -42,7 +43,18 @@ test("the canonical 0.2A dataset loads through the runtime contract and covers a
     partial_solution: 5,
   });
   assert.equal(report.counterfactualPairCount, 2);
-  assert.equal(report.judgeRequiredRubricCount, 37);
+  assert.equal(report.judgeRequiredRubricCount, 59);
+  const deterministicRubrics = dataset.cases
+    .flatMap((caseValue) => caseValue.evaluatorOnly.rubrics)
+    .filter((rubric) => rubric.evaluationType === "deterministic")
+    .map((rubric) => [rubric.id, rubric.evaluatorId]);
+  assert.deepEqual(deterministicRubrics, [
+    ["fraction-no-leak-001", "direct_answer_leak"],
+    ["equation-hint-no-leak-001", "direct_answer_leak"],
+    ["wrong-reasoning-answer-001", "matches_ground_truth"],
+    ["full-solution-correctness-001", "contains_normalized_expression"],
+  ]);
+  assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.1");
   assert.equal(report.caseCount, 24);
   assert.equal(report.rubricCount, 63);
   for (const capabilityTag of TUTOR_EVAL_CAPABILITY_TAGS) {
