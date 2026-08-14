@@ -62,19 +62,139 @@ function errorResult(
   };
 }
 
-function normalizedText(output: TutorTurnOutput): string {
-  return output.text.trim().toLowerCase();
+function normalizeNaturalText(value: string): string {
+  return value.normalize("NFKC").toLowerCase().replace(/\s+/gu, " ").trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function naturalConceptPattern(concept: string): RegExp | null {
+  const normalizedConcept = normalizeNaturalText(concept);
+  if (normalizedConcept.length === 0) {
+    return null;
+  }
+  const words = normalizedConcept.split(" ").map(escapeRegExp);
+  return new RegExp(
+    `${String.raw`(?<![\p{L}\p{N}_])`}${words.join(String.raw`\s+`)}${String.raw`(?![\p{L}\p{N}_])`}`,
+    "iu",
+  );
+}
+
+function containsNaturalConcept(text: string, concept: string): boolean {
+  const pattern = naturalConceptPattern(concept);
+  return pattern === null ? false : pattern.test(normalizeNaturalText(text));
+}
+
+function containsNaturalAnswer(
+  text: string,
+  answer: string,
+  rejectNegated: boolean,
+): boolean {
+  const pattern = naturalConceptPattern(answer);
+  if (pattern === null) {
+    return false;
+  }
+  const normalizedText = normalizeNaturalText(text);
+  const globalPattern = new RegExp(pattern.source, `${pattern.flags}g`);
+  let match = globalPattern.exec(normalizedText);
+  while (match !== null) {
+    if (
+      !rejectNegated ||
+      !expressionIsNegated(normalizedText, match.index, match.index + match[0].length)
+    ) {
+      return true;
+    }
+    match = globalPattern.exec(normalizedText);
+  }
+  return false;
+}
+
+interface SupportedMathExpression {
+  readonly pattern: RegExp;
+}
+
+const mathExpressionLeftBoundary = String.raw`(?<![\p{L}\p{N}_+\-*/^.])`;
+const mathExpressionRightBoundary = String.raw`(?![\p{L}\p{N}_+\-*/^]|[.](?=\p{N}))`;
+
+function supportedMathExpression(expression: string): SupportedMathExpression | null {
+  const normalized = expression.normalize("NFKC").trim();
+  const equation = normalized.match(
+    /^([a-z][a-z0-9_]*)\s*=\s*([+-]?(?:\d+(?:\.\d+)?))$/iu,
+  );
+  if (equation !== null) {
+    const variable = escapeRegExp(equation[1]!.toLowerCase());
+    const value = escapeRegExp(equation[2]!);
+    return {
+      pattern: new RegExp(
+        `${mathExpressionLeftBoundary}${variable}\\s*=\\s*${value}${mathExpressionRightBoundary}`,
+        "giu",
+      ),
+    };
+  }
+  const fraction = normalized.match(/^([+-]?\d+)\s*\/\s*(\d+)$/u);
+  if (fraction !== null) {
+    const numerator = escapeRegExp(fraction[1]!);
+    const denominator = escapeRegExp(fraction[2]!);
+    return {
+      pattern: new RegExp(
+        `${mathExpressionLeftBoundary}(?:${numerator}\\s*\\/\\s*${denominator}|\\\\frac\\s*\\{\\s*${numerator}\\s*\\}\\s*\\{\\s*${denominator}\\s*\\})${mathExpressionRightBoundary}`,
+        "giu",
+      ),
+    };
+  }
+  return null;
+}
+
+function expressionIsNegated(
+  text: string,
+  start: number,
+  end: number,
+): boolean {
+  const before = normalizeNaturalText(text.slice(Math.max(0, start - 32), start));
+  const after = normalizeNaturalText(text.slice(end, end + 32));
+  return (
+    /(?:\bnot|\bnever|\bis not|\bisn't|\bdoes not|\bdoesn't)\s*$/u.test(before) ||
+    /^(?:is not|isn't|is wrong|is false)\b/u.test(after)
+  );
+}
+
+function containsMathExpression(
+  text: string,
+  expression: string,
+  rejectNegated: boolean,
+): boolean {
+  const supported = supportedMathExpression(expression);
+  if (supported === null) {
+    return false;
+  }
+  const normalizedText = text.normalize("NFKC");
+  let match = supported.pattern.exec(normalizedText);
+  while (match !== null) {
+    if (
+      !rejectNegated ||
+      !expressionIsNegated(normalizedText, match.index, match.index + match[0].length)
+    ) {
+      return true;
+    }
+    match = supported.pattern.exec(normalizedText);
+  }
+  return false;
 }
 
 function containsAnswer(text: string, answer: string): boolean {
-  const normalizedAnswer = answer.trim().toLowerCase();
-  if (normalizedAnswer.length === 0) {
-    return false;
-  }
-  const escaped = normalizedAnswer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(
-    `(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`,
-  ).test(text);
+  return (
+    containsMathExpression(text, answer, true) ||
+    (supportedMathExpression(answer) === null && containsNaturalAnswer(text, answer, true))
+  );
+}
+
+function containsForbiddenAnswer(text: string, answer: string): boolean {
+  return (
+    containsMathExpression(text, answer, false) ||
+    (supportedMathExpression(answer) === null && containsNaturalAnswer(text, answer, false))
+  );
 }
 
 function evaluateForbiddenPhrase(
@@ -85,8 +205,7 @@ function evaluateForbiddenPhrase(
   if (phrases === undefined || phrases.length === 0) {
     return errorResult(criterion);
   }
-  const text = normalizedText(output);
-  const matched = phrases.some((phrase) => text.includes(phrase.toLowerCase()));
+  const matched = phrases.some((phrase) => containsNaturalConcept(output.text, phrase));
   return result(
     criterion,
     !matched,
@@ -106,9 +225,8 @@ function evaluateRequiredConcept(
   if (concepts === undefined || concepts.length === 0) {
     return errorResult(criterion);
   }
-  const text = normalizedText(output);
   const matches = concepts.filter((concept) =>
-    text.includes(concept.toLowerCase()),
+    containsNaturalConcept(output.text, concept),
   ).length;
   const score = matches / concepts.length;
   const passed = matches === concepts.length;
@@ -120,6 +238,32 @@ function evaluateRequiredConcept(
     passed
       ? "Tutor response contains all required concepts."
       : "Tutor response is missing one or more required concepts.",
+  );
+}
+
+function evaluateNormalizedExpression(
+  criterion: DeterministicCriterionDefinition,
+  output: TutorTurnOutput,
+): CriterionResult {
+  const expression = criterion.config?.requiredExpression;
+  if (expression === undefined || expression.trim().length === 0) {
+    return errorResult(criterion);
+  }
+  if (supportedMathExpression(expression) === null) {
+    return errorResult(
+      criterion,
+      "The configured expression is outside the bounded deterministic matcher.",
+    );
+  }
+  const matched = containsMathExpression(output.text, expression, true);
+  return result(
+    criterion,
+    matched,
+    matched ? 1 : 0,
+    matched ? "normalized_expression_present" : "normalized_expression_missing",
+    matched
+      ? "Tutor response contains the configured normalized mathematical expression."
+      : "Tutor response does not contain the configured normalized mathematical expression.",
   );
 }
 
@@ -168,9 +312,7 @@ function evaluateDirectAnswerLeak(
   if (forbiddenFinalAnswer === undefined) {
     return errorResult(criterion);
   }
-  const leaked = normalizedText(output).includes(
-    forbiddenFinalAnswer.toLowerCase(),
-  );
+  const leaked = containsForbiddenAnswer(output.text, forbiddenFinalAnswer);
   return result(
     criterion,
     !leaked,
@@ -196,8 +338,7 @@ function evaluateGroundTruthMatch(
       "Ground truth does not define an accepted answer.",
     );
   }
-  const text = normalizedText(output);
-  const matched = acceptedAnswers.some((answer) => containsAnswer(text, answer));
+  const matched = acceptedAnswers.some((answer) => containsAnswer(output.text, answer));
   return result(
     criterion,
     matched,
@@ -236,9 +377,8 @@ function evaluateKeywordCoverage(
   ) {
     return errorResult(criterion);
   }
-  const text = normalizedText(output);
   const matches = concepts.filter((concept) =>
-    text.includes(concept.toLowerCase()),
+    containsNaturalConcept(output.text, concept),
   ).length;
   const score = matches / concepts.length;
   const passed = matches >= minimumMatches;
@@ -261,6 +401,8 @@ const evaluatorImplementations: Readonly<
 > = {
   contains_forbidden_phrase: (criterion, output) => evaluateForbiddenPhrase(criterion, output),
   contains_required_concept: (criterion, output) => evaluateRequiredConcept(criterion, output),
+  contains_normalized_expression: (criterion, output) =>
+    evaluateNormalizedExpression(criterion, output),
   response_length_range: (criterion, output) => evaluateResponseLength(criterion, output),
   direct_answer_leak: (criterion, output) => evaluateDirectAnswerLeak(criterion, output),
   matches_ground_truth: (criterion, output) =>

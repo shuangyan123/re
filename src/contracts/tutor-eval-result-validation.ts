@@ -191,6 +191,9 @@ export function isTutorEvalRunResult(value: unknown): value is TutorEvalRunResul
     record.durationMs >= 0 &&
     typeof record.datasetId === "string" &&
     typeof record.datasetVersion === "string" &&
+    (record.evaluatorVersion === undefined ||
+      (typeof record.evaluatorVersion === "string" &&
+        record.evaluatorVersion.trim().length > 0)) &&
     asRecord(record.tutor) !== null &&
     (record.judge === null || isJudgeDescriptor(record.judge)) &&
     typeof record.runsPerCase === "number" &&

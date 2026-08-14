@@ -49,6 +49,11 @@ The merge follows the original case rubric order, regardless of how the two
 evaluation paths complete. Deterministic evaluators are proxies; they are not
 semantic substitutes for the Judge.
 
+The current deterministic verifier revision is recorded as evaluator version
+`0.3a.1` in new `TutorEvalRunResult` values. This version is separate from the
+dataset and case identity so an immutable response corpus can be replayed
+without rewriting its evidence.
+
 ## Judge input and hidden context
 
 `buildTutorEvalJudgeInput()` sends only the partition's Judge rubrics. It does

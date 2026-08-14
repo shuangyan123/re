@@ -57,6 +57,7 @@ const disclosurePolicies = new Set<DisclosurePolicy>([
 const evaluatorIds = new Set<DeterministicEvaluatorId>([
   "contains_forbidden_phrase",
   "contains_required_concept",
+  "contains_normalized_expression",
   "response_length_range",
   "direct_answer_leak",
   "matches_ground_truth",
@@ -279,6 +280,7 @@ function parseEvaluatorConfig(value: unknown): DeterministicEvaluatorConfig | nu
   const forbiddenPhrases = readStringArray(record, "forbiddenPhrases", true);
   const forbiddenFinalAnswer = readOptionalString(record, "forbiddenFinalAnswer");
   const requiredConcepts = readStringArray(record, "requiredConcepts", true);
+  const requiredExpression = readOptionalString(record, "requiredExpression");
   const minLength = readOptionalNumber(record, "minLength");
   const maxLength = readOptionalNumber(record, "maxLength");
   const minimumMatches = readOptionalNumber(record, "minimumMatches");
@@ -286,6 +288,7 @@ function parseEvaluatorConfig(value: unknown): DeterministicEvaluatorConfig | nu
     forbiddenPhrases === null ||
     forbiddenFinalAnswer === null ||
     requiredConcepts === null ||
+    requiredExpression === null ||
     minLength === null ||
     maxLength === null ||
     minimumMatches === null ||
@@ -303,6 +306,7 @@ function parseEvaluatorConfig(value: unknown): DeterministicEvaluatorConfig | nu
     ...(forbiddenPhrases === undefined ? {} : { forbiddenPhrases }),
     ...(forbiddenFinalAnswer === undefined ? {} : { forbiddenFinalAnswer }),
     ...(requiredConcepts === undefined ? {} : { requiredConcepts }),
+    ...(requiredExpression === undefined ? {} : { requiredExpression }),
     ...(minLength === undefined ? {} : { minLength }),
     ...(maxLength === undefined ? {} : { maxLength }),
     ...(minimumMatches === undefined ? {} : { minimumMatches }),
@@ -341,6 +345,8 @@ function isValidEvaluatorConfig(
       return (config?.forbiddenPhrases?.length ?? 0) > 0;
     case "contains_required_concept":
       return (config?.requiredConcepts?.length ?? 0) > 0;
+    case "contains_normalized_expression":
+      return nonEmptyString(config?.requiredExpression);
     case "response_length_range":
       return config?.minLength !== undefined || config?.maxLength !== undefined;
     case "direct_answer_leak":
