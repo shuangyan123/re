@@ -69,9 +69,13 @@ const tutor: TutorUnderTest = {
     };
   },
 };`, "ts")}</div></section>
-    <section class="section section-dark"><div class="shell"><p class="eyebrow">Optional Judge path</p><h2>Explicit, offline by default</h2><p class="section-copy">The repository has an opt-in OpenAI Judge provider. A dry run validates selection and request construction; live execution requires explicit runtime configuration. It is not part of this website build and the browser never calls it.</p>${renderCodeBlock(`npm run judge:openai -- -- --dry-run
-# Live execution is an explicit, local-only opt-in:
-npm run judge:openai -- -- --live`, "bash")}</div></section>`,
+    <section class="section section-dark"><div class="shell"><p class="eyebrow">Optional Judge path</p><h2>Explicit, offline by default</h2><p class="section-copy">The repository has separate opt-in OpenAI Responses and DeepSeek Chat Completions Judge providers. Dry-run/request tests stay offline; live execution requires explicit local configuration. The website build never calls a Judge provider and the browser never receives credentials.</p>${renderCodeBlock(`npm run judge:openai -- -- --dry-run
+
+# Frozen-corpus DeepSeek Judge subset:
+node dist/src/cli/tutorbench.js evaluate \\
+  --corpus artifacts/real-model/baseline.json \\
+  --limit 1 \\
+  --judge-deepseek`, "bash")}</div></section>`,
   );
 }
 

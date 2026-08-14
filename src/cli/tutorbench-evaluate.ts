@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 
 import {
   BenchmarkConfigurationError,
+  assertValidTutorResponseCorpus,
   type TutorResponseCorpusEvaluationResult,
 } from "../contracts/index.js";
 import { loadTutorResponseCorpus } from "../corpus/index.js";
@@ -11,19 +12,30 @@ import {
   TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_ID,
   TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION,
 } from "../judge/index.js";
-import { runTutorResponseCorpus } from "../runner/index.js";
+import {
+  resolveTutorResponseCorpusSelection,
+  runTutorResponseCorpus,
+} from "../runner/index.js";
 import { formatTutorEvalSummary } from "../reporting/index.js";
-import { reportTutorCliError, writeTutorCliJson } from "./tutor-case-common.js";
+import {
+  reportTutorCliError,
+  writeTutorCliJson,
+} from "./tutor-case-common.js";
 import type { TutorBaselineArtifactMetadata } from "../collection/index.js";
 import {
   nextTutorbenchValue,
+  positiveTutorbenchInteger,
   tutorbenchOptionValue,
+  TutorbenchCliUsageError,
 } from "./tutorbench-common.js";
 
 export interface BenchmarkCorpusCliOptions {
   readonly corpusPath: string;
   readonly requireFull: boolean;
   readonly liveJudge: boolean;
+  readonly deepSeekJudge: boolean;
+  readonly caseIds: readonly string[];
+  readonly limit: number | null;
   readonly outputPath?: string;
   readonly help: boolean;
 }
@@ -38,16 +50,42 @@ export function parseBenchmarkCorpusCliOptions(
   let corpusPath: string | undefined;
   let requireFull = false;
   let liveJudge = false;
+  let deepSeekJudge = false;
+  let limit: number | null = null;
+  const caseIds: string[] = [];
   let outputPath: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (argument === "--help" || argument === "-h") {
-      return { corpusPath: "", requireFull: false, liveJudge: false, help: true };
+      return {
+        corpusPath: "",
+        requireFull: false,
+        liveJudge: false,
+        deepSeekJudge: false,
+        caseIds: [],
+        limit: null,
+        help: true,
+      };
     }
     if (argument === "--full" || argument === "--require-full") {
       requireFull = true;
     } else if (argument === "--judge-openai" || argument === "--live-judge") {
       liveJudge = true;
+    } else if (argument === "--judge-deepseek") {
+      deepSeekJudge = true;
+    } else if (argument === "--case") {
+      const caseId = nextTutorbenchValue(args, index, "--case");
+      if (caseIds.includes(caseId)) {
+        throw new TutorbenchCliUsageError(`--case must be unique: ${caseId}`);
+      }
+      caseIds.push(caseId);
+      index += 1;
+    } else if (argument === "--limit") {
+      limit = positiveTutorbenchInteger(
+        nextTutorbenchValue(args, index, "--limit"),
+        "--limit",
+      );
+      index += 1;
     } else if (argument === "--corpus") {
       corpusPath = resolve(nextTutorbenchValue(args, index, "--corpus"));
       index += 1;
@@ -55,15 +93,26 @@ export function parseBenchmarkCorpusCliOptions(
       const corpusValue = tutorbenchOptionValue(argument ?? "", "--corpus");
       if (corpusValue !== undefined) {
         corpusPath = resolve(corpusValue);
-      } else if (argument === "--output") {
-        outputPath = resolve(nextTutorbenchValue(args, index, "--output"));
-        index += 1;
       } else {
-        const outputValue = tutorbenchOptionValue(argument ?? "", "--output");
-        if (outputValue !== undefined) {
-          outputPath = resolve(outputValue);
+        const caseValue = tutorbenchOptionValue(argument ?? "", "--case");
+        const limitValue = tutorbenchOptionValue(argument ?? "", "--limit");
+        if (caseValue !== undefined) {
+          if (caseIds.includes(caseValue)) {
+            throw new TutorbenchCliUsageError(`--case must be unique: ${caseValue}`);
+          }
+          caseIds.push(caseValue);
+        } else if (limitValue !== undefined) {
+          limit = positiveTutorbenchInteger(limitValue, "--limit");
+        } else if (argument === "--output") {
+          outputPath = resolve(nextTutorbenchValue(args, index, "--output"));
+          index += 1;
         } else {
-          throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
+          const outputValue = tutorbenchOptionValue(argument ?? "", "--output");
+          if (outputValue !== undefined) {
+            outputPath = resolve(outputValue);
+          } else {
+            throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
+          }
         }
       }
     }
@@ -71,10 +120,18 @@ export function parseBenchmarkCorpusCliOptions(
   if (corpusPath === undefined || corpusPath.length === 0) {
     throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
   }
+  if (liveJudge && deepSeekJudge) {
+    throw new TutorbenchCliUsageError(
+      "--judge-openai and --judge-deepseek are mutually exclusive.",
+    );
+  }
   return {
     corpusPath,
     requireFull,
     liveJudge,
+    deepSeekJudge,
+    caseIds,
+    limit,
     ...(outputPath === undefined ? {} : { outputPath }),
     help: false,
   };
@@ -87,17 +144,57 @@ Frozen responses are replayed locally; no Tutor provider is called.
 
 Options:
   --corpus <path>       Frozen TutorResponseCorpus JSON file
+  --case <case-id>       Evaluate one frozen case; repeat for a subset
+  --limit <n>            Evaluate the first n available cases in stable ID order
   --full                Require a complete corpus before evaluation
   --judge-openai        Opt in to the existing live OpenAI Judge provider
+  --judge-deepseek      Opt in to the DeepSeek Chat Completions Judge provider
   --live-judge          Alias for --judge-openai
   --output <path>       Write the preliminary evaluation artifact to this path
   --help                Show this help
+
+Selection semantics:
+  --case is resolved against the dataset and frozen corpus first; --limit then
+  truncates that stable selection. Duplicate --case values are rejected.
+  Coverage remains the source corpus coverage; subset metadata is recorded in
+  evaluationSelection. No Tutor provider is called during evaluation.
 `);
 }
 
-async function createJudgeIfRequested(liveJudge: boolean) {
-  if (!liveJudge) {
+async function createJudgeIfRequested(
+  liveJudge: boolean,
+  deepSeekJudge: boolean,
+) {
+  if (!liveJudge && !deepSeekJudge) {
     return undefined;
+  }
+  const prompt = await loadTutorEvalPedagogyJudgePrompt();
+  if (deepSeekJudge) {
+    const {
+      createDeepSeekJudge,
+      DeepSeekJudgeConfigurationError,
+      readDeepSeekJudgeEnvironment,
+    } = await import("../providers/deepseek/index.js");
+    const environment = readDeepSeekJudgeEnvironment();
+    if (environment.model === null) {
+      throw new DeepSeekJudgeConfigurationError("model_missing");
+    }
+    const judge = createDeepSeekJudge({
+      model: environment.model,
+      prompt,
+      promptId: TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_ID,
+      promptVersion: TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION,
+      ...(environment.temperature === undefined
+        ? {}
+        : { temperature: environment.temperature }),
+      timeoutMs: environment.timeoutMs,
+      maxAttempts: environment.maxAttempts,
+    });
+    return {
+      ...judge.descriptor,
+      evaluate: judge.evaluate,
+      evaluateWithMetrics: judge.evaluateWithMetrics,
+    } as const;
   }
   const {
     createOpenAIJudge,
@@ -109,7 +206,6 @@ async function createJudgeIfRequested(liveJudge: boolean) {
     throw new OpenAIJudgeConfigurationError("model_missing");
   }
   const model: string = environment.model;
-  const prompt = await loadTutorEvalPedagogyJudgePrompt();
   const judge = createOpenAIJudge({
     model,
     prompt,
@@ -136,11 +232,22 @@ export async function evaluateTutorResponseCorpus(
 ): Promise<TutorResponseCorpusEvaluationResult> {
   const corpus = await loadTutorResponseCorpus(options.corpusPath);
   const dataset = await loadTutorEvalDataset(corpus.datasetId);
-  const judge = await createJudgeIfRequested(options.liveJudge);
+  assertValidTutorResponseCorpus({
+    corpus,
+    dataset,
+    requireFull: options.requireFull,
+  });
+  resolveTutorResponseCorpusSelection(corpus, dataset, {
+    caseIds: options.caseIds,
+    ...(options.limit === null ? {} : { limit: options.limit }),
+  });
+  const judge = await createJudgeIfRequested(options.liveJudge, options.deepSeekJudge);
   return runTutorResponseCorpus({
     corpus,
     dataset,
     requireFull: options.requireFull,
+    caseIds: options.caseIds,
+    ...(options.limit === null ? {} : { limit: options.limit }),
     ...(judge === undefined ? {} : { judge }),
     runId: `benchmark-corpus-${corpus.corpusId}`,
   });
@@ -165,10 +272,14 @@ export function printTutorResponseCorpusEvaluation(
   preliminary: boolean,
 ): void {
   console.log(`Corpus: ${result.corpusId}@${result.corpusVersion}`);
-  console.log(`Coverage: ${result.coverage}`);
+  console.log(`Coverage: ${result.coverage} (source corpus)`);
   console.log(`Selected cases: ${result.selectedCaseCount}`);
-  console.log(`Available responses: ${result.availableResponseCount}`);
-  console.log(`Missing cases: ${result.missingCaseCount}`);
+  console.log(`Available responses: ${result.availableResponseCount} (source corpus)`);
+  console.log(`Missing cases: ${result.missingCaseCount} (source corpus)`);
+  if (result.evaluationSelection !== undefined) {
+    console.log(`Selection: ${result.evaluationSelection.mode}`);
+    console.log(`Selected responses: ${result.evaluationSelection.selectedResponseCount}`);
+  }
   if (preliminary) {
     console.log("Status: preliminary");
     console.log("Calibration: uncalibrated");

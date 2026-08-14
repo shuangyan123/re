@@ -250,11 +250,27 @@ provenance, duplicate response IDs, duplicate case/run pairs, and coverage.
 `--full` makes missing dataset cases an explicit error.
 
 The `benchmark:corpus` command validates and then runs the current hybrid
-evaluator over the frozen responses. The optional
-`--judge-openai` flag uses the existing explicit OpenAI Judge provider; it does
-not regenerate Tutor responses. The result records selected case count,
-available response count, missing case count, corpus coverage, and the normal
-TutorEval result.
+evaluator over the frozen responses. The optional `--judge-openai` flag uses
+the OpenAI Responses Judge, while `--judge-deepseek` uses the separate
+DeepSeek Chat Completions Judge transport; the flags are mutually exclusive.
+Neither provider regenerates Tutor responses. Chat Completions JSON mode is
+object-only rather than strict Structured Outputs, so the existing runtime
+parser and rubric-ownership validation remain authoritative. The result
+records source corpus coverage, selected case count, available response count,
+missing case count, and `evaluationSelection` metadata.
+
+Evaluation subsets are deterministic and read-only:
+
+```text
+--case case-a --case case-b
+--case case-a --case case-b --limit 1
+--limit 3
+```
+
+Explicit cases are resolved against both the dataset and the available frozen
+responses before `--limit` is applied. Unknown or unavailable cases, duplicate
+case flags, and invalid limits fail closed. `coverage` and the source counts
+describe the original corpus; they do not turn a subset into a full corpus.
 
 Partial corpora are honest subsets. They do not become full benchmark claims:
 

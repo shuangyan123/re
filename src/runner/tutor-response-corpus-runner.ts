@@ -1,9 +1,13 @@
 import {
+  BenchmarkConfigurationError,
   assertValidTutorResponseCorpus,
+  type TutorEvalCase,
   type TutorEvalDataset,
   type TutorEvalRunResult,
   type TutorResponseCorpus,
   type TutorResponseCorpusEvaluationResult,
+  type TutorResponseCorpusEvaluationSelection,
+  type TutorResponseCorpusEvaluationSelectionMode,
 } from "../contracts/index.js";
 import { RecordedTutor } from "../adapters/recorded-tutor.js";
 import {
@@ -21,17 +25,103 @@ export interface RunTutorResponseCorpusOptions {
   readonly runId?: string;
   readonly now?: () => Date;
   readonly scoring?: RunTutorEvalOptions["scoring"];
+  /** Optional frozen-corpus subset; selection never calls the Tutor. */
+  readonly caseIds?: readonly string[];
+  readonly limit?: number;
 }
 
-function selectedDataset(
-  dataset: TutorEvalDataset,
-  corpus: TutorResponseCorpus,
-): TutorEvalDataset {
-  const selectedCaseIds = new Set(corpus.responses.map((response) => response.caseId));
+export interface TutorResponseCorpusSelectionOptions {
+  readonly caseIds?: readonly string[];
+  readonly limit?: number;
+}
+
+export interface ResolvedTutorResponseCorpusSelection {
+  readonly dataset: TutorEvalDataset;
+  readonly selection: TutorResponseCorpusEvaluationSelection;
+}
+
+function orderedCases(dataset: TutorEvalDataset): readonly TutorEvalCase[] {
+  return [...dataset.cases].sort((left, right) =>
+    left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+  );
+}
+
+function selectionMode(
+  hasExplicitCases: boolean,
+  hasLimit: boolean,
+): TutorResponseCorpusEvaluationSelectionMode {
+  if (hasExplicitCases && hasLimit) {
+    return "explicit_cases_limit";
+  }
+  if (hasExplicitCases) {
+    return "explicit_cases";
+  }
+  if (hasLimit) {
+    return "available_limit";
+  }
+  return "all_available";
+}
+
+function validateSelectionOptions(
+  options: TutorResponseCorpusSelectionOptions,
+): { readonly caseIds: readonly string[]; readonly limit: number | null } {
+  const caseIds = options.caseIds ?? [];
+  if (
+    !Array.isArray(caseIds) ||
+    caseIds.some((caseId) => typeof caseId !== "string" || caseId.trim().length === 0) ||
+    new Set(caseIds).size !== caseIds.length
+  ) {
+    throw new BenchmarkConfigurationError("tutor_eval_selection_invalid");
+  }
+  const limit = options.limit;
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
+    throw new BenchmarkConfigurationError("tutor_eval_selection_invalid");
+  }
   return {
-    id: dataset.id,
-    version: dataset.version,
-    cases: dataset.cases.filter((tutorEvalCase) => selectedCaseIds.has(tutorEvalCase.id)),
+    caseIds: [...caseIds],
+    limit: limit ?? null,
+  };
+}
+
+export function resolveTutorResponseCorpusSelection(
+  corpus: TutorResponseCorpus,
+  dataset: TutorEvalDataset,
+  options: TutorResponseCorpusSelectionOptions = {},
+): ResolvedTutorResponseCorpusSelection {
+  const { caseIds, limit } = validateSelectionOptions(options);
+  const orderedDatasetCases = orderedCases(dataset);
+  const datasetById = new Map(
+    orderedDatasetCases.map((tutorEvalCase) => [tutorEvalCase.id, tutorEvalCase]),
+  );
+  const selectedCaseIds = new Set(corpus.responses.map((response) => response.caseId));
+  for (const caseId of caseIds) {
+    if (!datasetById.has(caseId) || !selectedCaseIds.has(caseId)) {
+      throw new BenchmarkConfigurationError("tutor_eval_selection_invalid");
+    }
+  }
+  const availableCases = caseIds.length === 0
+    ? orderedDatasetCases.filter((tutorEvalCase) => selectedCaseIds.has(tutorEvalCase.id))
+    : orderedDatasetCases.filter((tutorEvalCase) => caseIds.includes(tutorEvalCase.id));
+  const selectedCases = limit === null
+    ? availableCases
+    : availableCases.slice(0, limit);
+  const finalCaseIds = selectedCases.map((tutorEvalCase) => tutorEvalCase.id);
+  const finalCaseIdSet = new Set(finalCaseIds);
+  return {
+    dataset: {
+      id: dataset.id,
+      version: dataset.version,
+      cases: selectedCases,
+    },
+    selection: {
+      mode: selectionMode(caseIds.length > 0, limit !== null),
+      requestedCaseIds: [...caseIds],
+      selectedCaseIds: finalCaseIds,
+      limit,
+      selectedResponseCount: corpus.responses.filter((response) =>
+        finalCaseIdSet.has(response.caseId),
+      ).length,
+    },
   };
 }
 
@@ -47,8 +137,19 @@ export async function runTutorResponseCorpus(
     dataset: options.dataset,
     ...(options.requireFull === undefined ? {} : { requireFull: options.requireFull }),
   });
-  const selected = selectedDataset(options.dataset, options.corpus);
-  const missingCaseCount = options.dataset.cases.length - selected.cases.length;
+  const resolvedSelection = resolveTutorResponseCorpusSelection(
+    options.corpus,
+    options.dataset,
+    {
+      ...(options.caseIds === undefined ? {} : { caseIds: options.caseIds }),
+      ...(options.limit === undefined ? {} : { limit: options.limit }),
+    },
+  );
+  const selected = resolvedSelection.dataset;
+  const sourceAvailableCaseCount = new Set(
+    options.corpus.responses.map((response) => response.caseId),
+  ).size;
+  const missingCaseCount = options.dataset.cases.length - sourceAvailableCaseCount;
   const tutor = new RecordedTutor(options.corpus);
   const runOptions: RunTutorEvalOptions = {
     dataset: selected,
@@ -71,6 +172,7 @@ export async function runTutorResponseCorpus(
     selectedCaseCount: selected.cases.length,
     availableResponseCount: options.corpus.responses.length,
     missingCaseCount,
+    evaluationSelection: resolvedSelection.selection,
     ...(options.corpus.generationSpec === undefined
       ? {}
       : { generationSpec: options.corpus.generationSpec }),

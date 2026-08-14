@@ -85,6 +85,25 @@ export interface TutorVisibleCasePacketFile {
 export type TutorCasePacket = TutorVisibleCasePacketFile;
 export type TutorCasePacketEntry = TutorVisibleCasePacket;
 
+export type TutorResponseCorpusEvaluationSelectionMode =
+  | "all_available"
+  | "explicit_cases"
+  | "available_limit"
+  | "explicit_cases_limit";
+
+/** Describes a replay subset without changing the source corpus identity. */
+export interface TutorResponseCorpusEvaluationSelection {
+  readonly mode: TutorResponseCorpusEvaluationSelectionMode;
+  /** Case IDs supplied through repeated --case flags, before --limit. */
+  readonly requestedCaseIds: readonly string[];
+  /** Final stable case IDs actually replayed by this evaluation. */
+  readonly selectedCaseIds: readonly string[];
+  /** Null means no evaluation limit was supplied. */
+  readonly limit: number | null;
+  /** Number of frozen responses belonging to selectedCaseIds. */
+  readonly selectedResponseCount: number;
+}
+
 export interface TutorResponseCorpusEvaluationResult {
   readonly schemaVersion: typeof TUTOR_RESPONSE_CORPUS_RESULT_SCHEMA_VERSION;
   readonly corpusId: string;
@@ -95,6 +114,8 @@ export interface TutorResponseCorpusEvaluationResult {
   readonly selectedCaseCount: number;
   readonly availableResponseCount: number;
   readonly missingCaseCount: number;
+  /** Optional for v1 compatibility; present on new subset-aware evaluations. */
+  readonly evaluationSelection?: TutorResponseCorpusEvaluationSelection;
   readonly generationSpec?: TutorGenerationSpec;
   readonly tutor: TutorEvalTutorDescriptor;
   readonly evaluation: TutorEvalRunResult;

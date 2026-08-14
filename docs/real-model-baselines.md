@@ -164,6 +164,71 @@ of truth. Product responses omit generation identity; canonical responses
 include the complete generation spec identity. Existing generation-bound and
 legacy corpora remain readable.
 
+## Judge a frozen corpus with DeepSeek
+
+Judge execution is a separate, explicit evaluation step. It does not call the
+Tutor or Nemotron host again. The DeepSeek integration uses the provider's
+OpenAI-compatible `POST /chat/completions` transport and is not the OpenAI
+Responses provider; its result descriptor is `provider: "deepseek"` with the
+exact configured model ID. Chat Completions JSON mode is object-only, not an
+equivalent claim of strict Structured Outputs. The existing Judge parser and
+rubric-ownership validation remain the final trust boundary.
+
+Use Node 22 in the authoritative CI environment. A local Node 26 development
+shell may run the commands if the repository currently works, but it is
+outside the declared `>=22 <23` engine range. Configure credentials only in
+the local process environment:
+
+```powershell
+$env:DEEPSEEK_API_KEY = "<local secret>"
+$env:DEEPSEEK_JUDGE_MODEL = "<exact provider-accepted model id>"
+$env:DEEPSEEK_JUDGE_TIMEOUT_MS = "30000"
+$env:DEEPSEEK_JUDGE_MAX_ATTEMPTS = "2"
+# Optional: $env:DEEPSEEK_JUDGE_TEMPERATURE = "0"
+```
+
+After building, run a one-case Judge smoke over the existing ignored corpus:
+
+```powershell
+npm run build
+node dist/src/cli/tutorbench.js evaluate `
+  --corpus "artifacts/real-model/preliminary-openrouter-nemotron-baseline-001.json" `
+  --case "hint-only-linear-equation-001" `
+  --judge-deepseek `
+  --output "artifacts/real-model/nemotron-deepseek-judge-smoke-001.json"
+```
+
+Then run the first three available cases:
+
+```powershell
+node dist/src/cli/tutorbench.js evaluate `
+  --corpus "artifacts/real-model/preliminary-openrouter-nemotron-baseline-001.json" `
+  --limit 3 `
+  --judge-deepseek `
+  --output "artifacts/real-model/nemotron-deepseek-judge-smoke-003.json"
+```
+
+Finally, omit both selection flags for the complete available corpus:
+
+```powershell
+node dist/src/cli/tutorbench.js evaluate `
+  --corpus "artifacts/real-model/preliminary-openrouter-nemotron-baseline-001.json" `
+  --judge-deepseek `
+  --output "artifacts/real-model/preliminary-openrouter-nemotron-baseline-001.deepseek-judged.json"
+```
+
+`--case` values are resolved against the dataset and the current corpus before
+`--limit` truncates stable case-ID order. The output keeps the original corpus
+ID/version and source `coverage`, available-response count, and missing-case
+count; `evaluationSelection` records the actual subset and selected response
+count. A partial 23/24 corpus remains partial even when one selected case is
+evaluated. Missing credentials produce `judge_unavailable` without a network
+request; timeouts and transient 429/5xx transport failures use bounded retries;
+malformed or ownership-invalid Judge output fails closed. DeepSeek Judge
+evidence is preliminary LLM-as-Judge evidence, not human calibration or a
+learning-outcome measurement, and it does not make this corpus leaderboard
+eligible.
+
 ## Dry-run and publication boundary
 
 Both commands support `--dry-run`. Product dry-run reports `generation spec =
