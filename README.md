@@ -139,6 +139,14 @@ TutorEval keeps atomic rubrics across correctness, diagnosis, guidance,
 adaptation, and actionability. Deterministic checks are useful observable
 proxies, not a scientific measurement of full tutoring quality. Semantic
 rubrics remain available through the provider-independent Judge contract.
+The overall rubric score and the critical-failure quality gate are independent
+dimensions: a high rubric score does not override a gated critical failure.
+The default gate treats `major` and `critical` instances of every declared
+critical-failure type as case failures; `minor` findings remain diagnostic.
+Gated critical failures produce `status: "failed"`, not an evaluator error.
+Disclosure failures are interpreted against each case's policy, so a complete
+answer is not leakage when `full_solution_allowed` or `full_solution_required`
+applies. See the [critical-failure quality-gate audit](docs/critical-failure-quality-gate-audit.md).
 
 ## Public API
 

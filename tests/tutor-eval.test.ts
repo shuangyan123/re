@@ -7,6 +7,7 @@ import {
   partitionTutorEvalRubrics,
   parseTutorEvalCase,
   parseTutorEvalJudgeResult,
+  TUTOR_EVAL_CRITICAL_FAILURE_TYPES,
   type TutorEvalCase,
   type TutorEvalRubric,
 } from "../src/contracts/index.js";
@@ -614,6 +615,145 @@ test("a configured severe factual failure forces the quality gate to FAIL", () =
   assert.equal(aggregate.overallScore, 1);
   assert.equal(aggregate.qualityGate, "FAIL");
   assert.equal(aggregate.passed, false);
+});
+
+test("major misconception reinforcement continues to fail the quality gate", () => {
+  const aggregate = aggregateTutorEvalRubrics(
+    [{ id: "misconception", category: "diagnosis", weight: 1 }],
+    [
+      {
+        rubricId: "misconception",
+        category: "diagnosis",
+        result: "PASS",
+        score: 1,
+        weight: 1,
+        critical: true,
+        diagnostics: [],
+      },
+    ],
+    [
+      {
+        type: "misconception_reinforcement",
+        severity: "major",
+        evidence: "Synthetic misconception reinforcement.",
+      },
+    ],
+  );
+  assert.equal(aggregate.overallScore, 1);
+  assert.equal(aggregate.qualityGate, "FAIL");
+  assert.equal(aggregate.passed, false);
+});
+
+test("every audited major critical-failure type is gated independently", () => {
+  for (const type of TUTOR_EVAL_CRITICAL_FAILURE_TYPES) {
+    const aggregate = aggregateTutorEvalRubrics(
+      [{ id: "score", category: "correctness", weight: 1 }],
+      [
+        {
+          rubricId: "score",
+          category: "correctness",
+          result: "PASS",
+          score: 1,
+          weight: 1,
+          critical: false,
+          diagnostics: [],
+        },
+      ],
+      [
+        {
+          type,
+          severity: "major",
+          evidence: `Synthetic ${type} failure.`,
+        },
+      ],
+    );
+    assert.equal(aggregate.overallScore, 1, type);
+    assert.equal(aggregate.qualityGate, "FAIL", type);
+    assert.equal(aggregate.passed, false, type);
+  }
+});
+
+test("minor answer leakage remains a diagnostic signal and does not fail the gate", () => {
+  const aggregate = aggregateTutorEvalRubrics(
+    [{ id: "score", category: "guidance", weight: 1 }],
+    [
+      {
+        rubricId: "score",
+        category: "guidance",
+        result: "PASS",
+        score: 1,
+        weight: 1,
+        critical: false,
+        diagnostics: [],
+      },
+    ],
+    [
+      {
+        type: "answer_leakage",
+        severity: "minor",
+        evidence: "Synthetic minor disclosure concern.",
+      },
+    ],
+  );
+  assert.equal(aggregate.overallScore, 1);
+  assert.equal(aggregate.qualityGate, "PASS");
+  assert.equal(aggregate.passed, true);
+});
+
+test("major answer leakage fails a high-score case without becoming an evaluation error", async () => {
+  const baseCase = makeCase("answer-leakage-gate-001");
+  const tutorEvalCase = parseTutorEvalCase({
+    ...baseCase,
+    evaluatorOnly: {
+      ...baseCase.evaluatorOnly,
+      rubrics: [
+        {
+          id: "judge-rubric",
+          category: "guidance",
+          criterion: "The response must respect the disclosure policy.",
+          weight: 1,
+          evaluationType: "judge",
+        },
+      ],
+    },
+  });
+  const result = await runTutorEval({
+    dataset: { id: "tutor-eval-v0.2a", version: "0.2a", cases: [tutorEvalCase] },
+    tutor: new ScriptedTutor({
+      id: "answer-leakage-gate-tutor",
+      responses: { "answer-leakage-gate-001": "A useful response." },
+    }),
+    tutorDescriptor: {
+      provider: "synthetic",
+      model: "answer-leakage-gate-tutor",
+      promptVersion: "test",
+    },
+    judge: {
+      provider: "synthetic",
+      model: "synthetic-judge",
+      promptVersion: "test",
+      evaluate: async () =>
+        makeJudgeResult(
+          "answer-leakage-gate-001",
+          [{ rubricId: "judge-rubric", result: "PASS" }],
+          {
+            criticalFailures: [
+              {
+                type: "answer_leakage",
+                severity: "major",
+                evidence: "Synthetic disclosure-policy violation.",
+              },
+            ],
+          },
+        ),
+    },
+  });
+  assert.equal(result.caseResults[0]?.overallScore, 1);
+  assert.equal(result.caseResults[0]?.qualityGate, "FAIL");
+  assert.equal(result.caseResults[0]?.passed, false);
+  assert.equal(result.caseResults[0]?.status, "failed");
+  assert.equal(result.failedCount, 1);
+  assert.equal(result.errorCount, 0);
 });
 
 test("disclosure policy allows full solutions but flags unnecessary hint leakage", () => {

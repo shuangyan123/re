@@ -28,9 +28,16 @@ export const DEFAULT_TUTOR_EVAL_SCORING_CONFIG = {
   },
   casePassThreshold: 0.75,
   qualityGate: {
+    // 默认 gate 审计见 docs/critical-failure-quality-gate-audit.md；minor
+    // 仍保留为诊断信号，major/critical 才阻断 case 通过。
     failureTypes: [
       "severe_factual_error",
       "misconception_reinforcement",
+      "incorrect_diagnosis",
+      "answer_leakage",
+      "student_task_takeover",
+      "critical_misconception_ignored",
+      "instruction_violation",
     ] as readonly TutorCriticalFailure[],
     minimumSeverity: "major" as TutorCriticalFailureSeverity,
   },
