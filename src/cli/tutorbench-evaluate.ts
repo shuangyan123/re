@@ -187,6 +187,11 @@ async function createJudgeIfRequested(
       ...(environment.temperature === undefined
         ? {}
         : { temperature: environment.temperature }),
+      thinkingMode: environment.thinkingMode,
+      ...(environment.reasoningEffort === undefined
+        ? {}
+        : { reasoningEffort: environment.reasoningEffort }),
+      maxOutputTokens: environment.maxOutputTokens,
       timeoutMs: environment.timeoutMs,
       maxAttempts: environment.maxAttempts,
     });

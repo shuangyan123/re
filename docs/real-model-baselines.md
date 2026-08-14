@@ -184,8 +184,24 @@ $env:DEEPSEEK_API_KEY = "<local secret>"
 $env:DEEPSEEK_JUDGE_MODEL = "<exact provider-accepted model id>"
 $env:DEEPSEEK_JUDGE_TIMEOUT_MS = "30000"
 $env:DEEPSEEK_JUDGE_MAX_ATTEMPTS = "2"
-# Optional: $env:DEEPSEEK_JUDGE_TEMPERATURE = "0"
+# Optional generation controls:
+# $env:DEEPSEEK_JUDGE_THINKING = "enabled" # enabled (default) or disabled
+# $env:DEEPSEEK_JUDGE_REASONING_EFFORT = "high" # high (default) or max
+# $env:DEEPSEEK_JUDGE_MAX_TOKENS = "4096" # positive integer; 4096 (default)
+# Temperature is allowed only when thinking is disabled:
+# $env:DEEPSEEK_JUDGE_THINKING = "disabled"
+# $env:DEEPSEEK_JUDGE_TEMPERATURE = "0"
 ```
+
+The DeepSeek V4 Judge profile is explicit and repository-owned: thinking is
+`enabled`, reasoning effort is `high`, the maximum output is `4096` tokens,
+JSON mode is `json_object`, and streaming is disabled. These resolved values
+are recorded in Judge provenance. Thinking-enabled runs reject temperature;
+thinking-disabled runs omit reasoning effort unless it was explicitly
+configured. Provider `reasoning_content` is private execution data and is not
+benchmark evidence: it is not persisted, logged, placed in diagnostics or
+metrics, or copied into artifacts. DeepSeek JSON mode requests an object but
+is not OpenAI strict JSON Schema Structured Outputs.
 
 After building, run a one-case Judge smoke over the existing ignored corpus:
 

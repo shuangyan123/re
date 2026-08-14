@@ -239,7 +239,29 @@ environment:
 ```powershell
 $env:DEEPSEEK_API_KEY = "<local secret>"
 $env:DEEPSEEK_JUDGE_MODEL = "<exact provider model id>"
+```
 
+DeepSeek V4 Judge generation is repository-owned and explicit rather than
+provider-defaulted. Unless overridden, each request records and sends:
+
+```text
+thinking: enabled
+reasoning effort: high
+max output tokens: 4096
+JSON mode: json_object
+stream: false
+```
+
+The optional controls are `DEEPSEEK_JUDGE_THINKING` (`enabled` or `disabled`),
+`DEEPSEEK_JUDGE_REASONING_EFFORT` (`high` or `max` when thinking is enabled),
+and `DEEPSEEK_JUDGE_MAX_TOKENS` (a positive integer). Thinking-enabled runs
+reject `DEEPSEEK_JUDGE_TEMPERATURE` because DeepSeek does not apply that
+control in that mode. Thinking-disabled runs may set the existing temperature
+variable, and omit reasoning effort when it is not explicitly configured.
+Provider `reasoning_content` is private execution data, not benchmark
+evidence, and is never persisted, logged, or included in metrics.
+
+```powershell
 node dist/src/cli/tutorbench.js evaluate `
   --corpus "artifacts/real-model/preliminary-openrouter-nemotron-baseline-001.json" `
   --case "hint-only-linear-equation-001" `

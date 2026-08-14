@@ -259,6 +259,14 @@ parser and rubric-ownership validation remain authoritative. The result
 records source corpus coverage, selected case count, available response count,
 missing case count, and `evaluationSelection` metadata.
 
+DeepSeek Judge requests use an explicit repository-owned V4 profile by
+default: thinking `enabled`, reasoning effort `high`, `max_tokens` `4096`,
+`response_format.type` `json_object`, and `stream: false`. The resolved
+thinking mode and output cap are recorded in Judge provenance. Thinking-enabled
+runs reject temperature; thinking-disabled runs may use temperature and omit
+reasoning effort unless it is explicitly configured. Provider
+`reasoning_content` is private execution data and is not benchmark evidence.
+
 Evaluation subsets are deterministic and read-only:
 
 ```text

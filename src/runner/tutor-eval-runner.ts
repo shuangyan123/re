@@ -116,6 +116,12 @@ function asJudgeDescriptor(
     ...(judge.reasoningEffort === undefined
       ? {}
       : { reasoningEffort: judge.reasoningEffort }),
+    ...(judge.thinkingMode === undefined
+      ? {}
+      : { thinkingMode: judge.thinkingMode }),
+    ...(judge.maxOutputTokens === undefined
+      ? {}
+      : { maxOutputTokens: judge.maxOutputTokens }),
     ...(judge.seed === undefined ? {} : { seed: judge.seed }),
   };
 }
@@ -145,6 +151,15 @@ function assertDescriptor(
       descriptor.reasoningEffort !== undefined &&
       (typeof descriptor.reasoningEffort !== "string" ||
         descriptor.reasoningEffort.trim().length === 0)) ||
+    ("thinkingMode" in descriptor &&
+      descriptor.thinkingMode !== undefined &&
+      descriptor.thinkingMode !== "enabled" &&
+      descriptor.thinkingMode !== "disabled") ||
+    ("maxOutputTokens" in descriptor &&
+      descriptor.maxOutputTokens !== undefined &&
+      (typeof descriptor.maxOutputTokens !== "number" ||
+        !Number.isInteger(descriptor.maxOutputTokens) ||
+        descriptor.maxOutputTokens < 1)) ||
     (descriptor.seed !== undefined &&
       (typeof descriptor.seed !== "number" ||
         !Number.isInteger(descriptor.seed)))
