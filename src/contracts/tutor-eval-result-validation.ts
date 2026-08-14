@@ -130,6 +130,13 @@ function isJudgeDescriptor(value: unknown): boolean {
   return (
     isTutorDescriptor(value) &&
     record !== null &&
+    (record.thinkingMode === undefined ||
+      record.thinkingMode === "enabled" ||
+      record.thinkingMode === "disabled") &&
+    (record.maxOutputTokens === undefined ||
+      (typeof record.maxOutputTokens === "number" &&
+        Number.isInteger(record.maxOutputTokens) &&
+        record.maxOutputTokens >= 1)) &&
     (record.reasoningEffort === undefined ||
       (typeof record.reasoningEffort === "string" &&
         record.reasoningEffort.trim().length > 0))

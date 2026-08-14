@@ -115,6 +115,10 @@ export interface TutorEvalJudgeDescriptor {
   readonly promptVersion: string;
   readonly temperature?: number;
   readonly reasoningEffort?: string;
+  /** Optional extension; populated by providers that expose thinking mode. */
+  readonly thinkingMode?: "enabled" | "disabled";
+  /** Optional extension; populated when the provider request has an output cap. */
+  readonly maxOutputTokens?: number;
   readonly seed?: number;
 }
 

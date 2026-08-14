@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  assertValidTutorEvalRunResult,
   buildTutorEvalJudgeInput,
   parseTutorEvalCase,
   TUTOR_EVAL_JUDGE_SCHEMA_VERSION,
@@ -13,6 +14,9 @@ import {
   buildDeepSeekJudgeRequest,
   createDeepSeekJudge,
   DEEPSEEK_JUDGE_BASE_URL,
+  DEFAULT_DEEPSEEK_JUDGE_MAX_TOKENS,
+  DEFAULT_DEEPSEEK_JUDGE_REASONING_EFFORT,
+  DEFAULT_DEEPSEEK_JUDGE_THINKING,
   DeepSeekJudgeConfigurationError,
   readDeepSeekJudgeEnvironment,
   type ChatCompletionsFetch,
@@ -81,7 +85,12 @@ function responseBody(
     status: 200,
     json: async () => ({
       id: "provider-response-secret",
-      choices: [{ message: { content } }],
+      choices: [{
+        message: {
+          reasoning_content: "provider-private-reasoning",
+          content,
+        },
+      }],
       usage,
       rawProviderPayload: "must not persist",
     }),
@@ -117,6 +126,9 @@ test("DeepSeek environment requires explicit model identity and sanitizes config
   assert.equal(environment.apiKeyConfigured, false);
   assert.equal(environment.timeoutMs, 30_000);
   assert.equal(environment.maxAttempts, 2);
+  assert.equal(environment.thinkingMode, DEFAULT_DEEPSEEK_JUDGE_THINKING);
+  assert.equal(environment.reasoningEffort, DEFAULT_DEEPSEEK_JUDGE_REASONING_EFFORT);
+  assert.equal(environment.maxOutputTokens, DEFAULT_DEEPSEEK_JUDGE_MAX_TOKENS);
 
   assert.throws(
     () => createDeepSeekJudge({ ...promptOptions, model: "", apiKey: "test-key" }),
@@ -134,6 +146,59 @@ test("DeepSeek environment requires explicit model identity and sanitizes config
     (error: unknown) =>
       error instanceof DeepSeekJudgeConfigurationError && error.code === "model_not_pinned",
   );
+});
+
+test("DeepSeek generation environment is strict and fail-closed", () => {
+  for (const value of ["", "automatic", "ENABLED"]) {
+    assert.throws(
+      () => readDeepSeekJudgeEnvironment({ DEEPSEEK_JUDGE_THINKING: value }),
+      (error: unknown) =>
+        error instanceof DeepSeekJudgeConfigurationError && error.code === "thinking_invalid",
+    );
+  }
+  for (const value of ["low", "", "HIGH"]) {
+    assert.throws(
+      () => readDeepSeekJudgeEnvironment({ DEEPSEEK_JUDGE_REASONING_EFFORT: value }),
+      (error: unknown) =>
+        error instanceof DeepSeekJudgeConfigurationError &&
+        error.code === "reasoning_effort_invalid",
+    );
+  }
+  for (const value of ["high", "max"] as const) {
+    assert.equal(
+      readDeepSeekJudgeEnvironment({ DEEPSEEK_JUDGE_REASONING_EFFORT: value })
+        .reasoningEffort,
+      value,
+    );
+  }
+  assert.throws(
+    () => readDeepSeekJudgeEnvironment({
+      DEEPSEEK_JUDGE_THINKING: "disabled",
+      DEEPSEEK_JUDGE_REASONING_EFFORT: "high",
+    }),
+    (error: unknown) =>
+      error instanceof DeepSeekJudgeConfigurationError &&
+      error.code === "reasoning_effort_conflict",
+  );
+  assert.throws(
+    () => readDeepSeekJudgeEnvironment({ DEEPSEEK_JUDGE_TEMPERATURE: "0" }),
+    (error: unknown) =>
+      error instanceof DeepSeekJudgeConfigurationError && error.code === "temperature_invalid",
+  );
+
+  for (const value of ["0", "-1", "1.5", "NaN", ""]) {
+    assert.throws(
+      () => readDeepSeekJudgeEnvironment({ DEEPSEEK_JUDGE_MAX_TOKENS: value }),
+      (error: unknown) =>
+        error instanceof DeepSeekJudgeConfigurationError && error.code === "max_tokens_invalid",
+    );
+  }
+  for (const value of ["1", "4096", "8192"]) {
+    assert.equal(
+      readDeepSeekJudgeEnvironment({ DEEPSEEK_JUDGE_MAX_TOKENS: value }).maxOutputTokens,
+      Number(value),
+    );
+  }
 });
 
 test("DeepSeek builds a provider-correct Chat Completions JSON-mode request", async () => {
@@ -160,6 +225,19 @@ test("DeepSeek builds a provider-correct Chat Completions JSON-mode request", as
   assert.equal(request.model, "deepseek-chat");
   assert.equal(request.stream, false);
   assert.deepEqual(request.response_format, { type: "json_object" });
+  assert.deepEqual(request.thinking, { type: "enabled" });
+  assert.equal(request.reasoning_effort, "high");
+  assert.equal(request.max_tokens, 4096);
+  assert.equal(request.temperature, undefined);
+  assert.deepEqual(judge.descriptor, {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    promptId: promptOptions.promptId,
+    promptVersion: promptOptions.promptVersion,
+    thinkingMode: "enabled",
+    reasoningEffort: "high",
+    maxOutputTokens: 4096,
+  });
   const messages = request.messages as readonly Record<string, unknown>[];
   assert.equal(messages[0]?.role, "system");
   assert.equal(messages[0]?.content, promptOptions.prompt);
@@ -177,7 +255,68 @@ test("DeepSeek builds a provider-correct Chat Completions JSON-mode request", as
     totalTokens: 18,
   });
   assert.equal(evaluation.metrics?.attempts, 1);
-  assert.doesNotMatch(JSON.stringify(evaluation), /deepseek-secret|rawProviderPayload|provider-response-secret/);
+  assert.doesNotMatch(
+    JSON.stringify(evaluation),
+    /deepseek-secret|rawProviderPayload|provider-response-secret|provider-private-reasoning/,
+  );
+});
+
+test("DeepSeek disabled thinking omits reasoning effort and allows effective temperature", async () => {
+  const tutorEvalCase = makeCase();
+  const calls: { readonly init: Parameters<ChatCompletionsFetch>[1] }[] = [];
+  const judge = createDeepSeekJudge({
+    ...promptOptions,
+    apiKey: "test-key",
+    environment: {
+      DEEPSEEK_JUDGE_THINKING: "disabled",
+      DEEPSEEK_JUDGE_TEMPERATURE: "0.25",
+    },
+    fetch: async (_url, init) => {
+      calls.push({ init });
+      return responseBody(validResult(tutorEvalCase.id));
+    },
+  });
+
+  await judge.evaluateWithMetrics(buildTutorEvalJudgeInput(tutorEvalCase, "Response."));
+  const request = JSON.parse(calls[0]?.init.body ?? "{}") as Record<string, unknown>;
+  assert.deepEqual(request.thinking, { type: "disabled" });
+  assert.equal(request.reasoning_effort, undefined);
+  assert.equal(request.max_tokens, 4096);
+  assert.equal(request.temperature, 0.25);
+  assert.deepEqual(judge.descriptor, {
+    provider: "deepseek",
+    model: promptOptions.model,
+    promptId: promptOptions.promptId,
+    promptVersion: promptOptions.promptVersion,
+    thinkingMode: "disabled",
+    maxOutputTokens: 4096,
+    temperature: 0.25,
+  });
+});
+
+test("DeepSeek generation rules reject thinking temperature and disabled reasoning", () => {
+  assert.throws(
+    () => createDeepSeekJudge({
+      ...promptOptions,
+      apiKey: "test-key",
+      environment: {},
+      temperature: 0,
+    }),
+    (error: unknown) =>
+      error instanceof DeepSeekJudgeConfigurationError && error.code === "temperature_invalid",
+  );
+  assert.throws(
+    () => createDeepSeekJudge({
+      ...promptOptions,
+      apiKey: "test-key",
+      environment: {},
+      thinkingMode: "disabled",
+      reasoningEffort: "high",
+    }),
+    (error: unknown) =>
+      error instanceof DeepSeekJudgeConfigurationError &&
+      error.code === "reasoning_effort_conflict",
+  );
 });
 
 test("missing DeepSeek API key is unavailable without a network call", async () => {
@@ -215,7 +354,9 @@ test("DeepSeek fails closed for malformed, non-JSON, incomplete, and schema-inva
     await assert.rejects(
       judge.evaluateWithMetrics(buildTutorEvalJudgeInput(makeCase(), "Response.")),
       (error: unknown) =>
-        error instanceof TutorEvalJudgeExecutionError && error.code === "judge_result_invalid",
+        error instanceof TutorEvalJudgeExecutionError &&
+        error.code === "judge_result_invalid" &&
+        !error.message.includes("provider-private-reasoning"),
     );
   }
 });
@@ -308,6 +449,52 @@ test("Chat Completions timeout remains bounded even if an injected fetch ignores
     judge.evaluateWithMetrics(buildTutorEvalJudgeInput(makeCase(), "Response.")),
     (error: unknown) =>
       error instanceof TutorEvalJudgeExecutionError && error.code === "judge_timeout",
+  );
+});
+
+test("DeepSeek reasoning_content is ignored by Judge and run-result serialization", async () => {
+  const tutorEvalCase = makeCase();
+  const judge = createDeepSeekJudge({
+    ...promptOptions,
+    apiKey: "test-key",
+    environment: {},
+    fetch: async () => responseBody(validResult(tutorEvalCase.id)),
+  });
+  const result = await runTutorEval({
+    dataset: {
+      id: "tutor-eval-v0.2a",
+      version: "0.2a",
+      cases: [tutorEvalCase],
+    },
+    tutor: {
+      id: "synthetic-tutor",
+      respond: async () => ({ text: "Candidate response." }),
+    },
+    tutorDescriptor: {
+      provider: "synthetic",
+      model: "synthetic-tutor",
+      promptVersion: "test",
+    },
+    judge: {
+      ...judge.descriptor,
+      evaluateWithMetrics: judge.evaluateWithMetrics,
+    },
+  });
+
+  assert.equal(result.caseResults[0]?.status, "passed");
+  assert.doesNotThrow(() => assertValidTutorEvalRunResult(result));
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /provider-private-reasoning|reasoning_content|rawProviderPayload/,
+  );
+  const legacyDescriptor = {
+    provider: result.judge?.provider ?? "deepseek",
+    model: result.judge?.model ?? promptOptions.model,
+    promptId: result.judge?.promptId,
+    promptVersion: result.judge?.promptVersion ?? promptOptions.promptVersion,
+  };
+  assert.doesNotThrow(() =>
+    assertValidTutorEvalRunResult({ ...result, judge: legacyDescriptor }),
   );
 });
 

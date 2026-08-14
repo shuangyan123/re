@@ -64,12 +64,19 @@ export type ChatCompletionsFetch = (
   init: ChatCompletionsRequestInit,
 ) => Promise<ChatCompletionsHttpResponse>;
 
+export type ChatCompletionsThinkingMode = "enabled" | "disabled";
+export type ChatCompletionsReasoningEffort = "high" | "max";
+
 export interface ChatCompletionsJudgeRequestOptions {
   readonly model: string;
   readonly prompt: string;
   readonly promptId: string;
   readonly promptVersion: string;
   readonly temperature?: number;
+  /** Provider-neutral representation of an optional Chat Completions control. */
+  readonly thinking?: { readonly type: ChatCompletionsThinkingMode };
+  readonly reasoningEffort?: ChatCompletionsReasoningEffort;
+  readonly maxOutputTokens?: number;
 }
 
 export interface ChatCompletionsJudgeRequest {
@@ -80,6 +87,9 @@ export interface ChatCompletionsJudgeRequest {
   ];
   /** Chat Completions JSON mode is object-only, not strict JSON Schema mode. */
   readonly response_format: { readonly type: "json_object" };
+  readonly thinking?: { readonly type: ChatCompletionsThinkingMode };
+  readonly reasoning_effort?: ChatCompletionsReasoningEffort;
+  readonly max_tokens?: number;
   readonly stream: false;
   readonly temperature?: number;
 }
@@ -205,6 +215,13 @@ export function buildChatCompletionsJudgeRequest(
       { role: "user", content: serializeJudgeInput(input) },
     ],
     response_format: { type: "json_object" },
+    ...(options.thinking === undefined ? {} : { thinking: options.thinking }),
+    ...(options.reasoningEffort === undefined
+      ? {}
+      : { reasoning_effort: options.reasoningEffort }),
+    ...(options.maxOutputTokens === undefined
+      ? {}
+      : { max_tokens: options.maxOutputTokens }),
     stream: false,
     ...(options.temperature === undefined
       ? {}
@@ -291,6 +308,7 @@ function extractResponseContent(value: unknown): {
   if (typeof message?.content !== "string" || message.content.trim().length === 0) {
     throw new Error("missing_chat_completion_content");
   }
+  // 只读取最终 content；provider 的 reasoning_content 不属于 benchmark evidence。
   return {
     content: message.content,
     tokenUsage: sanitizeUsage(record?.usage),
@@ -325,6 +343,13 @@ export function createChatCompletionsJudge(
     promptId: options.promptId,
     promptVersion: options.promptVersion,
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
+    ...(options.thinking === undefined ? {} : { thinking: options.thinking }),
+    ...(options.reasoningEffort === undefined
+      ? {}
+      : { reasoningEffort: options.reasoningEffort }),
+    ...(options.maxOutputTokens === undefined
+      ? {}
+      : { maxOutputTokens: options.maxOutputTokens }),
   };
   const fetcher: ChatCompletionsFetch = options.fetch ?? ((url, init) =>
     fetch(url, init));
@@ -335,6 +360,15 @@ export function createChatCompletionsJudge(
     promptId: options.promptId,
     promptVersion: options.promptVersion,
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
+    ...(options.thinking === undefined
+      ? {}
+      : { thinkingMode: options.thinking.type }),
+    ...(options.reasoningEffort === undefined
+      ? {}
+      : { reasoningEffort: options.reasoningEffort }),
+    ...(options.maxOutputTokens === undefined
+      ? {}
+      : { maxOutputTokens: options.maxOutputTokens }),
   };
 
   const evaluateWithMetrics: NonNullable<
