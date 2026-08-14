@@ -348,7 +348,9 @@ async function runAsExecutable(): Promise<void> {
       error instanceof BenchmarkConfigurationError ||
       (error instanceof Error && (
         error.name === "HttpTutorConfigurationError" ||
-        error.name === "HttpTutorExecutionHostConfigurationError"
+        error.name === "HttpTutorExecutionHostConfigurationError" ||
+        error.name === "DeepSeekJudgeConfigurationError" ||
+        error.name === "ChatCompletionsJudgeConfigurationError"
       ))
         ? error.message
         : "Tutor Benchmark CLI failed.",

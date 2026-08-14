@@ -186,7 +186,7 @@ Advanced or experimental modules remain explicit repository modules:
 
 - Corpus/replay and generation/execution packets
 - Calibration and synthetic calibration fixtures
-- OpenAI Judge provider
+- OpenAI Responses Judge and DeepSeek Chat Completions Judge providers
 - Website artifact/build helpers
 - Scripted, recorded, dry-run, and provider-specific adapters
 

@@ -189,8 +189,11 @@ npm run calibration:report
 npm run calibration:aggregate
 ```
 
-Corpus replay is offline. The OpenAI Judge adapter is an optional evaluator
-integration; live calls require explicit opt-in and are not part of CI.
+Corpus replay is offline. The OpenAI Responses Judge and DeepSeek Chat
+Completions Judge are separate optional evaluator integrations; live calls
+require an explicit provider flag and are not part of CI. `--judge-openai` and
+`--judge-deepseek` are mutually exclusive. Judge output always passes through
+the existing runtime parser and rubric-ownership validation.
 The repository keeps `openai@7.4.0` as a development dependency and exposes it
 as an optional peer so stable package-root and HTTP usage do not install or
 load OpenAI. Consumers explicitly using the OpenAI provider must install that
@@ -226,6 +229,37 @@ tutorbench collect-model \
 
 tutorbench evaluate --corpus artifacts/real-model/baseline.json
 ```
+
+For a frozen corpus, evaluation can select a deterministic subset without
+calling the Tutor again. Repeated `--case` values select explicit available
+cases; `--limit` then truncates that selection in stable case-ID order. An
+explicit DeepSeek Judge run requires a concrete provider model ID in the local
+environment:
+
+```powershell
+$env:DEEPSEEK_API_KEY = "<local secret>"
+$env:DEEPSEEK_JUDGE_MODEL = "<exact provider model id>"
+
+node dist/src/cli/tutorbench.js evaluate `
+  --corpus "artifacts/real-model/preliminary-openrouter-nemotron-baseline-001.json" `
+  --case "hint-only-linear-equation-001" `
+  --judge-deepseek `
+  --output "artifacts/real-model/nemotron-deepseek-judge-smoke-001.json"
+
+node dist/src/cli/tutorbench.js evaluate `
+  --corpus "artifacts/real-model/preliminary-openrouter-nemotron-baseline-001.json" `
+  --limit 3 `
+  --judge-deepseek `
+  --output "artifacts/real-model/nemotron-deepseek-judge-smoke-003.json"
+```
+
+The final full available-corpus run omits both `--case` and `--limit`. These
+commands replay the ignored frozen response corpus and never regenerate Tutor
+or Nemotron responses. Source corpus `coverage`, available response count, and
+missing case count remain distinct from the recorded `evaluationSelection`
+metadata. DeepSeek JSON mode requests an object but does not claim OpenAI-style
+strict Structured Outputs; malformed, incomplete, or ownership-invalid Judge
+results fail closed.
 
 Both paths are sequential, have no automatic retry, preserve successful
 responses on partial failure, and validate the same `TutorResponseCorpus`

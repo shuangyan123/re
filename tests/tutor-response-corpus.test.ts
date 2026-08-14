@@ -25,7 +25,11 @@ import {
 import { loadTutorEvalDataset } from "../src/datasets/index.js";
 import { toCalibrationCandidateResponseFile } from "../src/calibration/index.js";
 import { buildCalibrationPacket } from "../src/calibration/index.js";
-import { runTutorResponseCorpus } from "../src/runner/index.js";
+import {
+  resolveTutorResponseCorpusSelection,
+  runTutorResponseCorpus,
+} from "../src/runner/index.js";
+import { createDeepSeekJudge } from "../src/providers/deepseek/index.js";
 
 async function loadDataset(): Promise<TutorEvalDataset> {
   return loadTutorEvalDataset("tutor-eval-v0.2a");
@@ -218,6 +222,126 @@ test("partial corpus evaluation reports selected, available, and missing coverag
   assert.equal(result.availableResponseCount, 4);
   assert.equal(result.missingCaseCount, dataset.cases.length - 2);
   assert.equal(result.evaluation.caseRunCount, 4);
+  assert.equal(JSON.stringify(corpus), before);
+});
+
+test("corpus evaluation applies stable case selection before limit and records subset metadata", async () => {
+  const dataset = await loadDataset();
+  const corpus = makeCorpus(dataset);
+  const before = JSON.stringify(corpus);
+  const result = await runTutorResponseCorpus({
+    corpus,
+    dataset,
+    caseIds: ["weak-foundation-fractions-001", "fraction-misconception-001"],
+    limit: 1,
+    runId: "corpus-selection-test",
+  });
+  assert.equal(result.coverage, "partial");
+  assert.equal(result.selectedCaseCount, 1);
+  assert.equal(result.availableResponseCount, 4);
+  assert.equal(result.missingCaseCount, dataset.cases.length - 2);
+  assert.deepEqual(result.evaluationSelection, {
+    mode: "explicit_cases_limit",
+    requestedCaseIds: ["weak-foundation-fractions-001", "fraction-misconception-001"],
+    selectedCaseIds: ["fraction-misconception-001"],
+    limit: 1,
+    selectedResponseCount: 2,
+  });
+  assert.deepEqual(
+    result.evaluation.caseResults.map((caseResult) => caseResult.caseId),
+    ["fraction-misconception-001", "fraction-misconception-001"],
+  );
+  assert.equal(JSON.stringify(corpus), before);
+});
+
+test("corpus selection fails closed for unknown, missing, duplicate, and invalid requests", async () => {
+  const dataset = await loadDataset();
+  const corpus = makeCorpus(dataset);
+  for (const options of [
+    { caseIds: ["not-a-dataset-case"] },
+    { caseIds: ["hint-only-linear-equation-001"] },
+    { caseIds: ["fraction-misconception-001", "fraction-misconception-001"] },
+    { limit: 0 },
+    { limit: -1 },
+    { limit: 1.5 },
+  ]) {
+    assert.throws(
+      () => resolveTutorResponseCorpusSelection(corpus, dataset, options),
+      /TutorEval corpus selection is invalid\./,
+    );
+  }
+  const limited = resolveTutorResponseCorpusSelection(corpus, dataset, { limit: 99 });
+  assert.deepEqual(limited.selection.selectedCaseIds, [
+    "fraction-misconception-001",
+    "weak-foundation-fractions-001",
+  ]);
+});
+
+test("a selected frozen case can use the DeepSeek Judge without re-calling Tutor", async () => {
+  const dataset = await loadDataset();
+  const corpus = makeCorpus(dataset);
+  const before = JSON.stringify(corpus);
+  let judgeCalls = 0;
+  const judge = createDeepSeekJudge({
+    model: "deepseek-chat",
+    prompt: "Synthetic provider test prompt.",
+    promptId: "synthetic-judge",
+    promptVersion: "test",
+    apiKey: "synthetic-key",
+    fetch: async (_url, init) => {
+      judgeCalls += 1;
+      const request = JSON.parse(init.body) as {
+        readonly messages: readonly { readonly content: string }[];
+      };
+      const serialized = JSON.parse(request.messages[1]!.content) as {
+        readonly payload: {
+          readonly caseId: string;
+          readonly rubrics: readonly { readonly id: string }[];
+        };
+      };
+      return {
+        status: 200,
+        json: async () => ({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                schemaVersion: 1,
+                caseId: serialized.payload.caseId,
+                rubricResults: serialized.payload.rubrics.map((rubric) => ({
+                  rubricId: rubric.id,
+                  result: "PASS",
+                  evidence: "Synthetic Judge evidence.",
+                })),
+                criticalFailures: [],
+                factualErrors: [],
+                insufficientInformation: false,
+              }),
+            },
+          }],
+          usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 },
+        }),
+      };
+    },
+  });
+  const result = await runTutorResponseCorpus({
+    corpus,
+    dataset,
+    caseIds: ["fraction-misconception-001"],
+    judge: {
+      ...judge.descriptor,
+      evaluateWithMetrics: judge.evaluateWithMetrics,
+    },
+  });
+  assert.equal(result.evaluation.judge?.provider, "deepseek");
+  assert.equal(result.selectedCaseCount, 1);
+  assert.equal(result.evaluation.caseRunCount, 2);
+  assert.equal(result.evaluation.errorCount, 0);
+  assert.equal(result.evaluation.overallScore !== null, true);
+  assert.equal(
+    result.evaluation.caseResults.every((caseResult) => caseResult.rawJudgeResult !== null),
+    true,
+  );
+  assert.equal(judgeCalls, 2);
   assert.equal(JSON.stringify(corpus), before);
 });
 

@@ -4,6 +4,7 @@ export type BenchmarkErrorCode =
   | "tutor_eval_case_invalid"
   | "tutor_eval_dataset_invalid"
   | "tutor_eval_rubric_invalid"
+  | "tutor_eval_selection_invalid"
   | "tutor_eval_result_invalid"
   | "judge_input_invalid"
   | "judge_result_invalid"
@@ -27,6 +28,7 @@ const stableMessages: Record<BenchmarkErrorCode, string> = {
   tutor_eval_case_invalid: "TutorEval case configuration is invalid.",
   tutor_eval_dataset_invalid: "TutorEval dataset configuration is invalid.",
   tutor_eval_rubric_invalid: "TutorEval rubric configuration is invalid.",
+  tutor_eval_selection_invalid: "TutorEval corpus selection is invalid.",
   tutor_eval_result_invalid: "TutorEval result is invalid.",
   judge_input_invalid: "AI Tutor Judge input is invalid.",
   judge_result_invalid: "AI Tutor Judge result is invalid.",
@@ -53,6 +55,7 @@ export class BenchmarkConfigurationError extends Error {
     | "tutor_eval_case_invalid"
     | "tutor_eval_dataset_invalid"
     | "tutor_eval_rubric_invalid"
+    | "tutor_eval_selection_invalid"
     | "tutor_eval_result_invalid"
     | "judge_input_invalid"
     | "judge_result_invalid"
@@ -74,6 +77,7 @@ export class BenchmarkConfigurationError extends Error {
       | "tutor_eval_case_invalid"
       | "tutor_eval_dataset_invalid"
       | "tutor_eval_rubric_invalid"
+      | "tutor_eval_selection_invalid"
       | "tutor_eval_result_invalid"
       | "judge_input_invalid"
       | "judge_result_invalid"

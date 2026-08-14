@@ -167,6 +167,12 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
     "evaluate",
     "--corpus",
     "artifacts/corpus.json",
+    "--case",
+    "case-b",
+    "--case=case-a",
+    "--limit",
+    "1",
+    "--judge-deepseek",
     "--output",
     "artifacts/result.json",
   ]);
@@ -175,6 +181,10 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
     return;
   }
   assert.equal(evaluate.evaluate.corpusPath, resolve(process.cwd(), "artifacts/corpus.json"));
+  assert.deepEqual(evaluate.evaluate.caseIds, ["case-b", "case-a"]);
+  assert.equal(evaluate.evaluate.limit, 1);
+  assert.equal(evaluate.evaluate.deepSeekJudge, true);
+  assert.equal(evaluate.evaluate.liveJudge, false);
   assert.equal(evaluate.evaluate.outputPath, resolve(process.cwd(), "artifacts/result.json"));
   assert.deepEqual(parseTutorbenchCollectArgs(["--help"]), { help: true });
   assert.deepEqual(parseTutorbenchCollectModelArgs(["--help"]), { help: true });
@@ -182,8 +192,40 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
     corpusPath: "",
     requireFull: false,
     liveJudge: false,
+    deepSeekJudge: false,
+    caseIds: [],
+    limit: null,
     help: true,
   });
+  assert.throws(
+    () => parseBenchmarkCorpusCliOptions(["--corpus", "corpus.json", "--case", "case-a", "--case", "case-a"]),
+    /must be unique/,
+  );
+  assert.throws(
+    () => parseBenchmarkCorpusCliOptions(["--corpus", "corpus.json", "--limit", "0"]),
+    /positive integer/,
+  );
+  assert.throws(
+    () => parseBenchmarkCorpusCliOptions(["--corpus", "corpus.json", "--limit", "1.5"]),
+    /positive integer/,
+  );
+  assert.throws(
+    () => parseBenchmarkCorpusCliOptions(["--corpus", "corpus.json", "--limit", "-2"]),
+    /positive integer/,
+  );
+  assert.throws(
+    () => parseBenchmarkCorpusCliOptions(["--corpus", "corpus.json", "--limit", "NaN"]),
+    /positive integer/,
+  );
+  assert.throws(
+    () => parseBenchmarkCorpusCliOptions([
+      "--corpus",
+      "corpus.json",
+      "--judge-openai",
+      "--judge-deepseek",
+    ]),
+    /mutually exclusive/,
+  );
 });
 
 test("tutorbench executable supports help and rejects invalid commands", async () => {
