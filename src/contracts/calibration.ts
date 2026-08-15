@@ -7,6 +7,7 @@ import type {
 import type { TutorEvalRubricBehavior } from "./rubric.js";
 import type { TutorEvalCapabilityTag } from "./tutor-eval-taxonomy.js";
 import type { TutorEvalTutorDescriptor } from "./result.js";
+import type { TutorResponseCorpusSemanticReplay } from "./tutor-response-replay.js";
 
 export const CALIBRATION_CONTRACT_SCHEMA_VERSION = 1 as const;
 export const CALIBRATION_PACKET_SCHEMA_VERSION = 1 as const;
@@ -47,8 +48,16 @@ export interface CalibrationSourceCorpus {
   readonly corpusVersion: string;
 }
 
+/**
+ * A candidate may be evaluated under a target dataset identity while keeping
+ * the immutable source response identity. This is provenance, not a response
+ * migration or a re-signed target-native response.
+ */
+export type CalibrationSemanticReplayProvenance = TutorResponseCorpusSemanticReplay;
+
 export interface CalibrationCandidateResponse {
   readonly schemaVersion: typeof CALIBRATION_CONTRACT_SCHEMA_VERSION;
+  /** Immutable response identity; semantic replay never re-signs this value. */
   readonly responseId: string;
   readonly datasetId: string;
   readonly datasetVersion: string;
@@ -57,6 +66,7 @@ export interface CalibrationCandidateResponse {
   readonly tutorDescriptor?: CalibrationTutorDescriptor;
   readonly sourceRun?: CalibrationSourceRun;
   readonly sourceCorpus?: CalibrationSourceCorpus;
+  readonly semanticReplay?: CalibrationSemanticReplayProvenance;
   readonly responseText: string;
   readonly provenance: CalibrationResponseProvenance;
 }

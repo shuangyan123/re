@@ -12,3 +12,8 @@ blind export, report, and aggregation paths can be exercised locally.
 Real reviewer files should remain in an ignored private location. They should
 use the same machine-readable contracts, pseudonymous reviewer IDs, and
 case/rubric version identities.
+
+The `critical-failure-*.json` and `critical-reviewer-*.json` files exercise the
+separate Human Critical-Failure Calibration Contract. They are synthetic
+response text and labels only; they are not labels for the exploratory review
+of any real model response and do not establish a gold standard.

@@ -14,6 +14,11 @@ export type BenchmarkErrorCode =
   | "calibration_data_invalid"
   | "calibration_packet_invalid"
   | "calibration_reference_invalid"
+  | "calibration_critical_failure_target_invalid"
+  | "calibration_critical_failure_annotation_invalid"
+  | "calibration_critical_failure_adjudication_invalid"
+  | "calibration_critical_failure_data_invalid"
+  | "calibration_critical_failure_reference_invalid"
   | "tutor_generation_spec_invalid"
   | "tutor_generation_execution_unsupported"
   | "tutor_execution_packet_invalid"
@@ -39,6 +44,16 @@ const stableMessages: Record<BenchmarkErrorCode, string> = {
   calibration_data_invalid: "Calibration data is invalid.",
   calibration_packet_invalid: "Calibration packet is invalid.",
   calibration_reference_invalid: "Calibration reference set is invalid.",
+  calibration_critical_failure_target_invalid:
+    "Critical-failure calibration target registry is invalid.",
+  calibration_critical_failure_annotation_invalid:
+    "Critical-failure calibration annotation is invalid.",
+  calibration_critical_failure_adjudication_invalid:
+    "Critical-failure calibration adjudication is invalid.",
+  calibration_critical_failure_data_invalid:
+    "Critical-failure calibration data is invalid.",
+  calibration_critical_failure_reference_invalid:
+    "Critical-failure calibration reference set is invalid.",
   tutor_generation_spec_invalid: "Tutor generation specification is invalid.",
   tutor_generation_execution_unsupported:
     "Tutor generation specification requires unsupported execution controls.",
@@ -68,6 +83,11 @@ export class BenchmarkConfigurationError extends Error {
     | "calibration_data_invalid"
     | "calibration_packet_invalid"
     | "calibration_reference_invalid"
+    | "calibration_critical_failure_target_invalid"
+    | "calibration_critical_failure_annotation_invalid"
+    | "calibration_critical_failure_adjudication_invalid"
+    | "calibration_critical_failure_data_invalid"
+    | "calibration_critical_failure_reference_invalid"
     | "tutor_generation_spec_invalid"
     | "tutor_generation_execution_unsupported"
     | "tutor_execution_packet_invalid"
@@ -91,6 +111,11 @@ export class BenchmarkConfigurationError extends Error {
       | "calibration_data_invalid"
       | "calibration_packet_invalid"
       | "calibration_reference_invalid"
+      | "calibration_critical_failure_target_invalid"
+      | "calibration_critical_failure_annotation_invalid"
+      | "calibration_critical_failure_adjudication_invalid"
+      | "calibration_critical_failure_data_invalid"
+      | "calibration_critical_failure_reference_invalid"
       | "tutor_generation_spec_invalid"
       | "tutor_generation_execution_unsupported"
       | "tutor_execution_packet_invalid"

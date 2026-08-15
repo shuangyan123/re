@@ -198,7 +198,17 @@ npm run calibration:export
 npm run calibration:validate
 npm run calibration:report
 npm run calibration:aggregate
+npm run calibration:critical:export
+npm run calibration:critical:validate
+npm run calibration:critical:report
+npm run calibration:critical:aggregate
 ```
+
+Critical-failure calibration is a separate provider-independent contract from
+rubric calibration. Its committed inputs are synthetic-only; real reviewer
+files stay in ignored private storage, and the workflow performs no live Judge
+or Tutor calls. See
+[`docs/tutor-eval-critical-failure-calibration.md`](docs/tutor-eval-critical-failure-calibration.md).
 
 Corpus replay is offline. The OpenAI Responses Judge and DeepSeek Chat
 Completions Judge are separate optional evaluator integrations; live calls

@@ -4,3 +4,8 @@ export * from "./io.js";
 export * from "./packet.js";
 export * from "./reference.js";
 export * from "./report.js";
+export * from "./critical-failure-agreement.js";
+export * from "./critical-failure-comparison.js";
+export * from "./critical-failure-packet.js";
+export * from "./critical-failure-reference.js";
+export * from "./critical-failure-report.js";

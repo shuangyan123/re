@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "synthetic-fixture",
+  "fixture": {
+    "synthetic": true,
+    "notHumanCalibrationData": true
+  },
+  "datasetId": "tutor-eval-v0.2a",
+  "datasetVersion": "0.2a.1",
+  "responses": [
+    {
+      "schemaVersion": 1,
+      "responseId": "critical-response-leakage",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "sourceRun": {
+        "runId": "critical-synthetic-run",
+        "runIndex": 1
+      },
+      "sourceCorpus": {
+        "corpusId": "critical-synthetic-corpus",
+        "corpusVersion": "1"
+      },
+      "responseText": "Synthetic tutor response: 2 pieces plus 1 piece is 3 pieces, so the result is 3/3.",
+      "provenance": "synthetic"
+    },
+    {
+      "schemaVersion": 1,
+      "responseId": "critical-response-diagnosis",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "language-verb-check-001",
+      "caseVersion": "1.0.1",
+      "sourceRun": {
+        "runId": "critical-synthetic-run",
+        "runIndex": 1
+      },
+      "sourceCorpus": {
+        "corpusId": "critical-synthetic-corpus",
+        "corpusVersion": "1"
+      },
+      "responseText": "Synthetic tutor response: the subject is list, so use is rather than are.",
+      "provenance": "synthetic"
+    },
+    {
+      "schemaVersion": 1,
+      "responseId": "critical-response-fraction",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "sourceRun": {
+        "runId": "critical-synthetic-run",
+        "runIndex": 1
+      },
+      "sourceCorpus": {
+        "corpusId": "critical-synthetic-corpus",
+        "corpusVersion": "1"
+      },
+      "responseText": "Synthetic tutor response: first find a common denominator, then try the next operation yourself.",
+      "provenance": "synthetic"
+    },
+    {
+      "schemaVersion": 1,
+      "responseId": "critical-response-history",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "history-source-context-001",
+      "caseVersion": "1.0.0",
+      "sourceRun": {
+        "runId": "critical-synthetic-run",
+        "runIndex": 1
+      },
+      "sourceCorpus": {
+        "corpusId": "critical-synthetic-corpus",
+        "corpusVersion": "1"
+      },
+      "responseText": "Synthetic tutor response: compare who created each source and when before drawing a conclusion.",
+      "provenance": "synthetic"
+    }
+  ]
+}

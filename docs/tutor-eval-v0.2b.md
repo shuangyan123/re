@@ -161,3 +161,32 @@ caseId + caseVersion + responseId + rubricId
 That comparison can reuse exact agreement, confusion matrices, kappa, and the
 dimension breakdowns. Judge self-reported confidence remains separate from
 human agreement and is not ground truth.
+
+## Critical-failure calibration extension
+
+The 0.2B calibration infrastructure now has a parallel, independent
+Human Critical-Failure Calibration Contract. It does not merge critical-failure
+judgments into rubric annotations and does not change the rubric schema.
+
+Its atomic unit is:
+
+```text
+dataset + case/version + candidate response + failureType
+  -> PRESENT | ABSENT | UNSURE
+```
+
+The extension provides an explicit calibration-layer target registry, a
+separate blind packet, immutable reviewer annotations, presence/type/severity
+agreement, linear weighted severity kappa, adjudication, and a separate human
+critical-failure reference set. `UNSURE` and disagreement require adjudication;
+neither is silently treated as absence or resolved by majority vote.
+
+Committed critical-failure fixtures are synthetic and marked
+`notHumanCalibrationData`. Real reviewer data remains in ignored private
+storage. A provider-independent Judge label and pure Judge-vs-human comparison
+view are available for future use, but this extension performs no live Judge or
+Tutor call and does not create human gold labels from Judge output.
+
+See [`tutor-eval-critical-failure-calibration.md`](tutor-eval-critical-failure-calibration.md)
+for the contract, blind boundary, semantic-replay identity rules, and residual
+claim limits.
