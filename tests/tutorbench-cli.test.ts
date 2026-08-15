@@ -185,7 +185,14 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
   assert.equal(evaluate.evaluate.limit, 1);
   assert.equal(evaluate.evaluate.deepSeekJudge, true);
   assert.equal(evaluate.evaluate.liveJudge, false);
+  assert.equal(evaluate.evaluate.allowCompatibleReplay, false);
   assert.equal(evaluate.evaluate.outputPath, resolve(process.cwd(), "artifacts/result.json"));
+  const replay = parseBenchmarkCorpusCliOptions([
+    "--corpus",
+    "artifacts/corpus.json",
+    "--allow-compatible-replay",
+  ]);
+  assert.equal(replay.allowCompatibleReplay, true);
   assert.deepEqual(parseTutorbenchCollectArgs(["--help"]), { help: true });
   assert.deepEqual(parseTutorbenchCollectModelArgs(["--help"]), { help: true });
   assert.deepEqual(parseBenchmarkCorpusCliOptions(["--help"]), {
@@ -193,6 +200,7 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
     requireFull: false,
     liveJudge: false,
     deepSeekJudge: false,
+    allowCompatibleReplay: false,
     caseIds: [],
     limit: null,
     help: true,

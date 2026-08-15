@@ -18,6 +18,7 @@ export type BenchmarkErrorCode =
   | "tutor_generation_execution_unsupported"
   | "tutor_execution_packet_invalid"
   | "tutor_response_corpus_invalid"
+  | "tutor_response_replay_incompatible"
   | "adapter_failed"
   | "evaluation_failed"
   | "runner_failed";
@@ -43,6 +44,8 @@ const stableMessages: Record<BenchmarkErrorCode, string> = {
     "Tutor generation specification requires unsupported execution controls.",
   tutor_execution_packet_invalid: "Tutor execution packet is invalid.",
   tutor_response_corpus_invalid: "Tutor response corpus is invalid.",
+  tutor_response_replay_incompatible:
+    "Tutor response corpus replay compatibility is not approved.",
   adapter_failed: "Tutor adapter failed for this scenario.",
   evaluation_failed: "Evaluator failed for this scenario.",
   runner_failed: "Benchmark runner failed.",
@@ -68,7 +71,8 @@ export class BenchmarkConfigurationError extends Error {
     | "tutor_generation_spec_invalid"
     | "tutor_generation_execution_unsupported"
     | "tutor_execution_packet_invalid"
-    | "tutor_response_corpus_invalid";
+    | "tutor_response_corpus_invalid"
+    | "tutor_response_replay_incompatible";
 
   constructor(
     code:
@@ -90,7 +94,8 @@ export class BenchmarkConfigurationError extends Error {
       | "tutor_generation_spec_invalid"
       | "tutor_generation_execution_unsupported"
       | "tutor_execution_packet_invalid"
-      | "tutor_response_corpus_invalid",
+      | "tutor_response_corpus_invalid"
+      | "tutor_response_replay_incompatible",
   ) {
     super(stableMessages[code]);
     this.name = "BenchmarkConfigurationError";

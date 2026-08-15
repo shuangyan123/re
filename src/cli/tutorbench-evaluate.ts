@@ -5,7 +5,10 @@ import {
   assertValidTutorResponseCorpus,
   type TutorResponseCorpusEvaluationResult,
 } from "../contracts/index.js";
-import { loadTutorResponseCorpus } from "../corpus/index.js";
+import {
+  loadTutorResponseCorpus,
+  resolveTutorResponseCorpusReplay,
+} from "../corpus/index.js";
 import { loadTutorEvalDataset } from "../datasets/index.js";
 import {
   loadTutorEvalPedagogyJudgePrompt,
@@ -34,6 +37,7 @@ export interface BenchmarkCorpusCliOptions {
   readonly requireFull: boolean;
   readonly liveJudge: boolean;
   readonly deepSeekJudge: boolean;
+  readonly allowCompatibleReplay: boolean;
   readonly caseIds: readonly string[];
   readonly limit: number | null;
   readonly outputPath?: string;
@@ -51,6 +55,7 @@ export function parseBenchmarkCorpusCliOptions(
   let requireFull = false;
   let liveJudge = false;
   let deepSeekJudge = false;
+  let allowCompatibleReplay = false;
   let limit: number | null = null;
   const caseIds: string[] = [];
   let outputPath: string | undefined;
@@ -62,6 +67,7 @@ export function parseBenchmarkCorpusCliOptions(
         requireFull: false,
         liveJudge: false,
         deepSeekJudge: false,
+        allowCompatibleReplay: false,
         caseIds: [],
         limit: null,
         help: true,
@@ -73,6 +79,8 @@ export function parseBenchmarkCorpusCliOptions(
       liveJudge = true;
     } else if (argument === "--judge-deepseek") {
       deepSeekJudge = true;
+    } else if (argument === "--allow-compatible-replay") {
+      allowCompatibleReplay = true;
     } else if (argument === "--case") {
       const caseId = nextTutorbenchValue(args, index, "--case");
       if (caseIds.includes(caseId)) {
@@ -130,6 +138,7 @@ export function parseBenchmarkCorpusCliOptions(
     requireFull,
     liveJudge,
     deepSeekJudge,
+    allowCompatibleReplay,
     caseIds,
     limit,
     ...(outputPath === undefined ? {} : { outputPath }),
@@ -149,6 +158,8 @@ Options:
   --full                Require a complete corpus before evaluation
   --judge-openai        Opt in to the existing live OpenAI Judge provider
   --judge-deepseek      Opt in to the DeepSeek Chat Completions Judge provider
+  --allow-compatible-replay
+                        Opt in only to repository-audited Tutor-visible-equivalent transitions
   --live-judge          Alias for --judge-openai
   --output <path>       Write the preliminary evaluation artifact to this path
   --help                Show this help
@@ -237,9 +248,12 @@ export async function evaluateTutorResponseCorpus(
 ): Promise<TutorResponseCorpusEvaluationResult> {
   const corpus = await loadTutorResponseCorpus(options.corpusPath);
   const dataset = await loadTutorEvalDataset(corpus.datasetId);
+  const semanticReplay = options.allowCompatibleReplay
+    ? resolveTutorResponseCorpusReplay(corpus, dataset)
+    : undefined;
   assertValidTutorResponseCorpus({
     corpus,
-    dataset,
+    dataset: semanticReplay?.sourceDataset ?? dataset,
     requireFull: options.requireFull,
   });
   resolveTutorResponseCorpusSelection(corpus, dataset, {
@@ -253,6 +267,7 @@ export async function evaluateTutorResponseCorpus(
     requireFull: options.requireFull,
     caseIds: options.caseIds,
     ...(options.limit === null ? {} : { limit: options.limit }),
+    ...(semanticReplay === undefined ? {} : { semanticReplay }),
     ...(judge === undefined ? {} : { judge }),
     runId: `benchmark-corpus-${corpus.corpusId}`,
   });
@@ -284,6 +299,15 @@ export function printTutorResponseCorpusEvaluation(
   if (result.evaluationSelection !== undefined) {
     console.log(`Selection: ${result.evaluationSelection.mode}`);
     console.log(`Selected responses: ${result.evaluationSelection.selectedResponseCount}`);
+  }
+  if (result.semanticReplay !== undefined) {
+    console.log(`Semantic replay: ${result.semanticReplay.compatibilityId}`);
+    console.log(
+      `Source dataset: ${result.semanticReplay.sourceDatasetId}@${result.semanticReplay.sourceDatasetVersion}`,
+    );
+    console.log(
+      `Target dataset: ${result.semanticReplay.targetDatasetId}@${result.semanticReplay.targetDatasetVersion}`,
+    );
   }
   if (preliminary) {
     console.log("Status: preliminary");

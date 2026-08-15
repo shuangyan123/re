@@ -175,6 +175,14 @@ This preserves the future join from Judge labels to human reference labels.
 No independent human review or Judge-vs-human calibration is claimed by this
 phase.
 
+Frozen corpus replay is a separate provenance boundary. The default corpus
+identity check remains strict; the only approved source-to-target exception is
+the machine-checked `tutor-eval-v0.2a@0.2a -> 0.2a.1` transition for
+`language-verb-check-001@1.0.0 -> 1.0.1`. Replay evaluates target `0.3a.3`
+semantics without changing source response identities and records both source
+and target identities in the optional `semanticReplay` result field. See
+[`frozen-corpus-semantic-replay.md`](frozen-corpus-semantic-replay.md).
+
 ## Test coverage
 
 The orchestration tests cover:
