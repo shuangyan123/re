@@ -3,7 +3,6 @@ import {
   ChatCompletionsJudgeConfigurationError,
   createChatCompletionsJudge,
   DEFAULT_CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS,
-  DEFAULT_CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS,
   MAX_CHAT_COMPLETIONS_JUDGE_ATTEMPTS,
   type ChatCompletionsFetch,
   type ChatCompletionsJudgeConfigurationErrorCode,
@@ -15,7 +14,7 @@ import type { TutorEvalJudgeInput } from "../../contracts/index.js";
 
 export const DEEPSEEK_JUDGE_PROVIDER = "deepseek" as const;
 export const DEEPSEEK_JUDGE_BASE_URL = "https://api.deepseek.com" as const;
-export const DEFAULT_DEEPSEEK_JUDGE_TIMEOUT_MS = DEFAULT_CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS;
+export const DEFAULT_DEEPSEEK_JUDGE_TIMEOUT_MS = 60_000 as const;
 export const DEFAULT_DEEPSEEK_JUDGE_MAX_ATTEMPTS = DEFAULT_CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS;
 export const MAX_DEEPSEEK_JUDGE_ATTEMPTS = MAX_CHAT_COMPLETIONS_JUDGE_ATTEMPTS;
 export const DEFAULT_DEEPSEEK_JUDGE_THINKING = "enabled" as const;

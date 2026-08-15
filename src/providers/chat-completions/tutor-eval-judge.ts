@@ -369,6 +369,8 @@ export function createChatCompletionsJudge(
     ...(options.maxOutputTokens === undefined
       ? {}
       : { maxOutputTokens: options.maxOutputTokens }),
+    timeoutMs,
+    maxAttempts,
   };
 
   const evaluateWithMetrics: NonNullable<
