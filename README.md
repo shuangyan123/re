@@ -255,7 +255,7 @@ provider-defaulted. Unless overridden, each request records and sends:
 ```text
 thinking: enabled
 reasoning effort: high
-max output tokens: 4096
+max output tokens: 8192
 JSON mode: json_object
 stream: false
 ```
@@ -307,7 +307,18 @@ or Nemotron responses. Source corpus `coverage`, available response count, and
 missing case count remain distinct from the recorded `evaluationSelection`
 metadata. DeepSeek JSON mode requests an object but does not claim OpenAI-style
 strict Structured Outputs; malformed, incomplete, or ownership-invalid Judge
-results fail closed.
+results fail closed. When Chat Completions explicitly returns
+`finish_reason: "length"`, the run reports `judge_output_truncated` instead of
+folding provider-confirmed output truncation into `judge_result_invalid`.
+
+The 8192-token default is a reliability margin for thinking-enabled Judge
+execution, not a scoring or model-quality adjustment. In one 23-case run over
+the preliminary frozen corpus, `programming-test-failure-001` was the only
+error, with `outputTokens` exactly `4096` and `judge_result_invalid`. A
+diagnostic rerun at 8192 had 0 errors, while a subsequent rerun restored to
+4096 also had 0 errors. This supports stochastic long-tail truncation risk;
+it does not show that the case deterministically requires more than 4096
+tokens.
 
 Both paths are sequential, have no automatic retry, preserve successful
 responses on partial failure, and validate the same `TutorResponseCorpus`

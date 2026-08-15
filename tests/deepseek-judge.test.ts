@@ -5,6 +5,7 @@ import {
   assertValidTutorEvalRunResult,
   buildTutorEvalJudgeInput,
   parseTutorEvalCase,
+  TUTOR_EVAL_EVALUATOR_VERSION,
   TUTOR_EVAL_JUDGE_SCHEMA_VERSION,
   TutorEvalJudgeExecutionError,
   type TutorEvalCase,
@@ -87,6 +88,7 @@ function responseBody(
     completion_tokens: 7,
     total_tokens: 18,
   },
+  finishReason: string | null = "stop",
 ): { readonly status: number; json(): Promise<unknown> } {
   return {
     status: 200,
@@ -97,6 +99,7 @@ function responseBody(
           reasoning_content: "provider-private-reasoning",
           content,
         },
+        finish_reason: finishReason,
       }],
       usage,
       rawProviderPayload: "must not persist",
@@ -136,6 +139,7 @@ test("DeepSeek environment requires explicit model identity and sanitizes config
   assert.equal(environment.thinkingMode, DEFAULT_DEEPSEEK_JUDGE_THINKING);
   assert.equal(environment.reasoningEffort, DEFAULT_DEEPSEEK_JUDGE_REASONING_EFFORT);
   assert.equal(environment.maxOutputTokens, DEFAULT_DEEPSEEK_JUDGE_MAX_TOKENS);
+  assert.equal(DEFAULT_DEEPSEEK_JUDGE_MAX_TOKENS, 8192);
 
   assert.throws(
     () => createDeepSeekJudge({ ...promptOptions, model: "", apiKey: "test-key" }),
@@ -159,9 +163,11 @@ test("DeepSeek execution profile records effective environment overrides", () =>
   const environment = readDeepSeekJudgeEnvironment({
     DEEPSEEK_JUDGE_TIMEOUT_MS: "90000",
     DEEPSEEK_JUDGE_MAX_ATTEMPTS: "3",
+    DEEPSEEK_JUDGE_MAX_TOKENS: "4096",
   });
   assert.equal(environment.timeoutMs, 90_000);
   assert.equal(environment.maxAttempts, 3);
+  assert.equal(environment.maxOutputTokens, 4096);
 
   const judge = createDeepSeekJudge({
     ...promptOptions,
@@ -169,10 +175,33 @@ test("DeepSeek execution profile records effective environment overrides", () =>
     environment: {
       DEEPSEEK_JUDGE_TIMEOUT_MS: "90000",
       DEEPSEEK_JUDGE_MAX_ATTEMPTS: "3",
+      DEEPSEEK_JUDGE_MAX_TOKENS: "4096",
     },
   });
   assert.equal(judge.descriptor.timeoutMs, 90_000);
   assert.equal(judge.descriptor.maxAttempts, 3);
+  assert.equal(judge.descriptor.maxOutputTokens, 4096);
+});
+
+test("DeepSeek max output token overrides reach both request and provenance", async () => {
+  for (const maxOutputTokens of [4096, 12000]) {
+    const tutorEvalCase = makeCase();
+    const calls: { readonly init: Parameters<ChatCompletionsFetch>[1] }[] = [];
+    const judge = createDeepSeekJudge({
+      ...promptOptions,
+      apiKey: "test-key",
+      environment: { DEEPSEEK_JUDGE_MAX_TOKENS: String(maxOutputTokens) },
+      fetch: async (_url, init) => {
+        calls.push({ init });
+        return responseBody(validResult(tutorEvalCase.id));
+      },
+    });
+
+    await judge.evaluateWithMetrics(buildTutorEvalJudgeInput(tutorEvalCase, "Response."));
+    const request = JSON.parse(calls[0]?.init.body ?? "{}") as Record<string, unknown>;
+    assert.equal(request.max_tokens, maxOutputTokens);
+    assert.equal(judge.descriptor.maxOutputTokens, maxOutputTokens);
+  }
 });
 
 test("generic Chat Completions retains its 30-second default profile", () => {
@@ -274,7 +303,7 @@ test("DeepSeek builds a provider-correct Chat Completions JSON-mode request", as
   assert.deepEqual(request.response_format, { type: "json_object" });
   assert.deepEqual(request.thinking, { type: "enabled" });
   assert.equal(request.reasoning_effort, "high");
-  assert.equal(request.max_tokens, 4096);
+  assert.equal(request.max_tokens, 8192);
   assert.equal(request.temperature, undefined);
   assert.deepEqual(judge.descriptor, {
     provider: "deepseek",
@@ -283,7 +312,7 @@ test("DeepSeek builds a provider-correct Chat Completions JSON-mode request", as
     promptVersion: promptOptions.promptVersion,
     thinkingMode: "enabled",
     reasoningEffort: "high",
-    maxOutputTokens: 4096,
+    maxOutputTokens: 8192,
     timeoutMs: DEFAULT_DEEPSEEK_JUDGE_TIMEOUT_MS,
     maxAttempts: DEFAULT_DEEPSEEK_JUDGE_MAX_ATTEMPTS,
   });
@@ -332,7 +361,7 @@ test("DeepSeek disabled thinking omits reasoning effort and allows effective tem
   const request = JSON.parse(calls[0]?.init.body ?? "{}") as Record<string, unknown>;
   assert.deepEqual(request.thinking, { type: "disabled" });
   assert.equal(request.reasoning_effort, undefined);
-  assert.equal(request.max_tokens, 4096);
+  assert.equal(request.max_tokens, 8192);
   assert.equal(request.temperature, 0.25);
   assert.deepEqual(judge.descriptor, {
     provider: "deepseek",
@@ -340,7 +369,7 @@ test("DeepSeek disabled thinking omits reasoning effort and allows effective tem
     promptId: promptOptions.promptId,
     promptVersion: promptOptions.promptVersion,
     thinkingMode: "disabled",
-    maxOutputTokens: 4096,
+    maxOutputTokens: 8192,
     temperature: 0.25,
     timeoutMs: DEFAULT_DEEPSEEK_JUDGE_TIMEOUT_MS,
     maxAttempts: DEFAULT_DEEPSEEK_JUDGE_MAX_ATTEMPTS,
@@ -412,6 +441,63 @@ test("DeepSeek fails closed for malformed, non-JSON, incomplete, and schema-inva
         !error.message.includes("provider-private-reasoning"),
     );
   }
+});
+
+test("Chat Completions finish_reason=length is a distinct truncation failure with sanitized metrics", async () => {
+  const tutorEvalCase = makeCase();
+  let calls = 0;
+  const judge = createDeepSeekJudge({
+    ...promptOptions,
+    apiKey: "test-key",
+    fetch: async () => {
+      calls += 1;
+      return responseBody(
+        `{"schemaVersion":${TUTOR_EVAL_JUDGE_SCHEMA_VERSION},"caseId":"${tutorEvalCase.id}",`,
+        { prompt_tokens: 1206, completion_tokens: 4096, total_tokens: 5302 },
+        "length",
+      );
+    },
+  });
+
+  await assert.rejects(
+    judge.evaluateWithMetrics(buildTutorEvalJudgeInput(tutorEvalCase, "Response.")),
+    (error: unknown) =>
+      error instanceof TutorEvalJudgeExecutionError &&
+      error.code === "judge_output_truncated" &&
+      error.metrics?.attempts === 1 &&
+      error.metrics.tokenUsage?.outputTokens === 4096 &&
+      !error.message.includes("schemaVersion"),
+  );
+  assert.equal(calls, 1);
+});
+
+test("Chat Completions length termination wins over even parseable content", async () => {
+  const tutorEvalCase = makeCase();
+  const judge = createDeepSeekJudge({
+    ...promptOptions,
+    apiKey: "test-key",
+    fetch: async () => responseBody(validResult(tutorEvalCase.id), undefined, "length"),
+  });
+
+  await assert.rejects(
+    judge.evaluateWithMetrics(buildTutorEvalJudgeInput(tutorEvalCase, "Response.")),
+    (error: unknown) =>
+      error instanceof TutorEvalJudgeExecutionError && error.code === "judge_output_truncated",
+  );
+});
+
+test("Chat Completions unknown finish reasons remain parseable when content is valid", async () => {
+  const tutorEvalCase = makeCase();
+  const judge = createDeepSeekJudge({
+    ...promptOptions,
+    apiKey: "test-key",
+    fetch: async () => responseBody(validResult(tutorEvalCase.id), undefined, "provider_new_reason"),
+  });
+
+  const evaluation = await judge.evaluateWithMetrics(
+    buildTutorEvalJudgeInput(tutorEvalCase, "Response."),
+  );
+  assert.equal((evaluation.result as { readonly caseId: string }).caseId, tutorEvalCase.id);
 });
 
 test("DeepSeek retries bounded transient 429/5xx but not non-transient 4xx", async () => {
@@ -563,6 +649,52 @@ test("DeepSeek reasoning_content is ignored by Judge and run-result serializatio
       judge: { ...legacyDescriptor, maxAttempts: 0 },
     }),
   );
+});
+
+test("runner keeps truncated Judge output as ERROR with null score and metrics", async () => {
+  const tutorEvalCase = makeCase();
+  const judge = createDeepSeekJudge({
+    ...promptOptions,
+    apiKey: "test-key",
+    fetch: async () => responseBody(
+      `{"schemaVersion":${TUTOR_EVAL_JUDGE_SCHEMA_VERSION},`,
+      { prompt_tokens: 1206, completion_tokens: 4096, total_tokens: 5302 },
+      "length",
+    ),
+  });
+  const result = await runTutorEval({
+    dataset: {
+      id: "tutor-eval-v0.2a",
+      version: "0.2a",
+      cases: [tutorEvalCase],
+    },
+    tutor: {
+      id: "synthetic-tutor",
+      respond: async () => ({ text: "Candidate response." }),
+    },
+    tutorDescriptor: {
+      provider: "synthetic",
+      model: "synthetic-tutor",
+      promptVersion: "test",
+    },
+    judge: {
+      ...judge.descriptor,
+      evaluateWithMetrics: judge.evaluateWithMetrics,
+    },
+  });
+
+  assert.equal(result.evaluatorVersion, TUTOR_EVAL_EVALUATOR_VERSION);
+  assert.equal(result.caseResults[0]?.status, "error");
+  assert.equal(result.caseResults[0]?.diagnostics[0]?.code, "judge_output_truncated");
+  assert.equal(result.caseResults[0]?.rubricResults[0]?.result, "ERROR");
+  assert.equal(result.caseResults[0]?.overallScore, null);
+  assert.equal(result.overallScore, null);
+  assert.equal(result.caseResults[0]?.judgeMetrics?.attempts, 1);
+  assert.deepEqual(result.caseResults[0]?.judgeMetrics?.tokenUsage, {
+    inputTokens: 1206,
+    outputTokens: 4096,
+    totalTokens: 5302,
+  });
 });
 
 test("runner keeps DeepSeek rubric ownership fail-closed", async () => {

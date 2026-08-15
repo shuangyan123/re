@@ -187,14 +187,14 @@ $env:DEEPSEEK_JUDGE_MAX_ATTEMPTS = "2"
 # Optional generation controls:
 # $env:DEEPSEEK_JUDGE_THINKING = "enabled" # enabled (default) or disabled
 # $env:DEEPSEEK_JUDGE_REASONING_EFFORT = "high" # high (default) or max
-# $env:DEEPSEEK_JUDGE_MAX_TOKENS = "4096" # positive integer; 4096 (default)
+# $env:DEEPSEEK_JUDGE_MAX_TOKENS = "8192" # positive integer; 8192 (default)
 # Temperature is allowed only when thinking is disabled:
 # $env:DEEPSEEK_JUDGE_THINKING = "disabled"
 # $env:DEEPSEEK_JUDGE_TEMPERATURE = "0"
 ```
 
 The DeepSeek V4 Judge profile is explicit and repository-owned: thinking is
-`enabled`, reasoning effort is `high`, the maximum output is `4096` tokens,
+`enabled`, reasoning effort is `high`, the maximum output is `8192` tokens,
 JSON mode is `json_object`, streaming is disabled, the execution timeout is
 `60000` milliseconds, and the transport attempt limit is `2`. The timeout and
 attempt values are environment overrides, with positive-integer timeout
@@ -208,14 +208,22 @@ temperature; thinking-disabled runs omit reasoning effort unless it was
 explicitly configured. Provider `reasoning_content` is private execution data
 and is not benchmark evidence: it is not persisted, logged, placed in
 diagnostics or metrics, or copied into artifacts. DeepSeek JSON mode requests
-an object but is not OpenAI strict JSON Schema Structured Outputs.
+an object but is not OpenAI strict JSON Schema Structured Outputs. A provider
+`finish_reason` of `length` is reported as `judge_output_truncated`, remains a
+case `ERROR` with a null score, and retains only sanitized latency, attempts,
+and token usage; the partial content is not Judge evidence.
 
 The 60000ms default is evidence-based, not a completion guarantee. In a
 previous 23-case run, 2 cases timed out at about 30 seconds; replaying those
 same two frozen responses with a 60000ms timeout produced 0 errors, 2 failures,
-and 34084ms observed Judge latency. The evaluator version remains `0.3a.2`;
-the profile changes execution configuration without changing scoring
-semantics.
+and 34084ms observed Judge latency. In a later 23-case run, the only error was
+`programming-test-failure-001`, whose `outputTokens` was exactly `4096` with a
+`judge_result_invalid` diagnostic. A diagnostic rerun at 8192 produced 0
+errors, and a subsequent rerun restored to 4096 also produced 0 errors. The
+evidence indicates stochastic long-tail output/truncation risk; it does not
+show that this case deterministically requires more than 4096 tokens. The
+evaluator version remains `0.3a.2`; the profile and diagnostics change
+execution observability without changing successful Judge scoring semantics.
 
 After building, run a one-case Judge smoke over the existing ignored corpus:
 
