@@ -146,7 +146,10 @@ critical-failure type as case failures; `minor` findings remain diagnostic.
 Gated critical failures produce `status: "failed"`, not an evaluator error.
 Disclosure failures are interpreted against each case's policy, so a complete
 answer is not leakage when `full_solution_allowed` or `full_solution_required`
-applies. See the [critical-failure quality-gate audit](docs/critical-failure-quality-gate-audit.md).
+applies. Concept explanations under `no_answer` are not automatically leakage
+when the case has no concrete final answer. See the [disclosure and
+critical-failure semantics audit](docs/tutor-eval-disclosure-critical-semantics-audit.md)
+and the [critical-failure quality-gate audit](docs/critical-failure-quality-gate-audit.md).
 
 ## Public API
 
@@ -278,14 +281,14 @@ Judge provenance, separately from each call's observed
 `judgeMetrics.latencyMs` and `attempts`; a timeout remains a `judge_timeout`
 error and is never retried. Transient HTTP retry behavior is unchanged.
 
-This profile follows repository evidence from a 23-case DeepSeek Judge run
+This profile follows repository evidence from a historical 23-case DeepSeek Judge run
 that had 14 passes, 7 failures, and 2 `judge_timeout` errors at about 30
 seconds. Replaying those same two frozen responses with a 60000ms timeout
 produced 0 errors, 2 failures, and 34084ms observed Judge latency. That
 diagnostic supports the default but does not guarantee that every future
-request will finish within it. The evaluator version remains `0.3a.2`
-because this changes execution configuration, not successful Judge scoring
-semantics.
+request will finish within it. That historical profile evidence used evaluator
+version `0.3a.2`; new runs use `0.3a.3` after the separate disclosure/diagnosis
+semantic audit. The execution configuration itself is unchanged by this PR.
 
 ```powershell
 node dist/src/cli/tutorbench.js evaluate `

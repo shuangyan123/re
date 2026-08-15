@@ -130,7 +130,7 @@ const baseOptions = {
   model: "gpt-5.5-2026-01-15",
   prompt: "Versioned Judge prompt.",
   promptId: "tutor-eval-pedagogy-judge-system",
-  promptVersion: "0.2",
+  promptVersion: "0.3",
 } as const;
 
 test("Judge JSON Schema is versioned and has strict additional-property policy", () => {

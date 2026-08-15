@@ -281,7 +281,7 @@ test("tutorbench run maps HTTP Tutor output to TutorEvalRunResult and --output",
       readonly tutor: { readonly model: string };
     };
     assert.equal(output.datasetId, "tutor-eval-v0.2a");
-    assert.equal(output.evaluatorVersion, "0.3a.2");
+    assert.equal(output.evaluatorVersion, "0.3a.3");
     assert.equal(output.caseCount, 1);
     assert.equal(output.caseRunCount, 2);
     assert.equal(output.tutor.model, "http-tutor");

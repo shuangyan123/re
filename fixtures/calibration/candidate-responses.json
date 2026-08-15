@@ -6,13 +6,13 @@
     "notHumanCalibrationData": true
   },
   "datasetId": "tutor-eval-v0.2a",
-  "datasetVersion": "0.2a",
+  "datasetVersion": "0.2a.1",
   "responses": [
     {
       "schemaVersion": 1,
       "responseId": "response-001",
       "datasetId": "tutor-eval-v0.2a",
-      "datasetVersion": "0.2a",
+      "datasetVersion": "0.2a.1",
       "caseId": "fraction-misconception-001",
       "caseVersion": "1.1.0",
       "tutorDescriptor": {

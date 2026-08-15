@@ -222,8 +222,10 @@ and 34084ms observed Judge latency. In a later 23-case run, the only error was
 errors, and a subsequent rerun restored to 4096 also produced 0 errors. The
 evidence indicates stochastic long-tail output/truncation risk; it does not
 show that this case deterministically requires more than 4096 tokens. The
-evaluator version remains `0.3a.2`; the profile and diagnostics change
+evaluator version was recorded as `0.3a.2`; the profile and diagnostics change
 execution observability without changing successful Judge scoring semantics.
+New semantic runs use the separately versioned evaluator described in the
+disclosure/diagnosis audit.
 
 After building, run a one-case Judge smoke over the existing ignored corpus:
 

@@ -12,13 +12,13 @@ import type {
 } from "./tutor-eval-taxonomy.js";
 
 export const TUTOR_EVAL_DATASET_ID = "tutor-eval-v0.2a" as const;
-export const TUTOR_EVAL_DATASET_VERSION = "0.2a" as const;
+export const TUTOR_EVAL_DATASET_VERSION = "0.2a.1" as const;
 /**
  * Evaluation semantics are versioned separately from dataset/case identity so
  * immutable Tutor response corpora can be replayed under an explicitly named
  * verifier revision.
  */
-export const TUTOR_EVAL_EVALUATOR_VERSION = "0.3a.2" as const;
+export const TUTOR_EVAL_EVALUATOR_VERSION = "0.3a.3" as const;
 export const TUTOR_EVAL_LEGACY_DATASET_ID = "tutor-eval-v0.1" as const;
 export const TUTOR_EVAL_LEGACY_DATASET_VERSION = "0.1" as const;
 export const TUTOR_EVAL_CASE_SCHEMA_VERSION = 1 as const;

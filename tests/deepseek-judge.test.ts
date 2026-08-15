@@ -127,7 +127,7 @@ const promptOptions = {
   model: "deepseek-chat",
   prompt: "Versioned Judge prompt. Return only JSON.",
   promptId: "tutor-eval-pedagogy-judge-system",
-  promptVersion: "0.2",
+  promptVersion: "0.3",
 } as const;
 
 test("DeepSeek environment requires explicit model identity and sanitizes configuration", () => {

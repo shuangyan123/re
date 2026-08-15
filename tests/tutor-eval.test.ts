@@ -151,13 +151,15 @@ test("partitionTutorEvalRubrics gives every rubric one evaluator owner", () => {
   );
 });
 
-test("Judge prompt metadata and asset loader expose the versioned v0.2 source", async () => {
+test("Judge prompt metadata and asset loader expose the versioned v0.3 source", async () => {
   const prompt = await loadTutorEvalPedagogyJudgePrompt();
   assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_ID, "tutor-eval-pedagogy-judge-system");
-  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.2");
+  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.3");
   assert.match(prompt, /Evaluate only\s+the atomic rubrics supplied in this Judge request/);
   assert.match(prompt, /untrusted evaluation data/);
   assert.match(prompt, /hidden chain-of-thought/);
+  assert.match(prompt, /no_answer/);
+  assert.match(prompt, /Incomplete diagnosis/);
 });
 
 test("deterministic-only cases do not call a configured Judge", async () => {
@@ -179,7 +181,7 @@ test("deterministic-only cases do not call a configured Judge", async () => {
     judge: {
       provider: "synthetic",
       model: "unused-judge",
-      promptVersion: "0.2",
+      promptVersion: "0.3",
       evaluate: async () => {
         judgeCalls += 1;
         return makeJudgeResult("deterministic-only-001", []);
@@ -216,7 +218,7 @@ test("judge-only cases execute one request and aggregate all Judge rubrics", asy
     judge: {
       provider: "synthetic",
       model: "synthetic-judge",
-      promptVersion: "0.2",
+      promptVersion: "0.3",
       evaluate: async (input) => {
         judgeCalls += 1;
         receivedRubricIds = input.rubrics.map((rubric) => rubric.id);
@@ -269,7 +271,7 @@ test("mixed cases merge deterministic and Judge results in case rubric order", a
     judge: {
       provider: "synthetic",
       model: "synthetic-judge",
-      promptVersion: "0.2",
+      promptVersion: "0.3",
       evaluate: async (input) => {
         judgeCalls += 1;
         judgeInputRubricIds = input.rubrics.map((rubric) => rubric.id);
@@ -372,7 +374,7 @@ test("Judge result validation rejects missing and unexpected rubric IDs without 
     judge: {
       provider: "synthetic",
       model: "synthetic-judge",
-      promptVersion: "0.2",
+      promptVersion: "0.3",
       evaluate: async () => makeJudgeResult("judge-missing-001", [
         { rubricId: "judge-a", result: "PASS" },
       ]),
@@ -404,7 +406,7 @@ test("Judge result validation rejects missing and unexpected rubric IDs without 
     judge: {
       provider: "synthetic",
       model: "synthetic-judge",
-      promptVersion: "0.2",
+      promptVersion: "0.3",
       evaluate: async () => makeJudgeResult("judge-unexpected-001", [
         { rubricId: "deterministic-rubric", result: "PASS" },
       ]),
@@ -438,7 +440,7 @@ test("Judge transport failures use stable diagnostics without retaining raw erro
     judge: {
       provider: "synthetic",
       model: "synthetic-judge",
-      promptVersion: "0.2",
+      promptVersion: "0.3",
       evaluate: async () => {
         throw new Error("authorization=synthetic-secret");
       },
@@ -474,7 +476,7 @@ test("deterministic and Judge critical failures merge and deduplicate by failure
     judge: {
       provider: "synthetic",
       model: "synthetic-judge",
-      promptVersion: "0.2",
+      promptVersion: "0.3",
       evaluate: async () =>
         makeJudgeResult(
           "critical-merge-001",

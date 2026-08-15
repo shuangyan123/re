@@ -153,7 +153,7 @@ export function findTutorEvalDatasetIntegrityIssues(
   const requireTaxonomy = options.requireTaxonomyMetadata ?? false;
   const expectedTaxonomyVersion =
     options.expectedTaxonomyVersion ?? TUTOR_EVAL_TAXONOMY_VERSION;
-  const validDatasetVersion = /^\d+\.\d+(?:[a-z]+)?$/i.test(dataset.version);
+  const validDatasetVersion = /^\d+\.\d+(?:[a-z]+)?(?:\.\d+)?$/i.test(dataset.version);
   if (
     !validDatasetVersion ||
     (options.expectedDatasetVersion !== undefined &&
