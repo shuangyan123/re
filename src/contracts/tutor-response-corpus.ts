@@ -15,6 +15,7 @@ import type {
   TutorTurnMetrics,
 } from "./tutor.js";
 import type { TutorGenerationSpec } from "./tutor-generation.js";
+import type { TutorResponseCorpusSemanticReplay } from "./tutor-response-replay.js";
 
 export const TUTOR_RESPONSE_CORPUS_SCHEMA_VERSION = 1 as const;
 export const TUTOR_VISIBLE_CASE_PACKET_SCHEMA_VERSION = 1 as const;
@@ -116,6 +117,8 @@ export interface TutorResponseCorpusEvaluationResult {
   readonly missingCaseCount: number;
   /** Optional for v1 compatibility; present on new subset-aware evaluations. */
   readonly evaluationSelection?: TutorResponseCorpusEvaluationSelection;
+  /** Present only when an explicitly audited semantic replay was used. */
+  readonly semanticReplay?: TutorResponseCorpusSemanticReplay;
   readonly generationSpec?: TutorGenerationSpec;
   readonly tutor: TutorEvalTutorDescriptor;
   readonly evaluation: TutorEvalRunResult;

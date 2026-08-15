@@ -269,6 +269,24 @@ evidence is preliminary LLM-as-Judge evidence, not human calibration or a
 learning-outcome measurement, and it does not make this corpus leaderboard
 eligible.
 
+The historical 23-response corpus records dataset `0.2a` and
+`language-verb-check-001@1.0.0`. To evaluate it under the post-PR #26 target
+semantics, use the explicit audited bridge:
+
+```powershell
+node dist/src/cli/tutorbench.js evaluate `
+  --corpus "artifacts/real-model/preliminary-openrouter-nemotron-baseline-001.json" `
+  --allow-compatible-replay `
+  --limit 3 `
+  --output "artifacts/real-model/nemotron-semantic-replay-003.json"
+```
+
+The bridge is documented in
+[`frozen-corpus-semantic-replay.md`](frozen-corpus-semantic-replay.md). It
+preserves source corpus identity and response IDs, evaluates the target
+`0.2a.1`/`0.3a.3` semantics, and records both identities in `semanticReplay`.
+Without the flag, the same source/target mismatch remains fail-closed.
+
 ## Dry-run and publication boundary
 
 Both commands support `--dry-run`. Product dry-run reports `generation spec =

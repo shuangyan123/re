@@ -4,6 +4,7 @@ import type {
   TutorTurnInput,
   TutorTurnOutput,
   TutorUnderTest,
+  TutorResponseReplayCaseVersionMapping,
 } from "../contracts/index.js";
 
 export class RecordedTutorResponseMissingError extends Error {
@@ -74,6 +75,47 @@ export class RecordedTutor implements TutorUnderTest {
       text: response.responseText,
       ...(response.metrics === undefined ? {} : { metrics: response.metrics }),
     };
+  }
+}
+
+/**
+ * Replays source-version responses against target-version case inputs only
+ * after the compatibility registry has validated the transition. The source
+ * corpus and its response identities remain untouched.
+ */
+export class SemanticReplayTutor implements TutorUnderTest {
+  private readonly recordedTutor: RecordedTutor;
+  private readonly mappings: ReadonlyMap<string, TutorResponseReplayCaseVersionMapping>;
+
+  constructor(
+    corpus: TutorResponseCorpus,
+    mappings: readonly TutorResponseReplayCaseVersionMapping[],
+  ) {
+    this.recordedTutor = new RecordedTutor(corpus);
+    this.mappings = new Map(mappings.map((mapping) => [mapping.caseId, mapping]));
+  }
+
+  get id(): string {
+    return `semantic-replay:${this.recordedTutor.id}`;
+  }
+
+  get descriptor(): TutorResponseCorpus["tutor"] {
+    return this.recordedTutor.descriptor;
+  }
+
+  async respond(input: TutorTurnInput): Promise<TutorTurnOutput> {
+    const caseId = input.caseId ?? input.scenarioId;
+    const mapping = this.mappings.get(caseId);
+    if (mapping === undefined) {
+      return this.recordedTutor.respond(input);
+    }
+    if (input.caseVersion !== mapping.targetVersion) {
+      throw new RecordedTutorResponseMissingError();
+    }
+    return this.recordedTutor.respond({
+      ...input,
+      caseVersion: mapping.sourceVersion,
+    });
   }
 }
 

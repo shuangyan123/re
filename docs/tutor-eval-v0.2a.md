@@ -166,6 +166,12 @@ dataset/case identity remains `tutor-eval-v0.2a@0.2a.1`; replay results also car
 the explicit evaluator semantic version so frozen response evidence is not
 silently compared across verifier revisions.
 
+Historical frozen responses whose source identity predates `0.2a.1` remain
+strictly incompatible by default. The only reviewed exception is the explicit
+`--allow-compatible-replay` bridge for the evaluator-only
+`language-verb-check-001@1.0.0 -> 1.0.1` change; see
+[`frozen-corpus-semantic-replay.md`](frozen-corpus-semantic-replay.md).
+
 ## Adding a case
 
 1. Start with one teaching objective and one learner state.

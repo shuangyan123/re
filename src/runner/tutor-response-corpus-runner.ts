@@ -9,7 +9,15 @@ import {
   type TutorResponseCorpusEvaluationSelection,
   type TutorResponseCorpusEvaluationSelectionMode,
 } from "../contracts/index.js";
-import { RecordedTutor } from "../adapters/recorded-tutor.js";
+import {
+  RecordedTutor,
+  SemanticReplayTutor,
+} from "../adapters/recorded-tutor.js";
+import {
+  resolveTutorResponseCorpusReplay,
+  toTutorResponseCorpusSemanticReplay,
+  type TutorResponseCorpusReplayPlan,
+} from "../corpus/replay.js";
 import {
   runTutorEval,
   type RunTutorEvalOptions,
@@ -28,6 +36,8 @@ export interface RunTutorResponseCorpusOptions {
   /** Optional frozen-corpus subset; selection never calls the Tutor. */
   readonly caseIds?: readonly string[];
   readonly limit?: number;
+  /** Validated source/target plan for an explicitly approved replay. */
+  readonly semanticReplay?: TutorResponseCorpusReplayPlan;
 }
 
 export interface TutorResponseCorpusSelectionOptions {
@@ -132,9 +142,16 @@ function tutorDescriptor(corpus: TutorResponseCorpus): TutorEvalTutorOptions {
 export async function runTutorResponseCorpus(
   options: RunTutorResponseCorpusOptions,
 ): Promise<TutorResponseCorpusEvaluationResult> {
+  const semanticReplay = options.semanticReplay === undefined
+    ? undefined
+    : resolveTutorResponseCorpusReplay(options.corpus, options.dataset);
+  if (options.semanticReplay !== undefined && semanticReplay === undefined) {
+    throw new BenchmarkConfigurationError("tutor_response_replay_incompatible");
+  }
+  const validationDataset = semanticReplay?.sourceDataset ?? options.dataset;
   assertValidTutorResponseCorpus({
     corpus: options.corpus,
-    dataset: options.dataset,
+    dataset: validationDataset,
     ...(options.requireFull === undefined ? {} : { requireFull: options.requireFull }),
   });
   const resolvedSelection = resolveTutorResponseCorpusSelection(
@@ -150,7 +167,9 @@ export async function runTutorResponseCorpus(
     options.corpus.responses.map((response) => response.caseId),
   ).size;
   const missingCaseCount = options.dataset.cases.length - sourceAvailableCaseCount;
-  const tutor = new RecordedTutor(options.corpus);
+  const tutor = semanticReplay === undefined
+    ? new RecordedTutor(options.corpus)
+    : new SemanticReplayTutor(options.corpus, semanticReplay.caseVersionMappings);
   const runOptions: RunTutorEvalOptions = {
     dataset: selected,
     tutor,
@@ -173,6 +192,9 @@ export async function runTutorResponseCorpus(
     availableResponseCount: options.corpus.responses.length,
     missingCaseCount,
     evaluationSelection: resolvedSelection.selection,
+    ...(semanticReplay === undefined
+      ? {}
+      : { semanticReplay: toTutorResponseCorpusSemanticReplay(semanticReplay) }),
     ...(options.corpus.generationSpec === undefined
       ? {}
       : { generationSpec: options.corpus.generationSpec }),
