@@ -35,6 +35,7 @@ import {
   type TutorEvalDifficulty,
 } from "./tutor-eval-taxonomy.js";
 import type { TutorConversationMessage } from "./tutor.js";
+import { TUTOR_EVAL_DISCLOSURE_POLICIES } from "./tutor-eval-disclosure.js";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -47,11 +48,7 @@ const categories = new Set<TutorEvalCase["evaluatorOnly"]["rubrics"][number]["ca
 ]);
 
 const disclosurePolicies = new Set<DisclosurePolicy>([
-  "no_answer",
-  "hint_only",
-  "partial_solution",
-  "full_solution_allowed",
-  "full_solution_required",
+  ...TUTOR_EVAL_DISCLOSURE_POLICIES,
 ]);
 
 const evaluatorIds = new Set<DeterministicEvaluatorId>([

@@ -18,8 +18,10 @@ The audit reviewed all 26 v0.2a deterministic rubrics, all four rubrics marked
 `critical`, the scoring and critical-failure path, and all 23 available
 responses in the local partial corpus. The corpus remains immutable and ignored.
 
-The dataset and case identity remain `tutor-eval-v0.2a@0.2a`; visible inputs,
-case versions, rubric IDs, and criterion text are unchanged. Evaluation
+The dataset and case identity for this deterministic audit are now identified
+as `tutor-eval-v0.2a@0.2a.1`; visible inputs, rubric IDs, and criterion text
+are unchanged. The language case version later changed only for the separate
+critical-failure mapping audit. Evaluation
 semantics are explicitly identified by `evaluatorVersion: 0.3a.1` in new run
 results. This lets the old evaluation artifact remain a historical pre-audit
 result while the same frozen response evidence is replayed under a named

@@ -440,7 +440,7 @@
   {
     "schemaVersion": 1,
     "id": "language-verb-check-001",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "metadata": {
       "subject": "language",
       "topic": "subject-verb agreement",
@@ -462,7 +462,7 @@
       "knownMisconception": "The student chooses the verb based on a nearby noun rather than the subject.",
       "disclosurePolicy": "full_solution_required",
       "rubrics": [
-        { "id": "language-verb-diagnosis-001", "category": "diagnosis", "criterion": "Locate the agreement mismatch between the subject and verb.", "weight": 2, "behavior": "required", "capabilityTag": "error_localization", "critical": true, "evaluationType": "judge", "criticalFailure": { "type": "incorrect_diagnosis", "severity": "major" } },
+        { "id": "language-verb-diagnosis-001", "category": "diagnosis", "criterion": "Locate the agreement mismatch between the subject and verb.", "weight": 2, "behavior": "required", "capabilityTag": "error_localization", "critical": true, "evaluationType": "judge" },
         { "id": "language-verb-solution-001", "category": "correctness", "criterion": "State the corrected agreement and explain the governing subject.", "weight": 2, "behavior": "required", "capabilityTag": "procedural_correctness", "evaluationType": "judge" },
         { "id": "language-verb-check-001", "category": "actionability", "criterion": "Ask the student to reread the corrected sentence and check the subject.", "weight": 1, "behavior": "desirable", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
       ]

@@ -49,12 +49,15 @@ The merge follows the original case rubric order, regardless of how the two
 evaluation paths complete. Deterministic evaluators are proxies; they are not
 semantic substitutes for the Judge.
 
-The current evaluator revision is recorded as evaluator version `0.3a.2` in
+The current evaluator revision is recorded as evaluator version `0.3a.3` in
 new `TutorEvalRunResult` values. The `0.3a.2` revision records the audited
-critical-failure quality-gate policy; it is separate from the dataset and case
-identity so an immutable response corpus can be replayed without rewriting its
-evidence. The full taxonomy audit is in
-[`docs/critical-failure-quality-gate-audit.md`](critical-failure-quality-gate-audit.md).
+critical-failure quality-gate policy before the disclosure/diagnosis semantic
+audit; it remains a historical evaluator identity. The `0.3a.3` revision
+records the clarified disclosure and diagnosis boundaries and is separate from
+dataset and case identity so an immutable response corpus can be replayed
+without rewriting its evidence. The full audits are in the
+[`disclosure and critical-failure semantics audit`](tutor-eval-disclosure-critical-semantics-audit.md)
+and [`critical-failure quality-gate audit`](critical-failure-quality-gate-audit.md).
 
 ## Judge input and hidden context
 
@@ -95,12 +98,13 @@ runner. The core runner never retries a Tutor response or performs an
 unbounded Judge retry.
 
 The versioned prompt asset is
-`prompts/tutor-eval-pedagogy-judge-system-v0.2.md`. The v0.1 asset remains
-unchanged for historical compatibility. v0.2 explicitly limits the Judge to
+`prompts/tutor-eval-pedagogy-judge-system-v0.3.md`. The v0.1 and v0.2 assets
+remain unchanged for historical compatibility. v0.3 explicitly limits the Judge to
 the rubrics supplied in the current request, treats evaluated content as
 untrusted data, requires atomic `PASS`/`PARTIAL`/`FAIL` results, emits only
-short observable evidence, and forbids hidden reasoning and score
-calculation.
+short observable evidence, forbids hidden reasoning and score calculation, and
+defines all five disclosure policies plus the wrong/incomplete/no-diagnosis
+critical-failure boundary.
 
 ## Result validation and failure ownership
 
@@ -158,8 +162,10 @@ the case by default.
 ## Compatibility
 
 The v0.1 seven-case dataset remains runtime-readable. The v0.2A dataset keeps
-its existing case and rubric content and now executes its mixed rubric sets
-according to `evaluationType`. The calibration identity chain is unchanged:
+its existing case and rubric IDs and now executes its mixed rubric sets
+according to `evaluationType`. The language diagnosis mapping was removed as a
+semantic correction; that case is `1.0.1` and the dataset is `0.2a.1`. The
+calibration identity chain is unchanged:
 
 ```text
 datasetId + datasetVersion + caseId + caseVersion + responseId + rubricId

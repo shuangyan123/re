@@ -121,6 +121,11 @@ breakdowns by case, rubric, category, capability tag, subject, and disclosure
 policy. Rubrics with any ambiguity or `UNSURE` are listed in descending rate
 order; the report does not invent a universal “high ambiguity” threshold.
 
+The disclosure and critical-failure semantics audit must be resolved before a
+future calibration phase adds human labels for critical-failure type, severity,
+or evidence. The current 0.2B contract remains rubric-level only and does not
+interpret exploratory Judge disagreement as human gold.
+
 Run the local pipeline with:
 
 ```bash

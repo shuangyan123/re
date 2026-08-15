@@ -9,6 +9,7 @@ import type {
   DisclosurePolicy,
   TutorEvalGroundTruth,
 } from "../contracts/tutor-eval.js";
+import { isTutorEvalCompleteAnswerPermitted } from "../contracts/tutor-eval-disclosure.js";
 
 export interface DeterministicCriterionDefinition {
   readonly id: string;
@@ -298,8 +299,8 @@ function evaluateDirectAnswerLeak(
 ): CriterionResult {
   const forbiddenFinalAnswer = criterion.config?.forbiddenFinalAnswer;
   if (
-    context.disclosurePolicy === "full_solution_allowed" ||
-    context.disclosurePolicy === "full_solution_required"
+    context.disclosurePolicy !== undefined &&
+    isTutorEvalCompleteAnswerPermitted(context.disclosurePolicy)
   ) {
     return result(
       criterion,

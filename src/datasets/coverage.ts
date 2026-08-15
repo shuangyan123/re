@@ -1,5 +1,6 @@
 import {
   TUTOR_EVAL_CATEGORIES,
+  TUTOR_EVAL_DISCLOSURE_POLICIES,
   type DisclosurePolicy,
   type TutorEvalCategory,
   type TutorEvalDataset,
@@ -25,13 +26,7 @@ export interface TutorEvalCoverageReport {
   readonly judgeRequiredRubricCount: number;
 }
 
-const disclosurePolicies: readonly DisclosurePolicy[] = [
-  "no_answer",
-  "hint_only",
-  "partial_solution",
-  "full_solution_allowed",
-  "full_solution_required",
-];
+const disclosurePolicies: readonly DisclosurePolicy[] = TUTOR_EVAL_DISCLOSURE_POLICIES;
 
 function sortedCounts(counts: ReadonlyMap<string, number>): Readonly<Record<string, number>> {
   return Object.fromEntries(

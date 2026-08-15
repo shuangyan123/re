@@ -6,14 +6,14 @@
     "notHumanCalibrationData": true
   },
   "datasetId": "tutor-eval-v0.2a",
-  "datasetVersion": "0.2a",
+  "datasetVersion": "0.2a.1",
   "adjudicatorId": "synthetic-adjudicator",
   "adjudications": [
     {
       "schemaVersion": 1,
       "adjudicationId": "adjudication-001",
       "datasetId": "tutor-eval-v0.2a",
-      "datasetVersion": "0.2a",
+      "datasetVersion": "0.2a.1",
       "caseId": "fraction-misconception-001",
       "caseVersion": "1.1.0",
       "responseId": "response-001",
@@ -28,7 +28,7 @@
       "schemaVersion": 1,
       "adjudicationId": "adjudication-002",
       "datasetId": "tutor-eval-v0.2a",
-      "datasetVersion": "0.2a",
+      "datasetVersion": "0.2a.1",
       "caseId": "fraction-misconception-001",
       "caseVersion": "1.1.0",
       "responseId": "response-001",

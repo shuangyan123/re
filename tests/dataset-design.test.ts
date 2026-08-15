@@ -54,7 +54,7 @@ test("the canonical 0.2A dataset loads through the runtime contract and covers a
     ["wrong-reasoning-answer-001", "matches_ground_truth"],
     ["full-solution-correctness-001", "contains_normalized_expression"],
   ]);
-  assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.2");
+  assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.3");
   assert.equal(report.caseCount, 24);
   assert.equal(report.rubricCount, 63);
   for (const capabilityTag of TUTOR_EVAL_CAPABILITY_TAGS) {
@@ -90,7 +90,7 @@ test("legacy v0.1 cases remain readable while the canonical loader uses 0.2A", a
   const current = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
   assert.equal(legacy.version, "0.1");
   assert.equal(legacy.cases.length, 7);
-  assert.equal(current.version, "0.2a");
+  assert.equal(current.version, "0.2a.1");
   assert.equal(current.cases.length, 24);
 });
 
@@ -262,7 +262,7 @@ test("the integrity guard rejects invalid dataset and case versions", async () =
     },
     {
       requireTaxonomyMetadata: true,
-      expectedDatasetVersion: "0.2a",
+      expectedDatasetVersion: "0.2a.1",
     },
   );
   assert.equal(

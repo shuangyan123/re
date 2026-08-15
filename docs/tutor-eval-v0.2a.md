@@ -97,8 +97,9 @@ does not override a gated critical failure, and a gated failure makes a valid
 case `failed` rather than an evaluator `error`. The disclosure policy remains
 part of the failure context: `answer_leakage` means that the evaluator found a
 disallowed disclosure, not that every complete answer is globally invalid.
-The policy audit and rationale are recorded in
-[`docs/critical-failure-quality-gate-audit.md`](critical-failure-quality-gate-audit.md).
+The policy audit and rationale are recorded in the
+[`disclosure and critical-failure semantics audit`](tutor-eval-disclosure-critical-semantics-audit.md)
+and the [`critical-failure quality-gate audit`](critical-failure-quality-gate-audit.md).
 
 For example, answer disclosure in a `hint_only` case can be one prohibited
 Guidance rubric with an `answer_leakage` critical-failure flag. Do not also
@@ -107,18 +108,24 @@ deduct the same event as separate `student_agency`, `hint_calibration`, and
 
 ## Disclosure policies
 
-Every policy has representative coverage:
+Every policy has representative coverage. The authoritative matrix is in the
+[`TutorEval disclosure and critical-failure semantics audit`](tutor-eval-disclosure-critical-semantics-audit.md)
+and the provider-independent definitions in
+`src/contracts/tutor-eval-disclosure.ts`:
 
-- `no_answer`: do not require a final answer;
-- `hint_only`: preserve the student's opportunity to finish and prohibit
-  answer leakage;
-- `partial_solution`: allow a bounded worked step;
-- `full_solution_allowed`: a requested complete answer is not leakage;
-- `full_solution_required`: withholding the requested complete solution can
-  fail the teaching task.
+- `no_answer` does not require or reward a final/task-completing answer, but it
+  still permits required concepts, definitions, distinctions, and process
+  guidance; a case without `finalAnswer` does not turn every explanation into
+  leakage;
+- `hint_only` permits scaffolding and conceptual explanation while preserving
+  the learner's opportunity to perform the material task;
+- `partial_solution` permits only a bounded worked step;
+- `full_solution_allowed` permits a complete answer without leakage; and
+- `full_solution_required` permits and requires the complete answer when a
+  rubric asks for it, with withholding treated as an ordinary rubric failure.
 
 There is no global rule that less disclosure is always better. Disclosure is
-judged against the case policy.
+judged against the case task and policy, not by lexical matching alone.
 
 ## Counterfactual pairs
 
@@ -155,7 +162,7 @@ The canonical dataset marks criteria that need semantic judgment with
 
 The deterministic ownership and proxy audit is recorded in
 [`docs/deterministic-verifier-audit.md`](deterministic-verifier-audit.md). The
-dataset/case identity remains `tutor-eval-v0.2a@0.2a`; replay results also carry
+dataset/case identity remains `tutor-eval-v0.2a@0.2a.1`; replay results also carry
 the explicit evaluator semantic version so frozen response evidence is not
 silently compared across verifier revisions.
 
