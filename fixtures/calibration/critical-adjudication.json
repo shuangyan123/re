@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "synthetic-fixture",
+  "fixture": {
+    "synthetic": true,
+    "notHumanCalibrationData": true
+  },
+  "datasetId": "tutor-eval-v0.2a",
+  "datasetVersion": "0.2a.1",
+  "adjudicatorId": "synthetic-adjudicator",
+  "adjudications": [
+    {
+      "schemaVersion": 1,
+      "adjudicationId": "critical-adjudication-001",
+      "targetId": "target-diagnosis-incorrect-diagnosis",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "language-verb-check-001",
+      "caseVersion": "1.0.1",
+      "responseId": "critical-response-diagnosis",
+      "failureType": "incorrect_diagnosis",
+      "sourceAnnotationIds": ["critical-a-003", "critical-b-003"],
+      "finalDecision": "ABSENT",
+      "rationale": "The supplied evidence does not establish a positive incorrect diagnosis; the uncertainty is not converted by majority vote.",
+      "adjudicatorId": "synthetic-adjudicator",
+      "createdAt": "2026-08-15T00:02:00.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "adjudicationId": "critical-adjudication-002",
+      "targetId": "target-fraction-guidance-task-takeover",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "critical-response-fraction",
+      "failureType": "student_task_takeover",
+      "sourceAnnotationIds": ["critical-a-004", "critical-b-004"],
+      "finalDecision": "PRESENT",
+      "finalFailureType": "student_task_takeover",
+      "finalSeverity": "major",
+      "rationale": "The response supplies enough of the assigned operation to materially reduce the intended learner action.",
+      "adjudicatorId": "synthetic-adjudicator",
+      "createdAt": "2026-08-15T00:02:01.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "adjudicationId": "critical-adjudication-003",
+      "targetId": "target-history-instruction-disagreement",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "history-source-context-001",
+      "caseVersion": "1.0.0",
+      "responseId": "critical-response-history",
+      "failureType": "instruction_violation",
+      "sourceAnnotationIds": ["critical-a-006", "critical-b-006"],
+      "finalDecision": "ABSENT",
+      "rationale": "The visible response follows the source-comparison objective, so the isolated disagreement is not a confirmed instruction violation.",
+      "adjudicatorId": "synthetic-adjudicator",
+      "createdAt": "2026-08-15T00:02:02.000Z"
+    }
+  ]
+}

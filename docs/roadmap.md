@@ -15,7 +15,7 @@
 - Repeated case runs and reserved counterfactual pair identity
 - Contract tests, Node 22 CI, and repository rules
 
-## 0.2 Rubric & Dataset Design — PARTIAL: 0.2A dataset + 0.2B calibration infrastructure
+## 0.2 Rubric & Dataset Design — PARTIAL: 0.2A dataset + 0.2B calibration infrastructure + critical-failure extension
 
 - [x] Versioned pedagogical taxonomy and structured scenario difficulty
 - [x] Curated 24-case synthetic dataset across five subjects
@@ -23,7 +23,9 @@
 - [x] Disclosure-policy coverage and counterfactual adaptation pairs
 - [x] Dataset integrity validation and deterministic coverage report
 - [x] Calibration contracts, blind packet export, agreement metrics, and adjudication boundary
+- [x] Separate human critical-failure calibration contract, target registry, agreement, adjudication, and synthetic pipeline fixtures
 - [ ] Independent human rubric review using real reviewers
+- [ ] Independent human critical-failure review using real reviewers
 - [ ] Adjudication and human reference generation using real reviewer data
 
 ## 0.3 LLM-as-Judge Calibration — PARTIAL: 0.3A hybrid + 0.3B OpenAI provider

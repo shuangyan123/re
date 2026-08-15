@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "synthetic-fixture",
+  "fixture": {
+    "synthetic": true,
+    "notHumanCalibrationData": true
+  },
+  "datasetId": "tutor-eval-v0.2a",
+  "datasetVersion": "0.2a.1",
+  "reviewerId": "reviewer-b",
+  "annotations": [
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-b-001",
+      "targetId": "target-fraction-answer-leakage",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "critical-response-leakage",
+      "failureType": "answer_leakage",
+      "reviewerId": "reviewer-b",
+      "decision": "PRESENT",
+      "severity": "major",
+      "evidence": "The response reveals the numerical result while the case asks for a hint.",
+      "createdAt": "2026-08-15T00:01:00.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-b-002",
+      "targetId": "target-fraction-leakage-task-takeover",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "critical-response-leakage",
+      "reviewerId": "reviewer-b",
+      "decision": "ABSENT",
+      "evidence": "This target does not meet the task-takeover definition in the synthetic excerpt.",
+      "createdAt": "2026-08-15T00:01:01.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-b-003",
+      "targetId": "target-diagnosis-incorrect-diagnosis",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "language-verb-check-001",
+      "caseVersion": "1.0.1",
+      "responseId": "critical-response-diagnosis",
+      "failureType": "incorrect_diagnosis",
+      "reviewerId": "reviewer-b",
+      "decision": "PRESENT",
+      "severity": "major",
+      "evidence": "The response positively diagnoses the subject-verb issue incorrectly for this synthetic target.",
+      "createdAt": "2026-08-15T00:01:02.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-b-004",
+      "targetId": "target-fraction-guidance-task-takeover",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "critical-response-fraction",
+      "failureType": "student_task_takeover",
+      "reviewerId": "reviewer-b",
+      "decision": "PRESENT",
+      "severity": "major",
+      "evidence": "The tutor materially performs the next step instead of preserving the student's work.",
+      "createdAt": "2026-08-15T00:01:03.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-b-005",
+      "targetId": "target-history-answer-absence",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "history-source-context-001",
+      "caseVersion": "1.0.0",
+      "responseId": "critical-response-history",
+      "reviewerId": "reviewer-b",
+      "decision": "ABSENT",
+      "evidence": "The response contains a comparison method, not a task-completing answer.",
+      "createdAt": "2026-08-15T00:01:04.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-b-006",
+      "targetId": "target-history-instruction-disagreement",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "history-source-context-001",
+      "caseVersion": "1.0.0",
+      "responseId": "critical-response-history",
+      "reviewerId": "reviewer-b",
+      "decision": "ABSENT",
+      "evidence": "The response follows the visible source-comparison objective.",
+      "createdAt": "2026-08-15T00:01:05.000Z"
+    }
+  ]
+}

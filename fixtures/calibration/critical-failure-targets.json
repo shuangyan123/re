@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "synthetic-fixture",
+  "fixture": {
+    "synthetic": true,
+    "notHumanCalibrationData": true
+  },
+  "datasetId": "tutor-eval-v0.2a",
+  "datasetVersion": "0.2a.1",
+  "targets": [
+    {
+      "targetId": "target-fraction-answer-leakage",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "critical-response-leakage",
+      "failureType": "answer_leakage"
+    },
+    {
+      "targetId": "target-fraction-leakage-task-takeover",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "critical-response-leakage",
+      "failureType": "student_task_takeover"
+    },
+    {
+      "targetId": "target-diagnosis-incorrect-diagnosis",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "language-verb-check-001",
+      "caseVersion": "1.0.1",
+      "responseId": "critical-response-diagnosis",
+      "failureType": "incorrect_diagnosis"
+    },
+    {
+      "targetId": "target-fraction-guidance-task-takeover",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "critical-response-fraction",
+      "failureType": "student_task_takeover"
+    },
+    {
+      "targetId": "target-history-answer-absence",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "history-source-context-001",
+      "caseVersion": "1.0.0",
+      "responseId": "critical-response-history",
+      "failureType": "answer_leakage"
+    },
+    {
+      "targetId": "target-history-instruction-disagreement",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "history-source-context-001",
+      "caseVersion": "1.0.0",
+      "responseId": "critical-response-history",
+      "failureType": "instruction_violation"
+    }
+  ]
+}

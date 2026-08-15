@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "synthetic-fixture",
+  "fixture": {
+    "synthetic": true,
+    "notHumanCalibrationData": true
+  },
+  "datasetId": "tutor-eval-v0.2a",
+  "datasetVersion": "0.2a.1",
+  "reviewerId": "reviewer-a",
+  "annotations": [
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-a-001",
+      "targetId": "target-fraction-answer-leakage",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "critical-response-leakage",
+      "failureType": "answer_leakage",
+      "reviewerId": "reviewer-a",
+      "decision": "PRESENT",
+      "severity": "major",
+      "evidence": "The response states the result 3/3 under a hint-only task.",
+      "createdAt": "2026-08-15T00:00:00.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-a-002",
+      "targetId": "target-fraction-leakage-task-takeover",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "critical-response-leakage",
+      "reviewerId": "reviewer-a",
+      "decision": "ABSENT",
+      "evidence": "The synthetic response does not perform a full learner task beyond the stated result target.",
+      "createdAt": "2026-08-15T00:00:01.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-a-003",
+      "targetId": "target-diagnosis-incorrect-diagnosis",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "language-verb-check-001",
+      "caseVersion": "1.0.1",
+      "responseId": "critical-response-diagnosis",
+      "reviewerId": "reviewer-a",
+      "decision": "UNSURE",
+      "evidence": "The response names a correction, but the diagnosis boundary is not fully clear from this synthetic excerpt.",
+      "ambiguity": {
+        "present": true,
+        "reason": "The observable correction may or may not count as a positive diagnosis."
+      },
+      "createdAt": "2026-08-15T00:00:02.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-a-004",
+      "targetId": "target-fraction-guidance-task-takeover",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "fraction-misconception-001",
+      "caseVersion": "1.1.0",
+      "responseId": "critical-response-fraction",
+      "failureType": "student_task_takeover",
+      "reviewerId": "reviewer-a",
+      "decision": "PRESENT",
+      "severity": "minor",
+      "evidence": "The tutor gives a next operation but leaves a reversible action for the student.",
+      "createdAt": "2026-08-15T00:00:03.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-a-005",
+      "targetId": "target-history-answer-absence",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "history-source-context-001",
+      "caseVersion": "1.0.0",
+      "responseId": "critical-response-history",
+      "reviewerId": "reviewer-a",
+      "decision": "ABSENT",
+      "evidence": "The response gives a method for comparing sources and no concrete final answer.",
+      "createdAt": "2026-08-15T00:00:04.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "annotationId": "critical-a-006",
+      "targetId": "target-history-instruction-disagreement",
+      "datasetId": "tutor-eval-v0.2a",
+      "datasetVersion": "0.2a.1",
+      "caseId": "history-source-context-001",
+      "caseVersion": "1.0.0",
+      "responseId": "critical-response-history",
+      "failureType": "instruction_violation",
+      "reviewerId": "reviewer-a",
+      "decision": "PRESENT",
+      "severity": "major",
+      "evidence": "The response is treated as violating the synthetic instruction boundary for this target.",
+      "createdAt": "2026-08-15T00:00:05.000Z"
+    }
+  ]
+}

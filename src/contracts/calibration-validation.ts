@@ -8,6 +8,7 @@ import {
   type CalibrationCandidateDataKind,
   type CalibrationCandidateResponse,
   type CalibrationCandidateResponseFile,
+  type CalibrationSemanticReplayProvenance,
   type CalibrationSourceCorpus,
   type CalibrationLabel,
   type CalibrationReferenceSet,
@@ -189,6 +190,50 @@ function parseSourceRun(
   return { runId: record.runId, runIndex: record.runIndex };
 }
 
+function parseSemanticReplay(
+  value: unknown,
+): CalibrationSemanticReplayProvenance | null {
+  const record = asRecord(value);
+  const mappings = Array.isArray(record?.caseVersionMappings)
+    ? record.caseVersionMappings.map((mapping) => {
+        const mappingRecord = asRecord(mapping);
+        return mappingRecord === null ||
+          !identifier(mappingRecord.caseId) ||
+          !identifier(mappingRecord.sourceVersion) ||
+          !identifier(mappingRecord.targetVersion)
+          ? null
+          : {
+              caseId: mappingRecord.caseId,
+              sourceVersion: mappingRecord.sourceVersion,
+              targetVersion: mappingRecord.targetVersion,
+            };
+      })
+    : null;
+  if (
+    record === null ||
+    !identifier(record.compatibilityId) ||
+    !identifier(record.sourceDatasetId) ||
+    !identifier(record.sourceDatasetVersion) ||
+    !identifier(record.targetDatasetId) ||
+    !identifier(record.targetDatasetVersion) ||
+    mappings === null ||
+    mappings.some((mapping) => mapping === null) ||
+    mappings.length === 0 ||
+    new Set(mappings.map((mapping) => mapping?.caseId)).size !== mappings.length ||
+    mappings.some((mapping) => mapping?.sourceVersion === mapping?.targetVersion)
+  ) {
+    return null;
+  }
+  return {
+    compatibilityId: record.compatibilityId,
+    sourceDatasetId: record.sourceDatasetId,
+    sourceDatasetVersion: record.sourceDatasetVersion,
+    targetDatasetId: record.targetDatasetId,
+    targetDatasetVersion: record.targetDatasetVersion,
+    caseVersionMappings: mappings as CalibrationSemanticReplayProvenance["caseVersionMappings"],
+  };
+}
+
 function parseCandidateResponseValue(
   value: unknown,
 ): CalibrationCandidateResponse | null {
@@ -217,7 +262,16 @@ function parseCandidateResponseValue(
     record.sourceCorpus === undefined
       ? undefined
       : parseSourceCorpus(record.sourceCorpus);
-  if (tutorDescriptor === null || sourceRun === null || sourceCorpus === null) {
+  const semanticReplay =
+    record.semanticReplay === undefined
+      ? undefined
+      : parseSemanticReplay(record.semanticReplay);
+  if (
+    tutorDescriptor === null ||
+    sourceRun === null ||
+    sourceCorpus === null ||
+    semanticReplay === null
+  ) {
     return null;
   }
 
@@ -231,6 +285,7 @@ function parseCandidateResponseValue(
     ...(tutorDescriptor === undefined ? {} : { tutorDescriptor }),
     ...(sourceRun === undefined ? {} : { sourceRun }),
     ...(sourceCorpus === undefined ? {} : { sourceCorpus }),
+    ...(semanticReplay === undefined ? {} : { semanticReplay }),
     responseText: record.responseText,
     provenance: record.provenance as CalibrationCandidateResponse["provenance"],
   };
@@ -279,6 +334,12 @@ export function parseCalibrationCandidateResponseFile(
       (response) =>
         response.datasetId !== record.datasetId ||
         response.datasetVersion !== record.datasetVersion,
+    ) ||
+    (responses as CalibrationCandidateResponse[]).some(
+      (response) =>
+        response.semanticReplay !== undefined &&
+        (response.semanticReplay.targetDatasetId !== record.datasetId ||
+          response.semanticReplay.targetDatasetVersion !== record.datasetVersion),
     ) ||
     (dataKind === "synthetic-fixture" && fixture === undefined) ||
     fixture === null ||
