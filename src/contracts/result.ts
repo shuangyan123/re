@@ -119,6 +119,10 @@ export interface TutorEvalJudgeDescriptor {
   readonly thinkingMode?: "enabled" | "disabled";
   /** Optional extension; populated when the provider request has an output cap. */
   readonly maxOutputTokens?: number;
+  /** Optional effective provider execution timeout, in milliseconds. */
+  readonly timeoutMs?: number;
+  /** Optional effective provider transport attempt limit. */
+  readonly maxAttempts?: number;
   readonly seed?: number;
 }
 

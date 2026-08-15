@@ -137,6 +137,14 @@ function isJudgeDescriptor(value: unknown): boolean {
       (typeof record.maxOutputTokens === "number" &&
         Number.isInteger(record.maxOutputTokens) &&
         record.maxOutputTokens >= 1)) &&
+    (record.timeoutMs === undefined ||
+      (typeof record.timeoutMs === "number" &&
+        Number.isInteger(record.timeoutMs) &&
+        record.timeoutMs >= 1)) &&
+    (record.maxAttempts === undefined ||
+      (typeof record.maxAttempts === "number" &&
+        Number.isInteger(record.maxAttempts) &&
+        record.maxAttempts >= 1)) &&
     (record.reasoningEffort === undefined ||
       (typeof record.reasoningEffort === "string" &&
         record.reasoningEffort.trim().length > 0))

@@ -86,10 +86,13 @@ interface TutorEvalJudge {
 
 The runner validates the returned value before it becomes a core result. The
 Judge descriptor remains metadata only (`provider`, `model`, model version,
-prompt ID/version, temperature, and seed); it does not execute a model.
-Provider transport, provider-specific retries, and response sanitization stay
-outside this core runner. The core runner never retries a Tutor response or
-performs an unbounded Judge retry.
+prompt ID/version, temperature, and seed); it does not execute a model. A
+provider execution may also record optional effective `timeoutMs` and
+`maxAttempts` values. Those configured values are distinct from per-call
+`judgeMetrics.latencyMs` and `attempts` observations. Provider transport,
+provider-specific retries, and response sanitization stay outside this core
+runner. The core runner never retries a Tutor response or performs an
+unbounded Judge retry.
 
 The versioned prompt asset is
 `prompts/tutor-eval-pedagogy-judge-system-v0.2.md`. The v0.1 asset remains

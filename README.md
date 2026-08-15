@@ -269,6 +269,24 @@ variable, and omit reasoning effort when it is not explicitly configured.
 Provider `reasoning_content` is private execution data, not benchmark
 evidence, and is never persisted, logged, or included in metrics.
 
+The DeepSeek execution profile uses a repository-owned
+`DEEPSEEK_JUDGE_TIMEOUT_MS` default of `60000` milliseconds and keeps
+`DEEPSEEK_JUDGE_MAX_ATTEMPTS` at its existing default of `2` (with the
+existing maximum of `3`). Both values can be overridden through the
+environment. The effective `timeoutMs` and `maxAttempts` are recorded in
+Judge provenance, separately from each call's observed
+`judgeMetrics.latencyMs` and `attempts`; a timeout remains a `judge_timeout`
+error and is never retried. Transient HTTP retry behavior is unchanged.
+
+This profile follows repository evidence from a 23-case DeepSeek Judge run
+that had 14 passes, 7 failures, and 2 `judge_timeout` errors at about 30
+seconds. Replaying those same two frozen responses with a 60000ms timeout
+produced 0 errors, 2 failures, and 34084ms observed Judge latency. That
+diagnostic supports the default but does not guarantee that every future
+request will finish within it. The evaluator version remains `0.3a.2`
+because this changes execution configuration, not successful Judge scoring
+semantics.
+
 ```powershell
 node dist/src/cli/tutorbench.js evaluate `
   --corpus "artifacts/real-model/preliminary-openrouter-nemotron-baseline-001.json" `

@@ -182,7 +182,7 @@ the local process environment:
 ```powershell
 $env:DEEPSEEK_API_KEY = "<local secret>"
 $env:DEEPSEEK_JUDGE_MODEL = "<exact provider-accepted model id>"
-$env:DEEPSEEK_JUDGE_TIMEOUT_MS = "30000"
+$env:DEEPSEEK_JUDGE_TIMEOUT_MS = "60000"
 $env:DEEPSEEK_JUDGE_MAX_ATTEMPTS = "2"
 # Optional generation controls:
 # $env:DEEPSEEK_JUDGE_THINKING = "enabled" # enabled (default) or disabled
@@ -195,13 +195,27 @@ $env:DEEPSEEK_JUDGE_MAX_ATTEMPTS = "2"
 
 The DeepSeek V4 Judge profile is explicit and repository-owned: thinking is
 `enabled`, reasoning effort is `high`, the maximum output is `4096` tokens,
-JSON mode is `json_object`, and streaming is disabled. These resolved values
-are recorded in Judge provenance. Thinking-enabled runs reject temperature;
-thinking-disabled runs omit reasoning effort unless it was explicitly
-configured. Provider `reasoning_content` is private execution data and is not
-benchmark evidence: it is not persisted, logged, placed in diagnostics or
-metrics, or copied into artifacts. DeepSeek JSON mode requests an object but
-is not OpenAI strict JSON Schema Structured Outputs.
+JSON mode is `json_object`, streaming is disabled, the execution timeout is
+`60000` milliseconds, and the transport attempt limit is `2`. The timeout and
+attempt values are environment overrides, with positive-integer timeout
+validation and the existing `1..3` attempt validation. These effective values
+are recorded in Judge provenance as `timeoutMs` and `maxAttempts`, separately
+from each call's observed `judgeMetrics.latencyMs` and `attempts`.
+
+Timeouts remain `judge_timeout` errors with a null score and no timeout retry.
+Transient HTTP retry behavior is unchanged. Thinking-enabled runs reject
+temperature; thinking-disabled runs omit reasoning effort unless it was
+explicitly configured. Provider `reasoning_content` is private execution data
+and is not benchmark evidence: it is not persisted, logged, placed in
+diagnostics or metrics, or copied into artifacts. DeepSeek JSON mode requests
+an object but is not OpenAI strict JSON Schema Structured Outputs.
+
+The 60000ms default is evidence-based, not a completion guarantee. In a
+previous 23-case run, 2 cases timed out at about 30 seconds; replaying those
+same two frozen responses with a 60000ms timeout produced 0 errors, 2 failures,
+and 34084ms observed Judge latency. The evaluator version remains `0.3a.2`;
+the profile changes execution configuration without changing scoring
+semantics.
 
 After building, run a one-case Judge smoke over the existing ignored corpus:
 

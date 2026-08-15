@@ -11,11 +11,18 @@ import {
 } from "../src/contracts/index.js";
 import { runTutorEval } from "../src/runner/index.js";
 import {
+  createChatCompletionsJudge,
+  DEFAULT_CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS,
+  DEFAULT_CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS,
+} from "../src/providers/chat-completions/index.js";
+import {
   buildDeepSeekJudgeRequest,
   createDeepSeekJudge,
   DEEPSEEK_JUDGE_BASE_URL,
+  DEFAULT_DEEPSEEK_JUDGE_MAX_ATTEMPTS,
   DEFAULT_DEEPSEEK_JUDGE_MAX_TOKENS,
   DEFAULT_DEEPSEEK_JUDGE_REASONING_EFFORT,
+  DEFAULT_DEEPSEEK_JUDGE_TIMEOUT_MS,
   DEFAULT_DEEPSEEK_JUDGE_THINKING,
   DeepSeekJudgeConfigurationError,
   readDeepSeekJudgeEnvironment,
@@ -124,8 +131,8 @@ test("DeepSeek environment requires explicit model identity and sanitizes config
   const environment = readDeepSeekJudgeEnvironment({});
   assert.equal(environment.model, null);
   assert.equal(environment.apiKeyConfigured, false);
-  assert.equal(environment.timeoutMs, 30_000);
-  assert.equal(environment.maxAttempts, 2);
+  assert.equal(environment.timeoutMs, DEFAULT_DEEPSEEK_JUDGE_TIMEOUT_MS);
+  assert.equal(environment.maxAttempts, DEFAULT_DEEPSEEK_JUDGE_MAX_ATTEMPTS);
   assert.equal(environment.thinkingMode, DEFAULT_DEEPSEEK_JUDGE_THINKING);
   assert.equal(environment.reasoningEffort, DEFAULT_DEEPSEEK_JUDGE_REASONING_EFFORT);
   assert.equal(environment.maxOutputTokens, DEFAULT_DEEPSEEK_JUDGE_MAX_TOKENS);
@@ -146,6 +153,38 @@ test("DeepSeek environment requires explicit model identity and sanitizes config
     (error: unknown) =>
       error instanceof DeepSeekJudgeConfigurationError && error.code === "model_not_pinned",
   );
+});
+
+test("DeepSeek execution profile records effective environment overrides", () => {
+  const environment = readDeepSeekJudgeEnvironment({
+    DEEPSEEK_JUDGE_TIMEOUT_MS: "90000",
+    DEEPSEEK_JUDGE_MAX_ATTEMPTS: "3",
+  });
+  assert.equal(environment.timeoutMs, 90_000);
+  assert.equal(environment.maxAttempts, 3);
+
+  const judge = createDeepSeekJudge({
+    ...promptOptions,
+    apiKey: "test-key",
+    environment: {
+      DEEPSEEK_JUDGE_TIMEOUT_MS: "90000",
+      DEEPSEEK_JUDGE_MAX_ATTEMPTS: "3",
+    },
+  });
+  assert.equal(judge.descriptor.timeoutMs, 90_000);
+  assert.equal(judge.descriptor.maxAttempts, 3);
+});
+
+test("generic Chat Completions retains its 30-second default profile", () => {
+  const judge = createChatCompletionsJudge({
+    ...promptOptions,
+    provider: "generic-test-provider",
+    baseUrl: "https://example.test",
+    apiKey: "test-key",
+  });
+  assert.equal(DEFAULT_CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS, 30_000);
+  assert.equal(judge.descriptor.timeoutMs, DEFAULT_CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS);
+  assert.equal(judge.descriptor.maxAttempts, DEFAULT_CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS);
 });
 
 test("DeepSeek generation environment is strict and fail-closed", () => {
@@ -185,6 +224,14 @@ test("DeepSeek generation environment is strict and fail-closed", () => {
     (error: unknown) =>
       error instanceof DeepSeekJudgeConfigurationError && error.code === "temperature_invalid",
   );
+
+  for (const value of ["0", "-1", "1.5", "NaN", ""]) {
+    assert.throws(
+      () => readDeepSeekJudgeEnvironment({ DEEPSEEK_JUDGE_TIMEOUT_MS: value }),
+      (error: unknown) =>
+        error instanceof DeepSeekJudgeConfigurationError && error.code === "timeout_invalid",
+    );
+  }
 
   for (const value of ["0", "-1", "1.5", "NaN", ""]) {
     assert.throws(
@@ -237,6 +284,8 @@ test("DeepSeek builds a provider-correct Chat Completions JSON-mode request", as
     thinkingMode: "enabled",
     reasoningEffort: "high",
     maxOutputTokens: 4096,
+    timeoutMs: DEFAULT_DEEPSEEK_JUDGE_TIMEOUT_MS,
+    maxAttempts: DEFAULT_DEEPSEEK_JUDGE_MAX_ATTEMPTS,
   });
   const messages = request.messages as readonly Record<string, unknown>[];
   assert.equal(messages[0]?.role, "system");
@@ -255,6 +304,8 @@ test("DeepSeek builds a provider-correct Chat Completions JSON-mode request", as
     totalTokens: 18,
   });
   assert.equal(evaluation.metrics?.attempts, 1);
+  assert.ok(evaluation.metrics);
+  assert.ok(evaluation.metrics.latencyMs < judge.descriptor.timeoutMs!);
   assert.doesNotMatch(
     JSON.stringify(evaluation),
     /deepseek-secret|rawProviderPayload|provider-response-secret|provider-private-reasoning/,
@@ -291,6 +342,8 @@ test("DeepSeek disabled thinking omits reasoning effort and allows effective tem
     thinkingMode: "disabled",
     maxOutputTokens: 4096,
     temperature: 0.25,
+    timeoutMs: DEFAULT_DEEPSEEK_JUDGE_TIMEOUT_MS,
+    maxAttempts: DEFAULT_DEEPSEEK_JUDGE_MAX_ATTEMPTS,
   });
 });
 
@@ -482,6 +535,8 @@ test("DeepSeek reasoning_content is ignored by Judge and run-result serializatio
   });
 
   assert.equal(result.caseResults[0]?.status, "passed");
+  assert.equal(result.judge?.timeoutMs, DEFAULT_DEEPSEEK_JUDGE_TIMEOUT_MS);
+  assert.equal(result.judge?.maxAttempts, DEFAULT_DEEPSEEK_JUDGE_MAX_ATTEMPTS);
   assert.doesNotThrow(() => assertValidTutorEvalRunResult(result));
   assert.doesNotMatch(
     JSON.stringify(result),
@@ -495,6 +550,18 @@ test("DeepSeek reasoning_content is ignored by Judge and run-result serializatio
   };
   assert.doesNotThrow(() =>
     assertValidTutorEvalRunResult({ ...result, judge: legacyDescriptor }),
+  );
+  assert.throws(() =>
+    assertValidTutorEvalRunResult({
+      ...result,
+      judge: { ...legacyDescriptor, timeoutMs: 0 },
+    }),
+  );
+  assert.throws(() =>
+    assertValidTutorEvalRunResult({
+      ...result,
+      judge: { ...legacyDescriptor, maxAttempts: 0 },
+    }),
   );
 });
 

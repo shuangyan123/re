@@ -122,6 +122,8 @@ function asJudgeDescriptor(
     ...(judge.maxOutputTokens === undefined
       ? {}
       : { maxOutputTokens: judge.maxOutputTokens }),
+    ...(judge.timeoutMs === undefined ? {} : { timeoutMs: judge.timeoutMs }),
+    ...(judge.maxAttempts === undefined ? {} : { maxAttempts: judge.maxAttempts }),
     ...(judge.seed === undefined ? {} : { seed: judge.seed }),
   };
 }
@@ -160,6 +162,16 @@ function assertDescriptor(
       (typeof descriptor.maxOutputTokens !== "number" ||
         !Number.isInteger(descriptor.maxOutputTokens) ||
         descriptor.maxOutputTokens < 1)) ||
+    ("timeoutMs" in descriptor &&
+      descriptor.timeoutMs !== undefined &&
+      (typeof descriptor.timeoutMs !== "number" ||
+        !Number.isInteger(descriptor.timeoutMs) ||
+        descriptor.timeoutMs < 1)) ||
+    ("maxAttempts" in descriptor &&
+      descriptor.maxAttempts !== undefined &&
+      (typeof descriptor.maxAttempts !== "number" ||
+        !Number.isInteger(descriptor.maxAttempts) ||
+        descriptor.maxAttempts < 1)) ||
     (descriptor.seed !== undefined &&
       (typeof descriptor.seed !== "number" ||
         !Number.isInteger(descriptor.seed)))
