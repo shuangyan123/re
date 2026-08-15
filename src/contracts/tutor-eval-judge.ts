@@ -28,6 +28,8 @@ export const TUTOR_EVAL_JUDGE_FAILURE_MESSAGES: Readonly<
   judge_unavailable:
     "This case contains Judge rubrics, but no Judge executor was configured.",
   judge_result_invalid: "Judge output failed schema or contract validation.",
+  judge_output_truncated:
+    "Provider completion was truncated by its output-length limit before a complete Judge result was returned.",
   judge_timeout: "Judge execution timed out before a valid result was returned.",
   judge_transport_error: "Judge execution failed before a valid result was returned.",
   judge_rubric_missing: "Judge output omitted one or more requested Judge rubrics.",
@@ -82,6 +84,7 @@ export interface TutorEvalJudgeEvaluation {
 export type TutorEvalJudgeFailureCode =
   | "judge_unavailable"
   | "judge_result_invalid"
+  | "judge_output_truncated"
   | "judge_timeout"
   | "judge_transport_error"
   | "judge_rubric_missing"

@@ -298,12 +298,22 @@ function buildMetrics(
 }
 
 function extractResponseContent(value: unknown): {
-  readonly content: string;
+  readonly content: string | null;
+  readonly finishReason: unknown;
   readonly tokenUsage: TutorEvalTokenUsage | null;
 } {
   const record = asRecord(value);
   const choices = record?.choices;
   const firstChoice = Array.isArray(choices) ? asRecord(choices[0]) : null;
+  const tokenUsage = sanitizeUsage(record?.usage);
+  const finishReason = firstChoice?.finish_reason;
+  if (finishReason === "length") {
+    return {
+      content: null,
+      finishReason,
+      tokenUsage,
+    };
+  }
   const message = asRecord(firstChoice?.message);
   if (typeof message?.content !== "string" || message.content.trim().length === 0) {
     throw new Error("missing_chat_completion_content");
@@ -311,7 +321,8 @@ function extractResponseContent(value: unknown): {
   // 只读取最终 content；provider 的 reasoning_content 不属于 benchmark evidence。
   return {
     content: message.content,
-    tokenUsage: sanitizeUsage(record?.usage),
+    finishReason,
+    tokenUsage,
   };
 }
 
@@ -456,7 +467,11 @@ export function createChatCompletionsJudge(
             buildMetrics(startedAt, attempts),
           );
         }
-        let extracted: { readonly content: string; readonly tokenUsage: TutorEvalTokenUsage | null };
+        let extracted: {
+          readonly content: string | null;
+          readonly finishReason: unknown;
+          readonly tokenUsage: TutorEvalTokenUsage | null;
+        };
         try {
           extracted = extractResponseContent(body);
         } catch {
@@ -472,6 +487,12 @@ export function createChatCompletionsJudge(
           );
         }
         const metrics = buildMetrics(startedAt, attempts, extracted.tokenUsage);
+        if (extracted.finishReason === "length") {
+          throw new TutorEvalJudgeExecutionError("judge_output_truncated", metrics);
+        }
+        if (extracted.content === null) {
+          throw new TutorEvalJudgeExecutionError("judge_result_invalid", metrics);
+        }
         return {
           result: parseProviderResult(extracted.content, metrics),
           metrics,

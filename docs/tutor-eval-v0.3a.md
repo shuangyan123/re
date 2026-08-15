@@ -118,6 +118,7 @@ timeouts, and transport failures:
 ```text
 judge_unavailable
 judge_result_invalid
+judge_output_truncated
 judge_timeout
 judge_transport_error
 judge_rubric_missing
@@ -132,6 +133,14 @@ silently converted to `FAIL`. The case status is `error` and its
 score until every requested rubric has a valid result. A run containing an
 evaluation-error case also reports a null run-level score and category scores,
 while preserving the complete case-level evidence.
+
+For the Chat Completions transport, an explicit provider
+`finish_reason = "length"` is a separate `judge_output_truncated` execution
+failure. The partial message content is not parsed or treated as Judge
+evidence, even if it happens to be JSON-parseable. Sanitized metrics already
+available from that response remain attached to the execution error. Other
+finish reasons retain the existing content/parser behavior unless the
+provider response is otherwise invalid.
 
 When all rubric results are valid, deterministic and Judge critical failures
 are merged and deduplicated by failure type. A deterministic answer-leakage

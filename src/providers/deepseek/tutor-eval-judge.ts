@@ -19,7 +19,7 @@ export const DEFAULT_DEEPSEEK_JUDGE_MAX_ATTEMPTS = DEFAULT_CHAT_COMPLETIONS_JUDG
 export const MAX_DEEPSEEK_JUDGE_ATTEMPTS = MAX_CHAT_COMPLETIONS_JUDGE_ATTEMPTS;
 export const DEFAULT_DEEPSEEK_JUDGE_THINKING = "enabled" as const;
 export const DEFAULT_DEEPSEEK_JUDGE_REASONING_EFFORT = "high" as const;
-export const DEFAULT_DEEPSEEK_JUDGE_MAX_TOKENS = 4096 as const;
+export const DEFAULT_DEEPSEEK_JUDGE_MAX_TOKENS = 8192 as const;
 
 export type DeepSeekJudgeThinkingMode = "enabled" | "disabled";
 export type DeepSeekJudgeReasoningEffort = "high" | "max";
