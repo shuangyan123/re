@@ -2,7 +2,10 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { TUTOR_EVAL_DATASET_ID } from "../contracts/index.js";
+import {
+  TUTOR_EVAL_DATASET_ID,
+  TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
+} from "../contracts/index.js";
 import {
   buildPublicBenchmarkArtifacts,
   loadTutorEvalDataset,
@@ -12,6 +15,12 @@ import {
   parseTutorEvaluationAuditArtifact,
   type TutorEvaluationAuditArtifact,
 } from "../reporting/index.js";
+import {
+  createReviewTranslationLookup,
+  parseReviewTranslationArtifact,
+  type ReviewTranslationArtifact,
+  type ReviewTranslationLookup,
+} from "../review-translation/index.js";
 import { renderPage, type SitePage } from "../site/html.js";
 import { resolveSiteLocale, type SiteLocale } from "../site/i18n.js";
 import {
@@ -44,6 +53,12 @@ const websiteRoot = resolve(process.cwd(), "website");
 const defaultOutputDirectory = resolve(websiteRoot, "dist");
 const privateOutputDirectory = resolve(websiteRoot, "private-dist");
 
+function requestedDatasetVersion(datasetId: string, datasetVersion: string): string | undefined {
+  return datasetId === TUTOR_EVAL_DATASET_ID && datasetVersion === "0.2a"
+    ? TUTOR_EVAL_PREVIOUS_DATASET_VERSION
+    : datasetVersion;
+}
+
 function isWithinDirectory(candidate: string, directory: string): boolean {
   const resolvedCandidate = resolve(candidate);
   return resolvedCandidate === directory || resolvedCandidate.startsWith(`${directory}${process.platform === "win32" ? "\\" : "/"}`);
@@ -56,6 +71,8 @@ export interface BuildOptions {
   readonly locale?: SiteLocale;
   /** Explicit local-only input; never loaded by the default public build. */
   readonly evaluationPath?: string;
+  /** Optional local-only review translation sidecar for the private audit build. */
+  readonly reviewTranslationPath?: string;
 }
 
 interface RoutePage {
@@ -102,12 +119,16 @@ interface LocalAuditBuildData {
   readonly artifact: TutorEvaluationAuditArtifact;
   readonly dataset: Awaited<ReturnType<typeof loadTutorEvalDataset>>;
   readonly locale: SiteLocale;
+  readonly reviewTranslation?: ReviewTranslationArtifact;
 }
 
 function routePages(
   artifacts: PublicBenchmarkArtifacts,
   audit: LocalAuditBuildData | undefined,
 ): readonly RoutePage[] {
+  const reviewTranslationLookup: ReviewTranslationLookup | undefined = audit === undefined
+    ? undefined
+    : createReviewTranslationLookup(audit.artifact.evaluation, audit.reviewTranslation);
   const pages: RoutePage[] = [
     { outputRoute: "/", page: renderHomePage(artifacts) },
     { outputRoute: "/leaderboard/", page: renderLeaderboardPage(artifacts) },
@@ -137,6 +158,7 @@ function routePages(
         artifact: audit.artifact,
         dataset: audit.dataset,
         locale: audit.locale,
+        ...(reviewTranslationLookup === undefined ? {} : { reviewTranslation: reviewTranslationLookup }),
       }),
     });
     for (const caseResult of audit.artifact.evaluation.caseResults) {
@@ -152,6 +174,7 @@ function routePages(
           caseId: caseResult.caseId,
           runIndex: caseResult.runIndex,
           locale: audit.locale,
+          ...(reviewTranslationLookup === undefined ? {} : { reviewTranslation: reviewTranslationLookup }),
         }),
       });
     }
@@ -173,10 +196,29 @@ export async function buildWebsite(options: BuildOptions = {}): Promise<number> 
       await readFile(options.evaluationPath, "utf8"),
     ) as unknown;
     const artifact = parseTutorEvaluationAuditArtifact(evaluationValue);
+    let reviewTranslation: ReviewTranslationArtifact | undefined;
+    if (options.reviewTranslationPath !== undefined) {
+      try {
+        reviewTranslation = parseReviewTranslationArtifact(
+          JSON.parse(await readFile(options.reviewTranslationPath, "utf8")) as unknown,
+        );
+      } catch {
+        // Review translation is optional review evidence; invalid or missing
+        // sidecars must leave the original audit artifact fully readable.
+        reviewTranslation = undefined;
+      }
+    }
     audit = {
       artifact,
-      dataset: await loadTutorEvalDataset(artifact.evaluation.datasetId),
+      dataset: await loadTutorEvalDataset(
+        artifact.evaluation.datasetId,
+        requestedDatasetVersion(
+          artifact.evaluation.datasetId,
+          artifact.evaluation.datasetVersion,
+        ),
+      ),
       locale,
+      ...(reviewTranslation === undefined ? {} : { reviewTranslation }),
     };
   }
   const stylesheet = await readFile(join(websiteRoot, "src", "styles.css"), "utf8");
@@ -242,6 +284,19 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   ) {
     throw new Error("Evaluation artifact path is required after --evaluation.");
   }
+  const reviewTranslationArgumentIndex = args.indexOf("--review-translation");
+  const reviewTranslationArgument = reviewTranslationArgumentIndex === -1
+    ? undefined
+    : args[reviewTranslationArgumentIndex + 1];
+  if (
+    reviewTranslationArgumentIndex !== -1 &&
+    (reviewTranslationArgument === undefined || reviewTranslationArgument.startsWith("--"))
+  ) {
+    throw new Error("Review translation sidecar path is required after --review-translation.");
+  }
+  if (reviewTranslationArgument !== undefined && evaluationArgument === undefined) {
+    throw new Error("--review-translation requires --evaluation.");
+  }
   const localeArgumentIndex = args.indexOf("--locale");
   const localeArgument = localeArgumentIndex === -1
     ? undefined
@@ -273,6 +328,9 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     ...(evaluationArgument === undefined
       ? {}
       : { evaluationPath: resolve(process.cwd(), evaluationArgument) }),
+    ...(reviewTranslationArgument === undefined
+      ? {}
+      : { reviewTranslationPath: resolve(process.cwd(), reviewTranslationArgument) }),
     ...(siteUrl === undefined ? {} : { siteUrl }),
     ...(basePath === undefined ? {} : { basePath }),
   });

@@ -76,6 +76,23 @@ test("tutorbench parser supports the small run option set", () => {
     timeoutMs: 5000,
     outputPath: resolve(process.cwd(), "artifacts/result.json"),
   });
+  const reviewTranslate = parseTutorbenchArgs([
+    "review-translate",
+    "--evaluation",
+    "artifacts/evaluation.json",
+    "--target-locale",
+    "zh-CN",
+    "--output",
+    "artifacts/review.zh-CN.json",
+    "--translation",
+    "artifacts/review.previous.json",
+  ]);
+  assert.equal(reviewTranslate.help, false);
+  if (!reviewTranslate.help && "reviewTranslate" in reviewTranslate) {
+    assert.equal(reviewTranslate.reviewTranslate.targetLocale, "zh-CN");
+    assert.equal(reviewTranslate.reviewTranslate.outputPath, resolve(process.cwd(), "artifacts/review.zh-CN.json"));
+    assert.equal(reviewTranslate.reviewTranslate.existingTranslationPath, resolve(process.cwd(), "artifacts/review.previous.json"));
+  }
   assert.deepEqual(parseTutorbenchArgs(["--help"]), { help: true });
   assert.throws(
     () => parseTutorbenchArgs(["unknown"]),
@@ -241,6 +258,7 @@ test("tutorbench executable supports help and rejects invalid commands", async (
   assert.equal(help.exitCode, 0);
   assert.match(help.stdout, /tutorbench run --http <url>/);
   assert.match(help.stdout, /tutorbench collect-model --http <url>/);
+  assert.match(help.stdout, /tutorbench review-translate --evaluation <path>/);
 
   const invalid = await runCli(["unknown"]);
   assert.equal(invalid.exitCode, 1);

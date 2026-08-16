@@ -677,6 +677,42 @@ p {
   text-transform: uppercase;
 }
 
+.review-translation-banner {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.review-translation {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-muted);
+}
+
+.review-translation .quote-label {
+  margin-top: 0;
+}
+
+.review-translation-text {
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.review-translation-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.review-translation-missing {
+  border-left-color: var(--line-strong);
+}
+
 blockquote {
   margin: 0 0 24px;
   color: var(--ink);

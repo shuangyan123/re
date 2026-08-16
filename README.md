@@ -138,6 +138,34 @@ endpoints without embedded credentials, and performs no automatic retry.
 unresolved when no Judge is configured; the HTTP command never requires or
 reads `OPENAI_API_KEY`.
 
+## Human review translation
+
+The private/local Audit path also supports an optional Chinese review
+translation sidecar. This is a reading aid for English or other source text,
+not a Chinese benchmark case and not part of Tutor generation, Judge input,
+scoring, corpus identity, replay, or public artifacts.
+
+```bash
+node dist/src/cli/tutorbench.js review-translate \
+  --evaluation artifacts/real-model/example.evaluation.json \
+  --target-locale zh-CN \
+  --http http://127.0.0.1:9000/translate \
+  --output artifacts/review/example.zh-CN.review.json
+
+node dist/src/cli/website-build.js \
+  --evaluation artifacts/real-model/example.evaluation.json \
+  --review-translation artifacts/review/example.zh-CN.review.json \
+  --locale zh-CN \
+  --output website/private-dist/example
+```
+
+The Audit page shows Chinese assistance first for student context, rubric
+criteria, Tutor response, and Judge evidence, while keeping the original text
+available under `View original` / `查看原文`. The sidecar is source-hash-bound,
+incrementally reusable, provider-neutral, and local-only. See
+[`docs/review-translation.md`](docs/review-translation.md) for the schema,
+isolation boundary, provider contract, and stale-translation behavior.
+
 ## What it measures
 
 The core flow is:
