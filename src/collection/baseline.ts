@@ -16,6 +16,9 @@ import {
   type TutorTurnMetrics,
   type TutorUnderTest,
 } from "../contracts/index.js";
+import {
+  tutorGenerationSpecsEqual,
+} from "../contracts/tutor-generation.js";
 import { deriveTutorResponseId } from "../corpus/identity.js";
 import { toTutorTurnInput } from "../contracts/tutor-eval.js";
 
@@ -28,7 +31,18 @@ export type TutorBaselineCollectionTransport = "http" | "tutor";
 export type TutorBaselineCollectionFailureCode =
   | "tutor_call_failed"
   | "tutor_output_invalid"
-  | "execution_failed";
+  | "execution_failed"
+  | "execution_timeout"
+  | "execution_transport_error"
+  | "execution_unauthorized"
+  | "execution_forbidden"
+  | "execution_rate_limited"
+  | "execution_server_error"
+  | "execution_http_error"
+  | "execution_unsupported_generation_control"
+  | "execution_invalid_json"
+  | "execution_invalid_response"
+  | "execution_output_truncated";
 export type ProductTutorProvenance = Exclude<
   TutorResponseProvenance,
   "recorded_model"
@@ -76,6 +90,10 @@ export interface TutorBaselineCollectionReport {
   readonly finishedAt: string;
   readonly durationMs: number;
   readonly coverage: TutorResponseCorpusCoverage;
+  /** Number of successful responses carried forward by an explicit resume. */
+  readonly reusedResponseCount?: number;
+  /** Number of Tutor/host calls made during this invocation. */
+  readonly executedTutorCallCount?: number;
   readonly outputPath?: string;
 }
 
@@ -91,6 +109,7 @@ export interface CollectTutorEvidenceOptions {
   readonly corpusVersion?: string;
   readonly transport?: TutorBaselineCollectionTransport;
   readonly outputPath?: string;
+  readonly resumeCorpus?: TutorResponseCorpus;
   readonly now?: () => Date;
   readonly collectionMode: TutorCollectionMode;
   readonly executeResponse: (
@@ -276,6 +295,59 @@ function isFullSelection(
   return dataset.cases.every((tutorEvalCase) => selectedIds.has(tutorEvalCase.id));
 }
 
+function sameTutorDescriptor(
+  left: TutorEvalTutorDescriptor,
+  right: TutorEvalTutorDescriptor,
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function assertResumeCorpusMatchesCollection(
+  resumeCorpus: TutorResponseCorpus,
+  dataset: TutorEvalDataset,
+  manifest: TutorBaselineCollectionManifest,
+  generationSpec: TutorGenerationSpec | undefined,
+): void {
+  assertValidTutorResponseCorpus({ corpus: resumeCorpus, dataset });
+  if (
+    resumeCorpus.corpusId !== manifest.corpusId ||
+    resumeCorpus.corpusVersion !== manifest.corpusVersion ||
+    resumeCorpus.datasetId !== dataset.id ||
+    resumeCorpus.datasetVersion !== dataset.version ||
+    resumeCorpus.runsPerCase !== manifest.runsPerCase ||
+    resumeCorpus.provenance !== "recorded_model" ||
+    !sameTutorDescriptor(resumeCorpus.tutor, manifest.tutor) ||
+    !tutorGenerationSpecsEqual(resumeCorpus.generationSpec, generationSpec)
+  ) {
+    throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
+  }
+}
+
+function canonicalExecutionFailureCode(
+  error: unknown,
+): TutorBaselineCollectionFailureCode {
+  const code = typeof error === "object" && error !== null &&
+    "code" in error && typeof error.code === "string"
+    ? error.code
+    : undefined;
+  switch (code) {
+    case "timeout":
+    case "transport_error":
+    case "unauthorized":
+    case "forbidden":
+    case "rate_limited":
+    case "server_error":
+    case "http_error":
+    case "unsupported_generation_control":
+    case "invalid_json":
+    case "invalid_response":
+    case "output_truncated":
+      return `execution_${code}`;
+    default:
+      return "execution_failed";
+  }
+}
+
 /**
  * Shared evidence assembly for the two explicit collection modes. The
  * execution callback is the only mode-specific boundary; all corpus identity,
@@ -295,24 +367,45 @@ export async function collectTutorEvidence(
     : { ...options, generationSpec };
   assertCollectionConfiguration(configuredOptions, runsPerCase);
   const manifest = manifestFor(configuredOptions, dataset, generationSpec, runsPerCase);
+  if (options.resumeCorpus !== undefined) {
+    assertResumeCorpusMatchesCollection(
+      options.resumeCorpus,
+      dataset,
+      manifest,
+      generationSpec,
+    );
+  }
   const plannedTutorCallCount = selectedCases.length * runsPerCase;
   const now = options.now ?? (() => new Date());
   const startedAt = now().toISOString();
-  const responses: TutorCandidateResponse[] = [];
+  const responses: TutorCandidateResponse[] = options.resumeCorpus === undefined
+    ? []
+    : [...options.resumeCorpus.responses];
+  const existingResponseKeys = new Set(
+    responses.map((response) => `${response.caseId}\u0000${response.runIndex}`),
+  );
   const failures: TutorBaselineCollectionFailure[] = [];
+  let executedTutorCallCount = 0;
+  let reusedResponseCount = 0;
 
   for (const tutorEvalCase of selectedCases) {
     for (let runIndex = 1; runIndex <= runsPerCase; runIndex += 1) {
+      const responseKey = `${tutorEvalCase.id}\u0000${runIndex}`;
+      if (existingResponseKeys.has(responseKey)) {
+        reusedResponseCount += 1;
+        continue;
+      }
+      executedTutorCallCount += 1;
       let output: unknown;
       try {
         output = await options.executeResponse(tutorEvalCase, runIndex);
-      } catch {
+      } catch (error) {
         failures.push({
           caseId: tutorEvalCase.id,
           caseVersion: tutorEvalCase.version,
           runIndex,
           code: options.collectionMode === "canonical_model"
-            ? "execution_failed"
+            ? canonicalExecutionFailureCode(error)
             : "tutor_call_failed",
         });
         continue;
@@ -347,8 +440,15 @@ export async function collectTutorEvidence(
         provenance: options.provenance,
         ...(metrics === undefined ? {} : { metrics }),
       });
+      existingResponseKeys.add(responseKey);
     }
   }
+
+  responses.sort((left, right) =>
+    `${left.caseId}\u0000${left.runIndex}`.localeCompare(
+      `${right.caseId}\u0000${right.runIndex}`,
+    ),
+  );
 
   const finishedAt = now().toISOString();
   const coverage: TutorResponseCorpusCoverage =
@@ -378,6 +478,8 @@ export async function collectTutorEvidence(
     finishedAt,
     durationMs: Math.max(0, new Date(finishedAt).getTime() - new Date(startedAt).getTime()),
     coverage,
+    ...(options.resumeCorpus === undefined ? {} : { reusedResponseCount }),
+    executedTutorCallCount,
     ...(options.outputPath === undefined ? {} : { outputPath: options.outputPath }),
   };
 

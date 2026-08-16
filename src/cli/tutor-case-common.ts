@@ -3,11 +3,18 @@ import { dirname, resolve } from "node:path";
 
 import { BenchmarkConfigurationError } from "../contracts/index.js";
 import { loadTutorEvalDataset } from "../datasets/index.js";
-import { TUTOR_EVAL_DATASET_ID, type TutorEvalCase, type TutorEvalDataset } from "../contracts/index.js";
+import {
+  TUTOR_EVAL_DATASET_ID,
+  resolveTutorCaseLocale,
+  type TutorCaseLocale,
+  type TutorEvalCase,
+  type TutorEvalDataset,
+} from "../contracts/index.js";
 
 export interface TutorCaseSelectionOptions {
   readonly caseIds: readonly string[];
   readonly limit: number | null;
+  readonly locale?: TutorCaseLocale;
   readonly all: boolean;
   readonly outputPath?: string;
   readonly help: boolean;
@@ -85,9 +92,12 @@ export function selectTutorEvalCases(
   dataset: TutorEvalDataset,
   options: TutorCaseSelectionOptions,
 ): readonly TutorEvalCase[] {
-  const orderedCases = [...dataset.cases].sort((left, right) =>
-    left.id.localeCompare(right.id),
-  );
+  const orderedCases = [...dataset.cases]
+    .filter((tutorEvalCase) => options.locale === undefined ||
+      resolveTutorCaseLocale(tutorEvalCase.locale) === options.locale)
+    .sort((left, right) =>
+      left.id.localeCompare(right.id),
+    );
   const byId = new Map(orderedCases.map((tutorEvalCase) => [tutorEvalCase.id, tutorEvalCase]));
   if (options.caseIds.length > 0) {
     return options.caseIds.map((caseId) => {

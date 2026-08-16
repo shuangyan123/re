@@ -1,120 +1,226 @@
-# First real canonical model baseline
+# First real bilingual Tutor baseline
 
-This procedure is for one intentional local run of the existing canonical
-model boundary. It does not change the benchmark protocol, dataset, rubric,
-generation profile, Judge, public website, or package runtime. The checked-in
-host uses the OpenAI Responses API as one provider integration example; a
-successful run is still preliminary, uncalibrated, and not leaderboard
-eligible.
+This procedure creates a local, preliminary, uncalibrated Tutor corpus for
+the current `tutor-eval-v0.2a@0.2a.3` dataset: 24 English cases plus 24
+`zh-CN` cases. It does not change the dataset, generation profile, evaluator,
+Judge rubrics, scoring, response identity, or public website. Codex and CI do
+not make provider calls; the commands below are manual operator commands.
 
-## Configure the local host
+The three provider boundaries remain separate:
 
-From the repository root, use Node 22 and configure the credential only in the
-local process environment:
-
-```powershell
-npm run build
-$env:OPENAI_API_KEY = "<local secret>"
-$env:OPENAI_MODEL = "<exact provider-accepted model id>"
-$env:OPENAI_TIMEOUT_MS = "30000"
-node examples/canonical-model-host/openai-server.mjs
+```text
+Tutor provider -> canonical model host -> TutorResponseCorpus
+TutorResponseCorpus -> evaluator / Judge provider -> evaluation artifact
+evaluation artifact -> optional local Review Translation sidecar -> private Audit
 ```
 
-`OPENAI_BASE_URL` is optional and defaults to `https://api.openai.com/v1`.
-`CANONICAL_MODEL_HOST_PORT` is optional and defaults to `9001`. The host
-requires `OPENAI_MODEL` so the provider model is explicit; the collector also
-requires the same exact value through `--model`, which becomes corpus
-provenance. Do not put a key in source, `.env` committed files, command output,
-corpus, report, result, or logs.
+## Configure the Tutor host
 
-The host forwards only the one validated `packet.cases[0].messages` sequence.
-It maps `generationSpec.maxOutputTokens` to OpenAI `max_output_tokens`, leaves
-absent optional controls absent, uses `store: false`, disables SDK retries,
-uses one non-streaming request, and does not configure tools, search, memory,
-background generation, or a fallback model. Only Tutor-visible text and
-sanitized provider usage/latency can cross back into the benchmark envelope.
+Build with the repository-supported Node 22 runtime first:
 
-## Dry-run and smoke
+```powershell
+npm ci
+npm run build
+```
 
-In a second terminal, use the same exact model identifier in the collector:
+The provider-neutral bridge reads credentials only from the local process
+environment. It sends one non-streaming Chat Completions request per
+`/generate` call, makes no provider retry, and returns only final visible
+`message.content` plus sanitized latency/token metrics. Reasoning content,
+tool traces, provider payloads, request IDs, and error bodies never enter the
+benchmark envelope.
+
+DeepSeek example:
+
+```powershell
+$env:TUTOR_MODEL_API_KEY = "<local secret>"
+$env:TUTOR_MODEL_BASE_URL = "https://api.deepseek.com"
+$env:TUTOR_MODEL = "<exact model id>"
+$env:TUTOR_MODEL_API_PATH = "/chat/completions"
+$env:TUTOR_MODEL_MAX_OUTPUT_TOKENS_FIELD = "max_tokens"
+$env:TUTOR_MODEL_TIMEOUT_MS = "60000"
+node examples/canonical-model-host/chat-completions-server.mjs
+```
+
+MiniMax-compatible example:
+
+```powershell
+$env:TUTOR_MODEL_API_KEY = "<local secret>"
+$env:TUTOR_MODEL_BASE_URL = "https://api.minimax.io/v1"
+$env:TUTOR_MODEL = "<exact model id>"
+$env:TUTOR_MODEL_API_PATH = "/chat/completions"
+$env:TUTOR_MODEL_MAX_OUTPUT_TOKENS_FIELD = "max_completion_tokens"
+$env:TUTOR_MODEL_TIMEOUT_MS = "60000"
+node examples/canonical-model-host/chat-completions-server.mjs
+```
+
+Use the provider's current API documentation to confirm the endpoint and
+output-token field before a paid run: [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)
+and [MiniMax OpenAI-compatible Chat Completions](https://platform.minimax.io/docs/api-reference/text-chat-openai).
+The collector's `--provider` value and `--model` value are provenance, not
+credentials. Never put a key in source, `.env`, command output, corpus,
+report, evaluation result, or logs.
+
+## Dry-run and four-case bilingual smoke
+
+In a second terminal, use the same exact model identity. The dry-run validates
+the canonical packet and makes zero host calls:
 
 ```powershell
 node dist/src/cli/tutorbench.js collect-model `
   --http http://127.0.0.1:9001/generate `
-  --provider openai `
-  --model $env:OPENAI_MODEL `
-  --limit 3 `
-  --runs 1 `
+  --provider minimax `
+  --model $env:TUTOR_MODEL `
+  --locale zh-CN `
+  --limit 2 `
   --dry-run
 ```
 
-The dry-run must report `canonical_model`, `recorded_model`,
-`baseline-native-default`, the selected cases, and zero model calls. It does
-not read the credential or contact the host.
-
-After that succeeds, run the 1–3 case smoke collection:
+For one corpus containing two English and two Chinese cases, select four
+explicit IDs. This keeps the smoke artifact bilingual while still exercising
+the case-authoritative locale on every packet:
 
 ```powershell
+$smokeCorpus = "artifacts/real-model/preliminary-minimax-$($env:TUTOR_MODEL)-tutor-bilingual-001.corpus.json"
+$smokeReport = "$smokeCorpus.report.json"
+
 node dist/src/cli/tutorbench.js collect-model `
   --http http://127.0.0.1:9001/generate `
-  --provider openai `
-  --model $env:OPENAI_MODEL `
-  --limit 3 `
-  --runs 1 `
-  --output artifacts/real-model/preliminary-openai-smoke-001.json `
-  --report artifacts/real-model/preliminary-openai-smoke-001.report.json
+  --provider minimax `
+  --model $env:TUTOR_MODEL `
+  --case fraction-misconception-001 `
+  --case hint-only-linear-equation-001 `
+  --case fraction-misconception-001-zh-CN `
+  --case hint-only-linear-equation-001-zh-CN `
+  --corpus-id preliminary-minimax-tutor-bilingual-001 `
+  --output $smokeCorpus `
+  --report $smokeReport
 
-npm run tutor:corpus:validate -- --corpus artifacts/real-model/preliminary-openai-smoke-001.json
+node dist/src/cli/tutor-corpus-validate.js --corpus $smokeCorpus
 node dist/src/cli/tutorbench.js evaluate `
-  --corpus artifacts/real-model/preliminary-openai-smoke-001.json `
-  --output artifacts/real-model/preliminary-openai-smoke-001.evaluation.json
+  --corpus $smokeCorpus `
+  --report-locale zh-CN `
+  --output artifacts/real-model/preliminary-minimax-tutor-bilingual-001.evaluation.json
 ```
 
-The smoke corpus should have successful real provider responses, partial
-coverage because it is a subset, `recorded_model` provenance, the existing
-`baseline-native-default` generation spec, and no collection failures. Review
-the metadata and sample responses before spending calls on the full dataset.
+The smoke corpus should have four successful `recorded_model` responses,
+`coverage: "partial"`, the current `baseline-native-default` generation
+identity, no failures, and no hidden/provider fields. The initial evaluation
+does not call a Judge; Judge-required rubrics remain explicit errors. Inspect
+the response text and metadata before spending quota on all 48 cases.
 
-## Complete single-run baseline
+## Resume and complete the 48-case corpus
 
-Only after the smoke passes, run exactly one complete 24-case collection:
+A new collection refuses to overwrite an existing corpus path. If a run is
+interrupted or has failed/missing case-runs, resume the same path explicitly:
 
 ```powershell
 node dist/src/cli/tutorbench.js collect-model `
   --http http://127.0.0.1:9001/generate `
-  --provider openai `
-  --model $env:OPENAI_MODEL `
-  --runs 1 `
-  --corpus-id preliminary-openai-baseline-001 `
-  --output artifacts/real-model/preliminary-openai-baseline-001.json `
-  --report artifacts/real-model/preliminary-openai-baseline-001.report.json
+  --provider minimax `
+  --model $env:TUTOR_MODEL `
+  --case fraction-misconception-001 `
+  --case hint-only-linear-equation-001 `
+  --case fraction-misconception-001-zh-CN `
+  --case hint-only-linear-equation-001-zh-CN `
+  --corpus-id preliminary-minimax-tutor-bilingual-001 `
+  --resume $smokeCorpus `
+  --output $smokeCorpus `
+  --report $smokeReport
+```
 
-npm run tutor:corpus:validate -- `
-  --corpus artifacts/real-model/preliminary-openai-baseline-001.json `
-  --full
+Resume reuses only successful responses whose dataset, case version, model,
+model version, prompt identity, generation spec, corpus identity, and run
+index still match. Missing or previously failed case-runs are attempted once
+in the new invocation. A mismatch fails closed before any host call.
+
+After the smoke is reviewed, collect the complete current dataset with one
+run per case:
+
+```powershell
+$fullCorpus = "artifacts/real-model/preliminary-minimax-tutor-bilingual-001.corpus.json"
+$fullReport = "$fullCorpus.report.json"
+
+node dist/src/cli/tutorbench.js collect-model `
+  --http http://127.0.0.1:9001/generate `
+  --provider minimax `
+  --model $env:TUTOR_MODEL `
+  --corpus-id preliminary-minimax-tutor-bilingual-001 `
+  --resume $fullCorpus `
+  --output $fullCorpus `
+  --report $fullReport
+
+node dist/src/cli/tutor-corpus-validate.js --corpus $fullCorpus --full
 node dist/src/cli/tutorbench.js evaluate `
-  --corpus artifacts/real-model/preliminary-openai-baseline-001.json `
+  --corpus $fullCorpus `
   --full `
-  --output artifacts/real-model/preliminary-openai-baseline-001.evaluation.json
+  --report-locale en `
+  --output artifacts/real-model/preliminary-minimax-tutor-bilingual-001.evaluation.json
 ```
 
-Full coverage means 24 planned calls, 24 successful responses, zero failures,
-`coverage: "full"`, and a passing full-corpus validator. Evaluation replays
-the frozen corpus through `RecordedTutor`; it does not call the model again.
-Judge execution is intentionally omitted by default, so Judge-required rubrics
-remain unresolved and the result must not be called calibrated.
+Full coverage means 48 planned calls, 48 successful responses, zero
+collection failures, and `coverage: "full"`. Evaluation replays the frozen
+corpus through `RecordedTutor`; it never regenerates Tutor text.
 
-## Evidence review and publication boundary
+## Optional preliminary Judge
 
-Before recording a baseline as reviewed, inspect the provider/model identity,
-dataset and version, prompt identity, generation spec, response count,
-coverage, provenance, metrics, and representative response text. Confirm that
-no endpoint, credential, raw provider payload, request ID, hidden reasoning,
-tool trace, debug response, or malformed provider error entered the artifacts.
+The generic Judge path is selected separately and is configured only through
+environment variables. DeepSeek and MiniMax-compatible endpoints can use the
+same path; provider-specific controls are not inferred from the provider
+name. JSON mode may be disabled for a compatible endpoint, but the existing
+runtime parser and rubric-ownership checks remain mandatory.
 
-All files under `artifacts/` are ignored. Do not edit or commit real provider
-responses, reports, or evaluation results, and do not copy them into website
-public data or model/trial registries. If a call fails, preserve the partial
-corpus and report; do not retry automatically or manually merge a replacement
-case into the corpus. Start a new intentional collection run if a complete
-baseline is needed.
+```powershell
+$env:CHAT_COMPLETIONS_JUDGE_PROVIDER = "minimax"
+$env:CHAT_COMPLETIONS_JUDGE_MODEL = "<exact judge model id>"
+$env:CHAT_COMPLETIONS_JUDGE_BASE_URL = "https://api.minimax.io/v1"
+$env:CHAT_COMPLETIONS_JUDGE_API_PATH = "/chat/completions"
+$env:CHAT_COMPLETIONS_JUDGE_API_KEY = "<local secret>"
+$env:CHAT_COMPLETIONS_JUDGE_MAX_OUTPUT_TOKENS_FIELD = "max_completion_tokens"
+$env:CHAT_COMPLETIONS_JUDGE_MAX_TOKENS = "8192"
+$env:CHAT_COMPLETIONS_JUDGE_JSON_MODE = "disabled"
+$env:CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS = "60000"
+$env:CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS = "2"
+
+node dist/src/cli/tutorbench.js evaluate `
+  --corpus $fullCorpus `
+  --full `
+  --judge-chat-completions `
+  --report-locale zh-CN `
+  --output artifacts/real-model/preliminary-minimax-tutor-bilingual-001.evaluation.json
+```
+
+The Tutor provider, Judge provider, and optional Review Translation provider
+are recorded as separate descriptors. The result remains preliminary and
+uncalibrated; it is not a leaderboard or model ranking.
+
+## Private Review Translation and Audit
+
+Review Translation is an after-evaluation reading aid. It is not part of
+Tutor generation, Judge input, scoring, corpus identity, replay, or public
+artifacts. Keep the original English/Chinese audit evidence and use only the
+private website output:
+
+```powershell
+node dist/src/cli/tutorbench.js review-translate `
+  --evaluation artifacts/real-model/preliminary-minimax-tutor-bilingual-001.evaluation.json `
+  --target-locale zh-CN `
+  --http http://127.0.0.1:9000/translate `
+  --provider local-review-translator `
+  --model <review-translator-model> `
+  --output artifacts/real-model/preliminary-minimax-tutor-bilingual-001.review.zh-CN.json
+
+node dist/src/cli/website-build.js `
+  --evaluation artifacts/real-model/preliminary-minimax-tutor-bilingual-001.evaluation.json `
+  --review-translation artifacts/real-model/preliminary-minimax-tutor-bilingual-001.review.zh-CN.json `
+  --locale zh-CN `
+  --output website/private-dist/preliminary-minimax-tutor-bilingual-001
+```
+
+The sidecar is source-hash-bound and local-only. Missing or failed
+translations do not change evaluation results; the Audit keeps raw source
+text available for human review.
+
+All files under `artifacts/` and `website/private-dist/` are ignored. Do not
+commit real provider responses, reports, credentials, raw payloads, hidden
+reasoning, tool traces, or private user data.

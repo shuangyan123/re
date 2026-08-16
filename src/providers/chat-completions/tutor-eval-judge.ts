@@ -15,26 +15,39 @@ export const DEFAULT_CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS = 2 as const;
 export const MAX_CHAT_COMPLETIONS_JUDGE_ATTEMPTS = 3 as const;
 
 export type ChatCompletionsJudgeConfigurationErrorCode =
+  | "provider_invalid"
   | "model_missing"
   | "model_not_pinned"
   | "prompt_invalid"
   | "base_url_invalid"
+  | "endpoint_path_invalid"
   | "timeout_invalid"
   | "attempts_invalid"
-  | "temperature_invalid";
+  | "temperature_invalid"
+  | "max_tokens_invalid"
+  | "json_mode_invalid"
+  | "max_output_tokens_field_invalid";
 
 const configurationMessages: Readonly<
   Record<ChatCompletionsJudgeConfigurationErrorCode, string>
 > = {
+  provider_invalid: "The Chat Completions Judge provider identity is required.",
   model_missing: "A concrete Chat Completions Judge model is required.",
   model_not_pinned:
     "The Chat Completions Judge model must be a concrete model identity, not latest, auto, or recommended.",
   prompt_invalid: "The versioned Chat Completions Judge prompt configuration is invalid.",
   base_url_invalid: "The Chat Completions Judge base URL is invalid.",
+  endpoint_path_invalid:
+    "The Chat Completions Judge endpoint path must be an absolute path without a query or fragment.",
   timeout_invalid: "The Chat Completions Judge timeout must be a positive integer.",
   attempts_invalid:
     `The Chat Completions Judge max attempts must be an integer from 1 to ${MAX_CHAT_COMPLETIONS_JUDGE_ATTEMPTS}.`,
   temperature_invalid: "The Chat Completions Judge temperature must be a number from 0 to 2.",
+  max_tokens_invalid: "The Chat Completions Judge output token limit must be a positive integer.",
+  json_mode_invalid:
+    "The Chat Completions Judge JSON mode must be enabled or disabled.",
+  max_output_tokens_field_invalid:
+    "The Chat Completions Judge output token field must be max_tokens or max_completion_tokens.",
 };
 
 export class ChatCompletionsJudgeConfigurationError extends Error {
@@ -66,6 +79,10 @@ export type ChatCompletionsFetch = (
 
 export type ChatCompletionsThinkingMode = "enabled" | "disabled";
 export type ChatCompletionsReasoningEffort = "high" | "max";
+export type ChatCompletionsJudgeJsonMode = "enabled" | "disabled";
+export type ChatCompletionsMaxOutputTokensField =
+  | "max_tokens"
+  | "max_completion_tokens";
 
 export interface ChatCompletionsJudgeRequestOptions {
   readonly model: string;
@@ -77,6 +94,8 @@ export interface ChatCompletionsJudgeRequestOptions {
   readonly thinking?: { readonly type: ChatCompletionsThinkingMode };
   readonly reasoningEffort?: ChatCompletionsReasoningEffort;
   readonly maxOutputTokens?: number;
+  readonly jsonMode?: ChatCompletionsJudgeJsonMode;
+  readonly maxOutputTokensField?: ChatCompletionsMaxOutputTokensField;
 }
 
 export interface ChatCompletionsJudgeRequest {
@@ -86,10 +105,11 @@ export interface ChatCompletionsJudgeRequest {
     { readonly role: "user"; readonly content: string },
   ];
   /** Chat Completions JSON mode is object-only, not strict JSON Schema mode. */
-  readonly response_format: { readonly type: "json_object" };
+  readonly response_format?: { readonly type: "json_object" };
   readonly thinking?: { readonly type: ChatCompletionsThinkingMode };
   readonly reasoning_effort?: ChatCompletionsReasoningEffort;
   readonly max_tokens?: number;
+  readonly max_completion_tokens?: number;
   readonly stream: false;
   readonly temperature?: number;
 }
@@ -102,6 +122,8 @@ export interface ChatCompletionsJudgeOptions
   readonly fetch?: ChatCompletionsFetch;
   readonly timeoutMs?: number;
   readonly maxAttempts?: number;
+  /** Defaults to /chat/completions; the base URL remains credential-free. */
+  readonly endpointPath?: string;
 }
 
 export interface ChatCompletionsJudge extends TutorEvalJudge {
@@ -122,7 +144,42 @@ function nonEmptyString(value: string | undefined | null): string | null {
   return normalized === undefined || normalized.length === 0 ? null : normalized;
 }
 
+function normalizedEndpointPath(value: string | undefined): string {
+  const path = value === undefined ? CHAT_COMPLETIONS_JUDGE_PATH : value.trim();
+  if (
+    path.length === 0 ||
+    !path.startsWith("/") ||
+    path.includes("?") ||
+    path.includes("#") ||
+    path.includes("\\")
+  ) {
+    throw new ChatCompletionsJudgeConfigurationError("endpoint_path_invalid");
+  }
+  return path;
+}
+
+function normalizedJsonMode(
+  value: ChatCompletionsJudgeJsonMode | undefined,
+): ChatCompletionsJudgeJsonMode {
+  if (value === undefined || value === "enabled" || value === "disabled") {
+    return value ?? "enabled";
+  }
+  throw new ChatCompletionsJudgeConfigurationError("json_mode_invalid");
+}
+
+function normalizedMaxOutputTokensField(
+  value: ChatCompletionsMaxOutputTokensField | undefined,
+): ChatCompletionsMaxOutputTokensField {
+  if (value === undefined || value === "max_tokens" || value === "max_completion_tokens") {
+    return value ?? "max_tokens";
+  }
+  throw new ChatCompletionsJudgeConfigurationError("max_output_tokens_field_invalid");
+}
+
 function assertRequestConfiguration(options: ChatCompletionsJudgeOptions): void {
+  if (nonEmptyString(options.provider) === null) {
+    throw new ChatCompletionsJudgeConfigurationError("provider_invalid");
+  }
   const model = nonEmptyString(options.model);
   if (model === null) {
     throw new ChatCompletionsJudgeConfigurationError("model_missing");
@@ -150,6 +207,9 @@ function assertRequestConfiguration(options: ChatCompletionsJudgeOptions): void 
   ) {
     throw new ChatCompletionsJudgeConfigurationError("base_url_invalid");
   }
+  normalizedEndpointPath(options.endpointPath);
+  normalizedJsonMode(options.jsonMode);
+  normalizedMaxOutputTokensField(options.maxOutputTokensField);
   if (
     options.temperature !== undefined &&
     (!Number.isFinite(options.temperature) ||
@@ -200,6 +260,8 @@ export function buildChatCompletionsJudgeRequest(
   ) {
     throw new ChatCompletionsJudgeConfigurationError("prompt_invalid");
   }
+  const jsonMode = normalizedJsonMode(options.jsonMode);
+  const maxOutputTokensField = normalizedMaxOutputTokensField(options.maxOutputTokensField);
   if (
     options.temperature !== undefined &&
     (!Number.isFinite(options.temperature) ||
@@ -214,14 +276,16 @@ export function buildChatCompletionsJudgeRequest(
       { role: "system", content: options.prompt },
       { role: "user", content: serializeJudgeInput(input) },
     ],
-    response_format: { type: "json_object" },
+    ...(jsonMode === "enabled" ? { response_format: { type: "json_object" } } : {}),
     ...(options.thinking === undefined ? {} : { thinking: options.thinking }),
     ...(options.reasoningEffort === undefined
       ? {}
       : { reasoning_effort: options.reasoningEffort }),
     ...(options.maxOutputTokens === undefined
       ? {}
-      : { max_tokens: options.maxOutputTokens }),
+      : maxOutputTokensField === "max_tokens"
+        ? { max_tokens: options.maxOutputTokens }
+        : { max_completion_tokens: options.maxOutputTokens }),
     stream: false,
     ...(options.temperature === undefined
       ? {}
@@ -229,8 +293,8 @@ export function buildChatCompletionsJudgeRequest(
   };
 }
 
-function endpointFor(baseUrl: string): string {
-  return `${baseUrl.replace(/\/+$/u, "")}${CHAT_COMPLETIONS_JUDGE_PATH}`;
+function endpointFor(baseUrl: string, endpointPath: string | undefined): string {
+  return `${baseUrl.replace(/\/+$/u, "")}${normalizedEndpointPath(endpointPath)}`;
 }
 
 function readStatus(error: unknown): number | null {
@@ -361,10 +425,14 @@ export function createChatCompletionsJudge(
     ...(options.maxOutputTokens === undefined
       ? {}
       : { maxOutputTokens: options.maxOutputTokens }),
+    ...(options.jsonMode === undefined ? {} : { jsonMode: options.jsonMode }),
+    ...(options.maxOutputTokensField === undefined
+      ? {}
+      : { maxOutputTokensField: options.maxOutputTokensField }),
   };
   const fetcher: ChatCompletionsFetch = options.fetch ?? ((url, init) =>
     fetch(url, init));
-  const endpoint = endpointFor(options.baseUrl);
+  const endpoint = endpointFor(options.baseUrl, options.endpointPath);
   const descriptor: TutorEvalJudgeDescriptor = {
     provider: options.provider,
     model: options.model,

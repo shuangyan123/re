@@ -26,6 +26,12 @@ The existing 48-case bilingual dataset remains unchanged by this layer. An
 English case receives a Chinese review translation without becoming a Chinese
 benchmark case.
 
+The same isolation applies to a preliminary real-model evaluation artifact:
+both English and `zh-CN` case results, raw Tutor text, Judge evidence, and
+critical-failure fields remain in the existing evaluation schema. Review
+Translation is added only as a separate sidecar after evaluation; it does not
+change generation, Judge routing, scoring, or corpus identity.
+
 ## Sidecar contract
 
 The CLI writes an independent JSON artifact with schema `1`:

@@ -1,3 +1,4 @@
+import { access } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -5,10 +6,14 @@ import {
   DEFAULT_HTTP_TUTOR_EXECUTION_HOST_TIMEOUT_MS,
   HttpTutorExecutionHostConfigurationError,
 } from "../adapters/http-tutor-execution-host.js";
-import { TUTOR_EVAL_DATASET_ID } from "../contracts/index.js";
+import {
+  TUTOR_EVAL_DATASET_ID,
+  type TutorCaseLocale,
+} from "../contracts/index.js";
 import { buildTutorExecutionPacketFile } from "../contracts/tutor-execution.js";
 import {
   buildTutorBaselineGenerationSpec,
+  loadTutorResponseCorpus,
   loadTutorBaselinePrompt,
 } from "../corpus/index.js";
 import { loadTutorEvalDataset } from "../datasets/index.js";
@@ -39,11 +44,13 @@ export type TutorbenchCollectModelCliOptions =
       readonly datasetId: string;
       readonly caseIds: readonly string[];
       readonly limit: number | null;
+      readonly locale?: TutorCaseLocale;
       readonly runsPerCase: number;
       readonly timeoutMs: number;
       readonly corpusId?: string;
       readonly outputPath?: string;
       readonly reportPath?: string;
+      readonly resumePath?: string;
       readonly dryRun: boolean;
     };
 
@@ -52,6 +59,13 @@ function requiredIdentifier(value: string | undefined, option: string): string {
     throw new TutorbenchCliUsageError(`${option} requires a value.`);
   }
   return value.trim();
+}
+
+function parseLocale(value: string, option: string): TutorCaseLocale {
+  if (value === "en" || value === "zh-CN") {
+    return value;
+  }
+  throw new TutorbenchCliUsageError(`${option} must be en or zh-CN.`);
 }
 
 export function parseTutorbenchCollectModelArgs(
@@ -65,12 +79,14 @@ export function parseTutorbenchCollectModelArgs(
   let model: string | undefined;
   let modelVersion: string | undefined;
   let datasetId: string = TUTOR_EVAL_DATASET_ID;
+  let locale: TutorCaseLocale | undefined;
   let limit: number | null = null;
   let runsPerCase = 1;
   let timeoutMs: number = DEFAULT_HTTP_TUTOR_EXECUTION_HOST_TIMEOUT_MS;
   let corpusId: string | undefined;
   let outputPath: string | undefined;
   let reportPath: string | undefined;
+  let resumePath: string | undefined;
   let dryRun = false;
   const caseIds: string[] = [];
 
@@ -134,6 +150,16 @@ export function parseTutorbenchCollectModelArgs(
     const datasetValue = tutorbenchOptionValue(argument, "--dataset");
     if (datasetValue !== undefined) {
       datasetId = datasetValue;
+      continue;
+    }
+    if (argument === "--locale") {
+      locale = parseLocale(nextTutorbenchValue(args, index, "--locale"), "--locale");
+      index += 1;
+      continue;
+    }
+    const localeValue = tutorbenchOptionValue(argument, "--locale");
+    if (localeValue !== undefined) {
+      locale = parseLocale(localeValue, "--locale");
       continue;
     }
     if (argument === "--case") {
@@ -209,6 +235,16 @@ export function parseTutorbenchCollectModelArgs(
       reportPath = resolve(reportValue);
       continue;
     }
+    if (argument === "--resume") {
+      resumePath = resolve(nextTutorbenchValue(args, index, "--resume"));
+      index += 1;
+      continue;
+    }
+    const resumeValue = tutorbenchOptionValue(argument, "--resume");
+    if (resumeValue !== undefined) {
+      resumePath = resolve(resumeValue);
+      continue;
+    }
     throw new TutorbenchCliUsageError(`Unknown option: ${argument}`);
   }
 
@@ -224,11 +260,13 @@ export function parseTutorbenchCollectModelArgs(
     datasetId,
     caseIds,
     limit,
+    ...(locale === undefined ? {} : { locale }),
     runsPerCase,
     timeoutMs,
     ...(corpusId === undefined ? {} : { corpusId }),
     ...(outputPath === undefined ? {} : { outputPath }),
     ...(reportPath === undefined ? {} : { reportPath }),
+    ...(resumePath === undefined ? {} : { resumePath }),
     dryRun,
   };
 }
@@ -246,6 +284,7 @@ Options:
   --model <id>          Actual model identity
   --model-version <id>  Optional trustworthy model version/snapshot
   --dataset <id>        Dataset id (default: ${TUTOR_EVAL_DATASET_ID})
+  --locale <locale>     Filter selected cases by locale (en or zh-CN)
   --case <id>           Select one case; repeat for a subset
   --limit <n>           Select the first n cases in stable ID order
   --runs <n>            Run each selected case n times (default: 1)
@@ -253,6 +292,7 @@ Options:
   --corpus-id <id>      Stable output identity (default: generated local id)
   --output <path>       Frozen TutorResponseCorpus JSON path
   --report <path>       Sanitized collection report path
+  --resume <path>       Reuse successful responses from an existing corpus; must match identity
   --dry-run             Prepare canonical packets without calling the host
   --help                Show this help
 
@@ -273,11 +313,11 @@ function resolveOutputPath(
   options: Exclude<TutorbenchCollectModelCliOptions, { readonly help: true }>,
   corpusId: string,
 ): string {
-  return options.outputPath ?? resolve(
+  return options.outputPath ?? options.resumePath ?? resolve(
     process.cwd(),
     "artifacts",
     "real-model",
-    `${safePathPart(options.datasetId)}-${safePathPart(options.provider)}-${safePathPart(options.model)}-baseline-native-default-${safePathPart(corpusId)}.json`,
+    `preliminary-${safePathPart(options.provider)}-${safePathPart(options.model)}-tutor-bilingual-${safePathPart(corpusId)}.corpus.json`,
   );
 }
 
@@ -303,6 +343,7 @@ function printCollectionPlan(
   console.log(`Model host: ${options.provider}/${options.model}`);
   console.log("Provenance: recorded_model");
   console.log(`Dataset: ${options.datasetId}`);
+  console.log(`Locale filter: ${options.locale ?? "all"}`);
   console.log("Generation profile: baseline-native-default");
   console.log(`Corpus id: ${corpusId}`);
   console.log(`Selected cases: ${selectedCaseCount}`);
@@ -310,6 +351,9 @@ function printCollectionPlan(
   console.log(`Planned model calls: ${selectedCaseCount * options.runsPerCase}`);
   console.log(`Output corpus: ${outputPath}`);
   console.log(`Collection report: ${reportPath}`);
+  if (options.resumePath !== undefined) {
+    console.log(`Resume corpus: ${options.resumePath}`);
+  }
   if (dryRun) {
     console.log("Canonical cases/messages prepared");
     console.log("Model calls made: 0");
@@ -328,6 +372,12 @@ function printCollectionResult(
   console.log("Calibration: uncalibrated");
   console.log("Public leaderboard eligible: no");
   console.log(`Responses: ${result.report.completedResponseCount}/${result.report.plannedTutorCallCount}`);
+  if (result.report.reusedResponseCount !== undefined) {
+    console.log(`Reused responses: ${result.report.reusedResponseCount}`);
+  }
+  if (result.report.executedTutorCallCount !== undefined) {
+    console.log(`Model calls made: ${result.report.executedTutorCallCount}`);
+  }
   console.log(`Failures: ${result.report.failedTutorCallCount}`);
   console.log(`Collection report: ${reportPath}`);
   if (result.corpus === null) {
@@ -341,9 +391,34 @@ function printCollectionResult(
 export async function runTutorbenchCollectModel(
   options: Exclude<TutorbenchCollectModelCliOptions, { readonly help: true }>,
 ): Promise<void> {
-  const corpusId = options.corpusId ?? defaultCorpusId();
+  const resumeCorpus = options.resumePath === undefined
+    ? undefined
+    : await loadTutorResponseCorpus(options.resumePath);
+  const corpusId = options.corpusId ?? resumeCorpus?.corpusId ?? defaultCorpusId();
   const outputPath = resolveOutputPath(options, corpusId);
   const reportPath = resolveReportPath(options, outputPath);
+  if (options.resumePath !== undefined && outputPath !== options.resumePath) {
+    throw new TutorbenchCliUsageError(
+      "--resume must match --output when both are supplied; a resumed corpus is updated in place.",
+    );
+  }
+  if (resolve(reportPath) === resolve(outputPath)) {
+    throw new TutorbenchCliUsageError("--report must not overwrite the corpus path.");
+  }
+  if (!options.dryRun && options.resumePath === undefined) {
+    try {
+      await access(outputPath);
+      throw new TutorbenchCliUsageError(
+        `Output corpus already exists: ${outputPath}. Use --resume <path> to continue it.`,
+      );
+    } catch (error) {
+      if (error instanceof TutorbenchCliUsageError) {
+        throw error;
+      }
+      // ENOENT is the expected state for a new collection; other filesystem
+      // failures are surfaced by the later write operation.
+    }
+  }
   const [dataset, promptAsset] = await Promise.all([
     loadTutorEvalDataset(options.datasetId),
     loadTutorBaselinePrompt(),
@@ -351,6 +426,7 @@ export async function runTutorbenchCollectModel(
   const selectedCases = selectTutorEvalCases(dataset, {
     caseIds: options.caseIds,
     limit: options.limit,
+    ...(options.locale === undefined ? {} : { locale: options.locale }),
     all: false,
     help: false,
   } satisfies TutorCaseSelectionOptions);
@@ -392,6 +468,7 @@ export async function runTutorbenchCollectModel(
     corpusVersion: generationSpec.specVersion,
     transport: "http",
     outputPath,
+    ...(resumeCorpus === undefined ? {} : { resumeCorpus }),
   });
   await writeTutorCliJson(result.report, reportPath);
   if (result.corpus !== null) {

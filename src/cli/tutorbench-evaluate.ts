@@ -21,7 +21,10 @@ import {
   resolveTutorResponseCorpusSelection,
   runTutorResponseCorpus,
 } from "../runner/index.js";
-import { formatTutorEvalSummary } from "../reporting/index.js";
+import {
+  formatTutorEvalSummary,
+  type TutorEvalReportLocale,
+} from "../reporting/index.js";
 import {
   reportTutorCliError,
   writeTutorCliJson,
@@ -39,16 +42,27 @@ export interface BenchmarkCorpusCliOptions {
   readonly requireFull: boolean;
   readonly liveJudge: boolean;
   readonly deepSeekJudge: boolean;
+  /** Optional generic Chat Completions Judge selected from environment. */
+  readonly chatCompletionsJudge?: boolean;
   readonly allowCompatibleReplay: boolean;
   readonly caseIds: readonly string[];
   readonly limit: number | null;
   readonly outputPath?: string;
+  /** Report labels only; case locale and evaluation semantics are unchanged. */
+  readonly reportLocale?: TutorEvalReportLocale;
   readonly help: boolean;
 }
 
 export type TutorBaselineEvaluationArtifact = TutorResponseCorpusEvaluationResult & {
   readonly artifactMetadata: TutorBaselineArtifactMetadata;
 };
+
+function parseReportLocale(value: string): TutorEvalReportLocale {
+  if (value === "en" || value === "zh-CN") {
+    return value;
+  }
+  throw new TutorbenchCliUsageError("--report-locale must be en or zh-CN.");
+}
 
 export function parseBenchmarkCorpusCliOptions(
   args: readonly string[],
@@ -57,7 +71,9 @@ export function parseBenchmarkCorpusCliOptions(
   let requireFull = false;
   let liveJudge = false;
   let deepSeekJudge = false;
+  let chatCompletionsJudge = false;
   let allowCompatibleReplay = false;
+  let reportLocale: TutorEvalReportLocale | undefined;
   let limit: number | null = null;
   const caseIds: string[] = [];
   let outputPath: string | undefined;
@@ -81,8 +97,13 @@ export function parseBenchmarkCorpusCliOptions(
       liveJudge = true;
     } else if (argument === "--judge-deepseek") {
       deepSeekJudge = true;
+    } else if (argument === "--judge-chat-completions" || argument === "--judge-generic") {
+      chatCompletionsJudge = true;
     } else if (argument === "--allow-compatible-replay") {
       allowCompatibleReplay = true;
+    } else if (argument === "--report-locale") {
+      reportLocale = parseReportLocale(nextTutorbenchValue(args, index, "--report-locale"));
+      index += 1;
     } else if (argument === "--case") {
       const caseId = nextTutorbenchValue(args, index, "--case");
       if (caseIds.includes(caseId)) {
@@ -121,7 +142,12 @@ export function parseBenchmarkCorpusCliOptions(
           if (outputValue !== undefined) {
             outputPath = resolve(outputValue);
           } else {
-            throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
+            const reportLocaleValue = tutorbenchOptionValue(argument ?? "", "--report-locale");
+            if (reportLocaleValue !== undefined) {
+              reportLocale = parseReportLocale(reportLocaleValue);
+            } else {
+              throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
+            }
           }
         }
       }
@@ -130,9 +156,10 @@ export function parseBenchmarkCorpusCliOptions(
   if (corpusPath === undefined || corpusPath.length === 0) {
     throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
   }
-  if (liveJudge && deepSeekJudge) {
+  const judgeModes = [liveJudge, deepSeekJudge, chatCompletionsJudge].filter(Boolean).length;
+  if (judgeModes > 1) {
     throw new TutorbenchCliUsageError(
-      "--judge-openai and --judge-deepseek are mutually exclusive.",
+      "Judge provider flags are mutually exclusive: choose one of --judge-openai, --judge-deepseek, or --judge-chat-completions.",
     );
   }
   return {
@@ -140,10 +167,12 @@ export function parseBenchmarkCorpusCliOptions(
     requireFull,
     liveJudge,
     deepSeekJudge,
+    ...(chatCompletionsJudge ? { chatCompletionsJudge: true } : {}),
     allowCompatibleReplay,
     caseIds,
     limit,
     ...(outputPath === undefined ? {} : { outputPath }),
+    ...(reportLocale === undefined ? {} : { reportLocale }),
     help: false,
   };
 }
@@ -160,9 +189,12 @@ Options:
   --full                Require a complete corpus before evaluation
   --judge-openai        Opt in to the existing live OpenAI Judge provider
   --judge-deepseek      Opt in to the DeepSeek Chat Completions Judge provider
+  --judge-chat-completions
+                        Opt in to a provider-neutral Chat Completions Judge configured by environment
   --allow-compatible-replay
                         Opt in only to repository-audited Tutor-visible-equivalent transitions
   --live-judge          Alias for --judge-openai
+  --report-locale <id>  Report labels only: en (default) or zh-CN
   --output <path>       Write the preliminary evaluation artifact to this path
   --help                Show this help
 
@@ -192,8 +224,9 @@ function requestedDatasetVersionForCorpus(
 async function createJudgeIfRequested(
   liveJudge: boolean,
   deepSeekJudge: boolean,
+  chatCompletionsJudge: boolean,
 ) {
-  if (!liveJudge && !deepSeekJudge) {
+  if (!liveJudge && !deepSeekJudge && !chatCompletionsJudge) {
     return undefined;
   }
   const prompt = await loadTutorEvalPedagogyJudgePrompt();
@@ -220,6 +253,49 @@ async function createJudgeIfRequested(
         ? {}
         : { reasoningEffort: environment.reasoningEffort }),
       maxOutputTokens: environment.maxOutputTokens,
+      timeoutMs: environment.timeoutMs,
+      maxAttempts: environment.maxAttempts,
+    });
+    return {
+      ...judge.descriptor,
+      evaluate: judge.evaluate,
+      evaluateWithMetrics: judge.evaluateWithMetrics,
+    } as const;
+  }
+  if (chatCompletionsJudge) {
+    const {
+      ChatCompletionsJudgeConfigurationError,
+      createChatCompletionsJudge,
+      readChatCompletionsJudgeApiKey,
+      readChatCompletionsJudgeEnvironment,
+    } = await import("../providers/chat-completions/index.js");
+    const environment = readChatCompletionsJudgeEnvironment();
+    if (environment.provider === null) {
+      throw new ChatCompletionsJudgeConfigurationError("provider_invalid");
+    }
+    if (environment.model === null) {
+      throw new ChatCompletionsJudgeConfigurationError("model_missing");
+    }
+    if (environment.baseUrl === null) {
+      throw new ChatCompletionsJudgeConfigurationError("base_url_invalid");
+    }
+    const judge = createChatCompletionsJudge({
+      provider: environment.provider,
+      model: environment.model,
+      baseUrl: environment.baseUrl,
+      endpointPath: environment.endpointPath,
+      apiKey: readChatCompletionsJudgeApiKey(),
+      prompt,
+      promptId: TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_ID,
+      promptVersion: TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION,
+      ...(environment.temperature === undefined
+        ? {}
+        : { temperature: environment.temperature }),
+      ...(environment.maxOutputTokens === undefined
+        ? {}
+        : { maxOutputTokens: environment.maxOutputTokens }),
+      jsonMode: environment.jsonMode,
+      maxOutputTokensField: environment.maxOutputTokensField,
       timeoutMs: environment.timeoutMs,
       maxAttempts: environment.maxAttempts,
     });
@@ -280,7 +356,11 @@ export async function evaluateTutorResponseCorpus(
     caseIds: options.caseIds,
     ...(options.limit === null ? {} : { limit: options.limit }),
   });
-  const judge = await createJudgeIfRequested(options.liveJudge, options.deepSeekJudge);
+  const judge = await createJudgeIfRequested(
+    options.liveJudge,
+    options.deepSeekJudge,
+    options.chatCompletionsJudge === true,
+  );
   return runTutorResponseCorpus({
     corpus,
     dataset,
@@ -310,6 +390,7 @@ export function printTutorResponseCorpusEvaluation(
   result: TutorResponseCorpusEvaluationResult,
   outputPath: string,
   preliminary: boolean,
+  reportLocale: TutorEvalReportLocale = "en",
 ): void {
   console.log(`Corpus: ${result.corpusId}@${result.corpusVersion}`);
   console.log(`Coverage: ${result.coverage} (source corpus)`);
@@ -334,7 +415,7 @@ export function printTutorResponseCorpusEvaluation(
     console.log("Calibration: uncalibrated");
     console.log("Public leaderboard eligible: no");
   }
-  console.log(formatTutorEvalSummary(result.evaluation));
+  console.log(formatTutorEvalSummary(result.evaluation, { reportLocale }));
   console.log(`JSON result: ${outputPath}`);
 }
 
@@ -347,7 +428,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   const result = await evaluateTutorResponseCorpus(options);
   const outputPath = options.outputPath ?? resolve(process.cwd(), "artifacts", "tutor-eval-corpus-result.json");
   await writeTutorCliJson(buildTutorBaselineEvaluationArtifact(result), outputPath);
-  printTutorResponseCorpusEvaluation(result, outputPath, true);
+  printTutorResponseCorpusEvaluation(result, outputPath, true, options.reportLocale ?? "en");
   if (result.evaluation.errorCount > 0) {
     process.exitCode = 1;
   }

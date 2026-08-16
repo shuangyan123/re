@@ -26,10 +26,26 @@ export class HttpTutorExecutionHostConfigurationError extends TypeError {
   }
 }
 
+export type HttpTutorExecutionHostRequestErrorCode =
+  | "timeout"
+  | "transport_error"
+  | "unauthorized"
+  | "forbidden"
+  | "rate_limited"
+  | "server_error"
+  | "http_error"
+  | "unsupported_generation_control"
+  | "invalid_json"
+  | "invalid_response"
+  | "output_truncated";
+
 export class HttpTutorExecutionHostRequestError extends Error {
-  constructor(message: string) {
+  readonly code: HttpTutorExecutionHostRequestErrorCode;
+
+  constructor(code: HttpTutorExecutionHostRequestErrorCode, message: string) {
     super(message);
     this.name = "HttpTutorExecutionHostRequestError";
+    this.code = code;
   }
 }
 
@@ -150,6 +166,7 @@ function parseHostResponse(value: unknown): TutorExecutionHostResult {
     executionSupport === null
   ) {
     throw new HttpTutorExecutionHostRequestError(
+      "invalid_response",
       "Canonical Tutor execution host returned an invalid response.",
     );
   }
@@ -161,6 +178,54 @@ function parseHostResponse(value: unknown): TutorExecutionHostResult {
     },
     executionSupport,
   };
+}
+
+const stableProviderErrorCodes: Readonly<
+  Record<string, HttpTutorExecutionHostRequestErrorCode>
+> = {
+  provider_request_timeout: "timeout",
+  provider_request_failed: "transport_error",
+  provider_unauthorized: "unauthorized",
+  provider_forbidden: "forbidden",
+  provider_rate_limited: "rate_limited",
+  provider_server_error: "server_error",
+  provider_http_error: "http_error",
+  unsupported_generation_control: "unsupported_generation_control",
+  provider_response_invalid: "invalid_response",
+  provider_response_truncated: "output_truncated",
+};
+
+async function nonSuccessCode(
+  response: Response,
+): Promise<HttpTutorExecutionHostRequestErrorCode> {
+  try {
+    const body = asRecord(await response.json());
+    const providerCode = body?.error;
+    if (typeof providerCode === "string") {
+      const stableCode = stableProviderErrorCodes[providerCode];
+      if (stableCode !== undefined) {
+        return stableCode;
+      }
+    }
+  } catch {
+    // A provider/host error body is never forwarded; status remains enough.
+  }
+  if (response.status === 401) {
+    return "unauthorized";
+  }
+  if (response.status === 403) {
+    return "forbidden";
+  }
+  if (response.status === 408) {
+    return "timeout";
+  }
+  if (response.status === 429) {
+    return "rate_limited";
+  }
+  if (response.status >= 500) {
+    return "server_error";
+  }
+  return "http_error";
 }
 
 /**
@@ -200,15 +265,18 @@ export class HttpTutorExecutionHost {
       } catch {
         if (controller.signal.aborted) {
           throw new HttpTutorExecutionHostRequestError(
+            "timeout",
             "Canonical Tutor execution host request timed out.",
           );
         }
         throw new HttpTutorExecutionHostRequestError(
+          "transport_error",
           "Canonical Tutor execution host request failed.",
         );
       }
       if (!response.ok) {
         throw new HttpTutorExecutionHostRequestError(
+          await nonSuccessCode(response),
           "Canonical Tutor execution host returned a non-success status.",
         );
       }
@@ -217,6 +285,7 @@ export class HttpTutorExecutionHost {
         body = await response.json();
       } catch {
         throw new HttpTutorExecutionHostRequestError(
+          "invalid_json",
           "Canonical Tutor execution host returned invalid JSON.",
         );
       }

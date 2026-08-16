@@ -61,11 +61,17 @@ tutorbench collect-model \
   --provider example-provider \
   --model example-model \
   --model-version example-snapshot \
+  --locale zh-CN \
   --limit 3 \
   --runs 1 \
   --output artifacts/real-model/model.json \
   --report artifacts/real-model/model.report.json
 ```
+
+Omit `--locale` for the complete current bilingual dataset. `--locale en` or
+`--locale zh-CN` filters case selection only; the case's own locale remains
+the authoritative generation target. Use repeated `--case` flags when one
+smoke corpus must contain both languages.
 
 For each case/run, the collector calls the existing
 `buildTutorExecutionPacketFile()` and sends one validated packet directly to
@@ -140,20 +146,30 @@ Reviewed canonical evidence
 The local `examples/canonical-model-host/server.py` server is a synthetic
 protocol fixture only. It contains no provider SDK or credentials and must not
 be used to claim a real baseline. The same directory also contains an
-OpenAI-specific `openai-server.mjs` example. That host is intentionally local
-integration code, not Benchmark Core or a package runtime dependency; it reads
-credentials from `OPENAI_API_KEY`, requires `OPENAI_MODEL`, and is never
-invoked by CI. See [the first real baseline procedure](first-real-baseline.md)
-for its dry-run, smoke, full-collection, validation, replay, and review order.
+OpenAI-specific `openai-server.mjs` and a provider-neutral
+`chat-completions-server.mjs`. The latter reads
+`TUTOR_MODEL_API_KEY`, `TUTOR_MODEL_BASE_URL`, `TUTOR_MODEL`, and explicit
+path/output-token-field settings from the local environment; it makes one
+request per packet, performs no provider retry, and returns only final visible
+content. Both hosts are local integration code, not Benchmark Core or package
+runtime dependencies, and neither is invoked by CI. See [the first real
+baseline procedure](first-real-baseline.md) for DeepSeek/MiniMax setup,
+bilingual smoke, full collection, resume, validation, Judge, and private
+Review Translation order.
 
 ## Failure, retry, and coverage semantics
 
-Collection is sequential and performs no automatic retry. A network failure,
+Collection is sequential and performs no automatic retry within one invocation.
+A network failure,
 timeout, non-2xx response, invalid JSON, invalid output, invalid support
 attestation, or unsupported generation control is an execution failure, not a
 Tutor response containing an error string. Successful responses are retained
 on partial failure; failure reports contain only case/version/run identity and
-a stable failure code.
+a stable failure code. A new run refuses to overwrite an existing corpus.
+`--resume <path>` explicitly loads an existing corpus, validates dataset/case
+versions, model and prompt identity, generation spec, corpus/run identity, and
+reuses only successful case-runs. Missing or failed runs are retried in the
+new invocation; a mismatch fails closed before any host call.
 
 Coverage is `full` only when all selected executions succeed and the selection
 covers the complete dataset. A subset or any failed execution is `partial`.
@@ -288,6 +304,43 @@ The bridge is documented in
 preserves source corpus identity and response IDs, evaluates the target
 `0.2a.1`/`0.3a.3` semantics, and records both identities in `semanticReplay`.
 Without the flag, the same source/target mismatch remains fail-closed.
+
+## Generic Chat Completions Judge and report locale
+
+For a provider other than the existing OpenAI or DeepSeek adapters, use
+`--judge-chat-completions` and configure the provider-neutral environment:
+
+```powershell
+$env:CHAT_COMPLETIONS_JUDGE_PROVIDER = "minimax"
+$env:CHAT_COMPLETIONS_JUDGE_MODEL = "<exact judge model id>"
+$env:CHAT_COMPLETIONS_JUDGE_BASE_URL = "https://api.minimax.io/v1"
+$env:CHAT_COMPLETIONS_JUDGE_API_PATH = "/chat/completions"
+$env:CHAT_COMPLETIONS_JUDGE_API_KEY = "<local secret>"
+$env:CHAT_COMPLETIONS_JUDGE_MAX_OUTPUT_TOKENS_FIELD = "max_completion_tokens"
+$env:CHAT_COMPLETIONS_JUDGE_MAX_TOKENS = "8192"
+$env:CHAT_COMPLETIONS_JUDGE_JSON_MODE = "disabled"
+$env:CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS = "60000"
+$env:CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS = "2"
+
+node dist/src/cli/tutorbench.js evaluate `
+  --corpus artifacts/real-model/preliminary-provider-model-tutor-bilingual-001.corpus.json `
+  --full `
+  --judge-chat-completions `
+  --report-locale zh-CN `
+  --output artifacts/real-model/preliminary-provider-model-tutor-bilingual-001.evaluation.json
+```
+
+The generic path accepts `max_tokens` or `max_completion_tokens` explicitly,
+can omit Chat Completions JSON mode when the provider does not support it, and
+still parses the final content through the existing strict TutorEval Judge
+contract. It never stores reasoning content or provider error bodies. Missing
+credentials produce `judge_unavailable` without a network call; timeout,
+malformed, HTTP, and ownership failures remain errors with null scores.
+
+`--report-locale en` is the default. `--report-locale zh-CN` changes report
+labels only; it does not select cases, change `targetLocale`, translate
+responses, change scoring, or alter corpus/evaluation identity. The
+language-context breakdown always groups by each case's authoritative locale.
 
 ## Dry-run and publication boundary
 
