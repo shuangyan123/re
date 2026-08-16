@@ -55,6 +55,7 @@ const configurationMessages: Readonly<
     "DEEPSEEK_JUDGE_MAX_TOKENS must be a positive integer.",
   endpoint_path_invalid: "The DeepSeek Judge endpoint path is invalid.",
   json_mode_invalid: "The DeepSeek Judge JSON mode is invalid.",
+  reasoning_split_invalid: "The DeepSeek Judge does not use the MiniMax reasoning split setting.",
   max_output_tokens_field_invalid: "The DeepSeek Judge output token field is invalid.",
 };
 
@@ -82,7 +83,7 @@ export interface DeepSeekJudgeEnvironmentConfig {
 export interface DeepSeekJudgeRequestOptions
   extends Omit<
     ChatCompletionsJudgeRequestOptions,
-    "thinking" | "reasoningEffort" | "maxOutputTokens"
+    "thinking" | "reasoningSplit" | "reasoningEffort" | "maxOutputTokens"
   > {
   readonly promptId: string;
   readonly promptVersion: string;

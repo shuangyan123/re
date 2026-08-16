@@ -302,6 +302,7 @@ test("DeepSeek builds a provider-correct Chat Completions JSON-mode request", as
   assert.equal(request.stream, false);
   assert.deepEqual(request.response_format, { type: "json_object" });
   assert.deepEqual(request.thinking, { type: "enabled" });
+  assert.equal(request.reasoning_split, undefined);
   assert.equal(request.reasoning_effort, "high");
   assert.equal(request.max_tokens, 8192);
   assert.equal(request.temperature, undefined);

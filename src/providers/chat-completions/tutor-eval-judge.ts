@@ -26,6 +26,7 @@ export type ChatCompletionsJudgeConfigurationErrorCode =
   | "temperature_invalid"
   | "max_tokens_invalid"
   | "json_mode_invalid"
+  | "reasoning_split_invalid"
   | "max_output_tokens_field_invalid";
 
 const configurationMessages: Readonly<
@@ -46,6 +47,8 @@ const configurationMessages: Readonly<
   max_tokens_invalid: "The Chat Completions Judge output token limit must be a positive integer.",
   json_mode_invalid:
     "The Chat Completions Judge JSON mode must be enabled or disabled.",
+  reasoning_split_invalid:
+    "The Chat Completions Judge reasoning split mode must be enabled or disabled.",
   max_output_tokens_field_invalid:
     "The Chat Completions Judge output token field must be max_tokens or max_completion_tokens.",
 };
@@ -78,6 +81,7 @@ export type ChatCompletionsFetch = (
 ) => Promise<ChatCompletionsHttpResponse>;
 
 export type ChatCompletionsThinkingMode = "enabled" | "disabled";
+export type ChatCompletionsReasoningSplit = "enabled" | "disabled";
 export type ChatCompletionsReasoningEffort = "high" | "max";
 export type ChatCompletionsJudgeJsonMode = "enabled" | "disabled";
 export type ChatCompletionsMaxOutputTokensField =
@@ -92,6 +96,8 @@ export interface ChatCompletionsJudgeRequestOptions {
   readonly temperature?: number;
   /** Provider-neutral representation of an optional Chat Completions control. */
   readonly thinking?: { readonly type: ChatCompletionsThinkingMode };
+  /** When enabled, request providers that support it to separate thinking from content. */
+  readonly reasoningSplit?: ChatCompletionsReasoningSplit;
   readonly reasoningEffort?: ChatCompletionsReasoningEffort;
   readonly maxOutputTokens?: number;
   readonly jsonMode?: ChatCompletionsJudgeJsonMode;
@@ -107,6 +113,7 @@ export interface ChatCompletionsJudgeRequest {
   /** Chat Completions JSON mode is object-only, not strict JSON Schema mode. */
   readonly response_format?: { readonly type: "json_object" };
   readonly thinking?: { readonly type: ChatCompletionsThinkingMode };
+  readonly reasoning_split?: true;
   readonly reasoning_effort?: ChatCompletionsReasoningEffort;
   readonly max_tokens?: number;
   readonly max_completion_tokens?: number;
@@ -167,6 +174,15 @@ function normalizedJsonMode(
   throw new ChatCompletionsJudgeConfigurationError("json_mode_invalid");
 }
 
+function normalizedReasoningSplit(
+  value: ChatCompletionsReasoningSplit | undefined,
+): ChatCompletionsReasoningSplit {
+  if (value === undefined || value === "enabled" || value === "disabled") {
+    return value ?? "disabled";
+  }
+  throw new ChatCompletionsJudgeConfigurationError("reasoning_split_invalid");
+}
+
 function normalizedMaxOutputTokensField(
   value: ChatCompletionsMaxOutputTokensField | undefined,
 ): ChatCompletionsMaxOutputTokensField {
@@ -209,6 +225,7 @@ function assertRequestConfiguration(options: ChatCompletionsJudgeOptions): void 
   }
   normalizedEndpointPath(options.endpointPath);
   normalizedJsonMode(options.jsonMode);
+  normalizedReasoningSplit(options.reasoningSplit);
   normalizedMaxOutputTokensField(options.maxOutputTokensField);
   if (
     options.temperature !== undefined &&
@@ -261,6 +278,7 @@ export function buildChatCompletionsJudgeRequest(
     throw new ChatCompletionsJudgeConfigurationError("prompt_invalid");
   }
   const jsonMode = normalizedJsonMode(options.jsonMode);
+  const reasoningSplit = normalizedReasoningSplit(options.reasoningSplit);
   const maxOutputTokensField = normalizedMaxOutputTokensField(options.maxOutputTokensField);
   if (
     options.temperature !== undefined &&
@@ -278,6 +296,7 @@ export function buildChatCompletionsJudgeRequest(
     ],
     ...(jsonMode === "enabled" ? { response_format: { type: "json_object" } } : {}),
     ...(options.thinking === undefined ? {} : { thinking: options.thinking }),
+    ...(reasoningSplit === "enabled" ? { reasoning_split: true } : {}),
     ...(options.reasoningEffort === undefined
       ? {}
       : { reasoning_effort: options.reasoningEffort }),
@@ -419,6 +438,9 @@ export function createChatCompletionsJudge(
     promptVersion: options.promptVersion,
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
     ...(options.thinking === undefined ? {} : { thinking: options.thinking }),
+    ...(options.reasoningSplit === undefined
+      ? {}
+      : { reasoningSplit: options.reasoningSplit }),
     ...(options.reasoningEffort === undefined
       ? {}
       : { reasoningEffort: options.reasoningEffort }),

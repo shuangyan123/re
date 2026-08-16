@@ -151,7 +151,13 @@ OpenAI-specific `openai-server.mjs` and a provider-neutral
 `TUTOR_MODEL_API_KEY`, `TUTOR_MODEL_BASE_URL`, `TUTOR_MODEL`, and explicit
 path/output-token-field settings from the local environment; it makes one
 request per packet, performs no provider retry, and returns only final visible
-content. Both hosts are local integration code, not Benchmark Core or package
+content. Set `TUTOR_MODEL_REASONING_SPLIT=enabled` for a MiniMax reasoning
+model so the host sends `reasoning_split: true`; pair it with
+`TUTOR_MODEL_REQUIRE_REASONING_SEPARATION=true` to reject an unsplit
+`<think>...</think>` wrapper rather than guessing which text is final. For
+DeepSeek, leave the optional split setting disabled: its separate
+`reasoning_content` field is ignored and only `message.content` is returned.
+Both hosts are local integration code, not Benchmark Core or package
 runtime dependencies, and neither is invoked by CI. See [the first real
 baseline procedure](first-real-baseline.md) for DeepSeek/MiniMax setup,
 bilingual smoke, full collection, resume, validation, Judge, and private
@@ -317,7 +323,8 @@ $env:CHAT_COMPLETIONS_JUDGE_BASE_URL = "https://api.minimax.io/v1"
 $env:CHAT_COMPLETIONS_JUDGE_API_PATH = "/chat/completions"
 $env:CHAT_COMPLETIONS_JUDGE_API_KEY = "<local secret>"
 $env:CHAT_COMPLETIONS_JUDGE_MAX_OUTPUT_TOKENS_FIELD = "max_completion_tokens"
-$env:CHAT_COMPLETIONS_JUDGE_MAX_TOKENS = "8192"
+$env:CHAT_COMPLETIONS_JUDGE_MAX_TOKENS = "2048"
+$env:CHAT_COMPLETIONS_JUDGE_REASONING_SPLIT = "enabled"
 $env:CHAT_COMPLETIONS_JUDGE_JSON_MODE = "disabled"
 $env:CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS = "60000"
 $env:CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS = "2"
@@ -332,10 +339,19 @@ node dist/src/cli/tutorbench.js evaluate `
 
 The generic path accepts `max_tokens` or `max_completion_tokens` explicitly,
 can omit Chat Completions JSON mode when the provider does not support it, and
-still parses the final content through the existing strict TutorEval Judge
-contract. It never stores reasoning content or provider error bodies. Missing
-credentials produce `judge_unavailable` without a network call; timeout,
-malformed, HTTP, and ownership failures remain errors with null scores.
+still parses only final `message.content` through the existing strict TutorEval
+Judge contract. `CHAT_COMPLETIONS_JUDGE_REASONING_SPLIT=enabled` adds the
+provider-compatible `reasoning_split: true` request field; disabled or absent
+configuration omits it. It never stores `reasoning_content`,
+`reasoning_details`, or provider error bodies. Missing credentials produce
+`judge_unavailable` without a network call; timeout, malformed, HTTP, and
+ownership failures remain errors with null scores.
+
+The current MiniMax OpenAI-compatible documentation lists a maximum
+`max_completion_tokens` value of 524288 for MiniMax-M3 and 204800 for the
+listed M2.x models. The example's `2048` is a conservative cross-model Judge
+cap, not a generic Chat Completions limit; verify the exact configured model's
+current limit before increasing it.
 
 `--report-locale en` is the default. `--report-locale zh-CN` changes report
 labels only; it does not select cases, change `targetLocale`, translate

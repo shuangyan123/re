@@ -291,6 +291,7 @@ async function createJudgeIfRequested(
       ...(environment.temperature === undefined
         ? {}
         : { temperature: environment.temperature }),
+      reasoningSplit: environment.reasoningSplit,
       ...(environment.maxOutputTokens === undefined
         ? {}
         : { maxOutputTokens: environment.maxOutputTokens }),
