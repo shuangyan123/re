@@ -30,6 +30,12 @@ import {
   type TutorbenchCollectModelCliOptions,
 } from "./tutorbench-collect-model.js";
 import {
+  parseReviewTranslateArgs,
+  printReviewTranslateHelp,
+  runReviewTranslate,
+  type ReviewTranslateCliOptions,
+} from "./review-translate.js";
+import {
   nextTutorbenchValue,
   positiveTutorbenchInteger,
   tutorbenchOptionValue,
@@ -52,11 +58,12 @@ export interface TutorbenchRunOptions {
 }
 
 export type TutorbenchCliOptions =
-  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" }
+  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" }
   | { readonly help: false; readonly run: TutorbenchRunOptions }
   | { readonly help: false; readonly collect: TutorbenchCollectCliOptions }
   | { readonly help: false; readonly collectModel: TutorbenchCollectModelCliOptions }
-  | { readonly help: false; readonly evaluate: BenchmarkCorpusCliOptions };
+  | { readonly help: false; readonly evaluate: BenchmarkCorpusCliOptions }
+  | { readonly help: false; readonly reviewTranslate: ReviewTranslateCliOptions };
 
 export function parseTutorbenchArgs(
   args: readonly string[],
@@ -81,6 +88,12 @@ export function parseTutorbenchArgs(
     return evaluate.help
       ? { help: true, helpCommand: "evaluate" }
       : { help: false, evaluate };
+  }
+  if (args[0] === "review-translate") {
+    const reviewTranslate = parseReviewTranslateArgs(args.slice(1));
+    return reviewTranslate.help
+      ? { help: true, helpCommand: "review-translate" }
+      : { help: false, reviewTranslate };
   }
   if (args[0] !== "run") {
     throw new TutorbenchCliUsageError(
@@ -209,12 +222,14 @@ Usage:
   tutorbench collect --http <url> --provider <id> --model <id> --prompt-version <id> --provenance <value> [options]
   tutorbench collect-model --http <url> --provider <id> --model <id> [options]
   tutorbench evaluate --corpus <path> [options]
+  tutorbench review-translate --evaluation <path> --output <path> [options]
 
 Commands:
   run                   Quick local evaluation; responses are not frozen
   collect               Freeze Product Tutor responses from TutorTurnInput
   collect-model         Freeze canonical model responses from ExecutionPacket
   evaluate              Offline corpus replay and preliminary evaluation
+  review-translate      Build an isolated, review-only translation sidecar
 
 Run options:
   --http <url>          POST TutorTurnInput JSON to this http(s) endpoint
@@ -311,6 +326,8 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       printTutorbenchCollectModelHelp();
     } else if (options.helpCommand === "evaluate") {
       printBenchmarkCorpusHelp();
+    } else if (options.helpCommand === "review-translate") {
+      printReviewTranslateHelp();
     } else {
       printHelp();
     }
@@ -330,6 +347,12 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       return;
     }
     await runTutorbenchCollectModel(options.collectModel);
+  } else if ("reviewTranslate" in options) {
+    if (options.reviewTranslate.help) {
+      printReviewTranslateHelp();
+      return;
+    }
+    await runReviewTranslate(options.reviewTranslate);
   } else {
     if (options.evaluate.help) {
       printBenchmarkCorpusHelp();
@@ -350,7 +373,9 @@ async function runAsExecutable(): Promise<void> {
         error.name === "HttpTutorConfigurationError" ||
         error.name === "HttpTutorExecutionHostConfigurationError" ||
         error.name === "DeepSeekJudgeConfigurationError" ||
-        error.name === "ChatCompletionsJudgeConfigurationError"
+        error.name === "ChatCompletionsJudgeConfigurationError" ||
+        error.name === "ReviewTranslationArtifactError" ||
+        error.name === "ReviewTranslationConfigurationError"
       ))
         ? error.message
         : "Tutor Benchmark CLI failed.",

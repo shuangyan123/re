@@ -88,7 +88,18 @@ export type SiteUiTextKey =
   | "resetFilters"
   | "showingCases"
   | "localeBreakdown"
-  | "crossLocaleGroup";
+  | "crossLocaleGroup"
+  | "studentProfile"
+  | "knownConcepts"
+  | "misconceptions"
+  | "level"
+  | "goal"
+  | "reviewTranslation"
+  | "reviewTranslationOnly"
+  | "viewOriginal"
+  | "translationUnavailable"
+  | "translationStale"
+  | "translationFailed";
 
 const translations: Record<SiteLocale, Record<SiteUiTextKey, string>> = {
   en: {
@@ -177,6 +188,17 @@ const translations: Record<SiteLocale, Record<SiteUiTextKey, string>> = {
     showingCases: "Showing {count} cases",
     localeBreakdown: "Locale breakdown",
     crossLocaleGroup: "Construct cohort group",
+    studentProfile: "Student profile",
+    knownConcepts: "Known concepts",
+    misconceptions: "Misconceptions",
+    level: "Level",
+    goal: "Goal",
+    reviewTranslation: "Review translation",
+    reviewTranslationOnly: "Review translation only — not used for evaluation.",
+    viewOriginal: "View original",
+    translationUnavailable: "No Chinese review translation is available.",
+    translationStale: "This Chinese review translation is out of date.",
+    translationFailed: "The Chinese review translation is unavailable for this field.",
   },
   "zh-CN": {
     leaderboard: "排行榜",
@@ -264,6 +286,17 @@ const translations: Record<SiteLocale, Record<SiteUiTextKey, string>> = {
     showingCases: "显示 {count} 个案例",
     localeBreakdown: "按目标语言分组",
     crossLocaleGroup: "构念分组",
+    studentProfile: "学生画像",
+    knownConcepts: "已知概念",
+    misconceptions: "常见误解",
+    level: "水平",
+    goal: "目标",
+    reviewTranslation: "中文辅助翻译",
+    reviewTranslationOnly: "辅助翻译，仅供人工阅读，不参与评测。",
+    viewOriginal: "查看原文",
+    translationUnavailable: "暂无中文辅助翻译。",
+    translationStale: "辅助翻译已过期。",
+    translationFailed: "此字段的中文辅助翻译不可用。",
   },
 };
 
