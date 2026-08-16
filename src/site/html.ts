@@ -2,6 +2,12 @@ import type {
   PublicBenchmarkArtifact,
   TutorEvalPublicCase,
 } from "../datasets/public.js";
+import {
+  resolveSiteLocale,
+  siteText,
+  type SiteLocale,
+  type SiteUiTextKey,
+} from "./i18n.js";
 
 export const SITE_GITHUB_URL = "https://github.com/shuangyan123/re";
 
@@ -12,6 +18,7 @@ type SiteFooterBenchmark = Pick<PublicBenchmarkArtifact, "statusLabel"> & {
 export interface SiteRenderContext {
   readonly siteUrl?: string;
   readonly basePath?: string;
+  readonly locale?: SiteLocale;
   readonly benchmark?: SiteFooterBenchmark;
 }
 
@@ -72,6 +79,15 @@ export function escapeHtml(value: unknown): string {
     .replaceAll("'", "&#39;");
 }
 
+/** Safe text nodes that the small static-site script can switch at runtime. */
+export function renderUiText(key: SiteUiTextKey, locale: SiteLocale): string {
+  return `<span data-ui-text="${escapeHtml(key)}" data-ui-text-en="${escapeHtml(
+    siteText("en", key),
+  )}" data-ui-text-zh-cn="${escapeHtml(siteText("zh-CN", key))}">${escapeHtml(
+    siteText(locale, key),
+  )}</span>`;
+}
+
 export function humanize(value: string): string {
   return value
     .replaceAll("_", " ")
@@ -125,18 +141,23 @@ export function renderKeyValueList(items: readonly [string, string][]): string {
 }
 
 function navLink(
-  label: string,
+  labelKey: SiteUiTextKey,
   route: string,
   activeRoute: string,
   basePath: string,
+  locale: SiteLocale,
 ): string {
   const active =
     activeRoute === route ||
     (route === "/data/" && activeRoute.startsWith("/data/"));
-  return `<a href="${escapeHtml(sitePath(basePath, route))}"${active ? ' aria-current="page"' : ""}>${escapeHtml(label)}</a>`;
+  return `<a href="${escapeHtml(sitePath(basePath, route))}"${active ? ' aria-current="page"' : ""}>${renderUiText(labelKey, locale)}</a>`;
 }
 
-function renderHeader(activeRoute: string, basePath: string): string {
+function renderHeader(
+  activeRoute: string,
+  basePath: string,
+  locale: SiteLocale,
+): string {
   return `<header class="site-header">
     <div class="shell header-inner">
       <a class="wordmark" href="${escapeHtml(sitePath(basePath, "/"))}" aria-label="Tutor Benchmark home">
@@ -145,20 +166,25 @@ function renderHeader(activeRoute: string, basePath: string): string {
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">Menu</button>
       <nav id="primary-navigation" class="nav-links" aria-label="Primary navigation">
-        ${navLink("Leaderboard", "/leaderboard/", activeRoute, basePath)}
-        ${navLink("Data", "/data/", activeRoute, basePath)}
-        ${navLink("Run", "/run/", activeRoute, basePath)}
-        ${navLink("Methodology", "/methodology/", activeRoute, basePath)}
-        ${navLink("Docs", "/docs/", activeRoute, basePath)}
+        ${navLink("leaderboard", "/leaderboard/", activeRoute, basePath, locale)}
+        ${navLink("data", "/data/", activeRoute, basePath, locale)}
+        ${navLink("run", "/run/", activeRoute, basePath, locale)}
+        ${navLink("methodology", "/methodology/", activeRoute, basePath, locale)}
+        ${navLink("docs", "/docs/", activeRoute, basePath, locale)}
         <a href="${escapeHtml(SITE_GITHUB_URL)}" rel="noreferrer">GitHub ↗</a>
+        <label class="locale-switcher">
+          <span class="visually-hidden">${renderUiText("selectLanguage", locale)}</span>
+          <select data-locale-switcher aria-label="${escapeHtml(siteText(locale, "selectLanguage"))}">
+            <option value="en"${locale === "en" ? " selected" : ""}>${escapeHtml(siteText("en", "english"))}</option>
+            <option value="zh-CN"${locale === "zh-CN" ? " selected" : ""}>${escapeHtml(siteText("zh-CN", "chinese"))}</option>
+          </select>
+        </label>
       </nav>
     </div>
   </header>`;
 }
 
-function renderFooter(
-  benchmark: SiteFooterBenchmark,
-): string {
+function renderFooter(benchmark: SiteFooterBenchmark, locale: SiteLocale): string {
   return `<footer class="site-footer">
     <div class="shell footer-grid">
       <div>
@@ -166,9 +192,9 @@ function renderFooter(
         <p class="muted">A public, provider-independent explorer for observable tutoring behavior.</p>
       </div>
       <div>
-        <p class="footer-title">Status</p>
+        <p class="footer-title">${renderUiText("status", locale)}</p>
         <p>${renderStatusBadge(benchmark.statusLabel, "preview")}</p>
-        <p class="muted">Licensing is not finalized yet.</p>
+        <p class="muted">${locale === "zh-CN" ? "许可信息尚未最终确定。" : "Licensing is not finalized yet."}</p>
       </div>
       <div>
         <p class="footer-title">Source</p>
@@ -181,10 +207,11 @@ function renderFooter(
 
 export function renderPage(page: SitePage, context: SiteRenderContext = {}): string {
   const basePath = normalizeSiteBasePath(context.basePath);
+  const locale = resolveSiteLocale(context.locale);
   const siteUrl = context.siteUrl?.replace(/\/$/, "");
   const canonicalUrl = siteUrl === undefined ? undefined : `${siteUrl}${page.route}`;
   const pageMarkup = `<!doctype html>
-<html lang="en">
+<html lang="${escapeHtml(locale)}" data-ui-locale="${escapeHtml(locale)}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -199,12 +226,12 @@ export function renderPage(page: SitePage, context: SiteRenderContext = {}): str
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
-    ${renderHeader(page.route, basePath)}
+    ${renderHeader(page.route, basePath, locale)}
     <main id="main-content">${page.content}</main>
     ${renderFooter(context.benchmark ?? ({
       statusLabel: "Developer Preview",
       dataset: { id: "tutor-eval-v0.2a", version: "0.2a.1" },
-    }))}
+    }), locale)}
   </body>
 </html>
 `;

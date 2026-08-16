@@ -407,7 +407,8 @@ test("corpus parser rejects credentials and raw provider payload fields", () => 
 
 test("baseline prompt is versioned behavior guidance and contains no evaluator annotations", async () => {
   const prompt = await loadTutorBaselinePrompt();
-  assert.match(prompt, /Tutor baseline system prompt v0\.1/);
+  assert.match(prompt, /Tutor baseline system prompt v0\.2/);
+  assert.match(prompt, /targetLocale/);
   assert.doesNotMatch(prompt, /rubric|groundTruth|knownMisconception|Judge|evaluatorOnly/i);
 });
 

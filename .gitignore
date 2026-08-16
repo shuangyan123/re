@@ -2,6 +2,7 @@ node_modules/
 coverage/
 dist/
 website/dist/
+website/private-dist/
 
 .env
 .env.*

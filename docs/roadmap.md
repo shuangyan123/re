@@ -68,8 +68,9 @@ pairwise or statistical evaluation claim is included.
 - [ ] Actual reviewed real-model baseline artifacts
 - [ ] Broader model adapters if required
 
-See [the 0.4A.2 generation and response corpus guide](tutor-eval-v0.4a.md) and
-[the real-model evidence guide](real-model-baselines.md). The repository
+See [the 0.4A.3 locale and audit guide](tutor-eval-v0.4a.3-locale.md), the
+[historical 0.4A.2 generation and response corpus guide](tutor-eval-v0.4a.md),
+and [the real-model evidence guide](real-model-baselines.md). The repository
 remains independent from Review Workspace. Product collection and canonical
 model collection consume separate provider-neutral boundaries; neither path
 creates public model results automatically.

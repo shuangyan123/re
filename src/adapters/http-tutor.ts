@@ -72,6 +72,7 @@ function serializeTutorTurnInput(input: TutorTurnInput): TutorTurnInput {
     ...(input.caseId === undefined ? {} : { caseId: input.caseId }),
     ...(input.caseVersion === undefined ? {} : { caseVersion: input.caseVersion }),
     ...(input.runIndex === undefined ? {} : { runIndex: input.runIndex }),
+    ...(input.locale === undefined ? {} : { locale: input.locale }),
     ...(input.learningObjective === undefined
       ? {}
       : { learningObjective: input.learningObjective }),

@@ -28,7 +28,7 @@ canonical `base_url` to the generator, so project-site links work under
 generated routes and public-data firewall before upload and requires no model,
 API, database, or deployment secret.
 
-The Run and Methodology pages describe the 0.4A.2 `baseline-native-default`
+The Run and Methodology pages describe the 0.4A.3 `baseline-native-default`
 generation profile: the benchmark prompt/messages and 1024-token output cap
 are fixed, while temperature, reasoning, and seed remain provider-native and
 unconstrained. Future public cohorts must retain dataset and generation spec
@@ -43,3 +43,10 @@ The serializer defaults to excluding evaluator-only fields. The current
 synthetic development dataset opts into its documented public disclosure and
 adaptation metadata; ground truth, known misconceptions, rubrics, and hidden
 evidence remain excluded.
+
+Case target locale is independent from the developer UI locale. The public
+case artifact records the resolved locale; legacy cases without the field
+resolve to `en`. For a local, explicit audit view over an ignored evaluation
+artifact, use `npm run website:build -- -- --evaluation <path> --output
+website/private-dist --locale zh-CN`. The default Pages build never loads that
+path and never emits private evaluation content.

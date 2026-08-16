@@ -35,6 +35,7 @@ import {
   type TutorEvalDifficulty,
 } from "./tutor-eval-taxonomy.js";
 import type { TutorConversationMessage } from "./tutor.js";
+import { readTutorCaseLocale } from "./locale.js";
 import { TUTOR_EVAL_DISCLOSURE_POLICIES } from "./tutor-eval-disclosure.js";
 
 type UnknownRecord = Record<string, unknown>;
@@ -483,6 +484,7 @@ function parseTutorEvalCaseValue(value: unknown): TutorEvalCase | null {
   }
   const id = readRequiredString(record, "id");
   const version = readRequiredString(record, "version");
+  const locale = readTutorCaseLocale(record.locale);
   const metadataRecord = asRecord(record.metadata);
   const tutorInputRecord = asRecord(record.tutorInput);
   const evaluatorOnlyRecord = asRecord(record.evaluatorOnly);
@@ -557,6 +559,7 @@ function parseTutorEvalCaseValue(value: unknown): TutorEvalCase | null {
   if (
     id === null ||
     version === null ||
+    locale === null ||
     subject === null ||
     topic === null ||
     difficulty === null ||
@@ -590,6 +593,7 @@ function parseTutorEvalCaseValue(value: unknown): TutorEvalCase | null {
     schemaVersion: TUTOR_EVAL_CASE_SCHEMA_VERSION,
     id,
     version,
+    ...(locale === undefined ? {} : { locale }),
     metadata: {
       subject,
       topic,

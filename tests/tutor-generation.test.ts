@@ -26,7 +26,9 @@ import {
 import {
   buildTutorBaselineGenerationSpec,
   buildTutorBaselineGenerationSpecV1,
+  buildTutorBaselineGenerationSpecV2,
   loadTutorBaselinePrompt,
+  loadTutorBaselinePromptV1,
 } from "../src/corpus/index.js";
 import { deriveTutorResponseId } from "../src/corpus/index.js";
 import { runDryTutorExecutionPacket } from "../src/adapters/index.js";
@@ -107,29 +109,37 @@ test("TutorGenerationSpec validates bounded parameters and optional values", asy
   );
 });
 
-test("baseline v1 remains historical while v2 is the portable default", async () => {
+test("historical baseline profiles remain replayable while the locale-aware profile is current", async () => {
   const { dataset, promptAsset } = await loadContext();
-  const v1 = buildTutorBaselineGenerationSpecV1(promptAsset);
-  const v2 = buildTutorBaselineGenerationSpec(promptAsset);
+  const historicalPromptAsset = await loadTutorBaselinePromptV1();
+  const v1 = buildTutorBaselineGenerationSpecV1(historicalPromptAsset);
+  const v2 = buildTutorBaselineGenerationSpecV2(historicalPromptAsset);
+  const v3 = buildTutorBaselineGenerationSpec(promptAsset);
 
   assert.equal(v1.specVersion, "0.4a.1");
+  assert.equal(v1.prompt.version, "0.1");
   assert.equal(v1.temperature, 0.2);
   assert.equal(v1.reasoningEffort, "low");
   assert.equal(v1.seed, 7);
   assert.equal(v2.specVersion, "0.4a.2");
+  assert.equal(v2.prompt.version, "0.1");
   assert.equal(v2.maxOutputTokens, 1024);
   assert.equal("temperature" in v2, false);
   assert.equal("reasoningEffort" in v2, false);
   assert.equal("seed" in v2, false);
+  assert.equal(v3.specVersion, "0.4a.3");
+  assert.equal(v3.prompt.version, "0.2");
   assert.notDeepEqual(v1, v2);
+  assert.notDeepEqual(v2, v3);
   assert.doesNotThrow(() => parseTutorGenerationSpec(v1));
   assert.doesNotThrow(() => parseTutorGenerationSpec(v2));
+  assert.doesNotThrow(() => parseTutorGenerationSpec(v3));
 
   const v1Packet = buildTutorExecutionPacketFile(
     dataset,
     [selectedCase(dataset)],
     v1,
-    promptAsset,
+    historicalPromptAsset,
   );
   assert.equal(parseTutorExecutionPacketFile(v1Packet).generationSpec.specVersion, "0.4a.1");
   const v1Corpus = await runDryTutorExecutionPacket(v1Packet, {
@@ -205,7 +215,7 @@ test("prompt digest is deterministic and changes when prompt content changes", (
 test("canonical messages preserve roles and are deterministic", async () => {
   const { promptAsset } = await loadContext();
   const generationSpec = buildTutorBaselineGenerationSpec(promptAsset);
-  assert.equal(generationSpec.specVersion, "0.4a.2");
+  assert.equal(generationSpec.specVersion, "0.4a.3");
   const visibleCase = visibleFixture();
   const first = buildTutorGenerationMessages(visibleCase, generationSpec, promptAsset);
   const second = buildTutorGenerationMessages(
@@ -223,9 +233,33 @@ test("canonical messages preserve roles and are deterministic", async () => {
   ]);
   assert.equal(first[0]?.content, promptAsset);
   assert.match(first[1]?.content ?? "", /learningObjective=/);
+  assert.match(first[1]?.content ?? "", /targetLocale="en"/);
   assert.match(first[1]?.content ?? "", /studentProfile=\{"level":"elementary"/);
   assert.equal(first[3]?.content, "What do the denominators describe?");
   assert.equal(first[4]?.content, visibleCase.studentMessage);
+});
+
+test("case locale changes the generation target without introducing developer UI locale", async () => {
+  const { promptAsset } = await loadContext();
+  const generationSpec = buildTutorBaselineGenerationSpec(promptAsset);
+  const english = buildTutorGenerationMessages(
+    { ...visibleFixture(), locale: "en" },
+    generationSpec,
+    promptAsset,
+  );
+  const chinese = buildTutorGenerationMessages(
+    { ...visibleFixture(), locale: "zh-CN" },
+    generationSpec,
+    promptAsset,
+  );
+  assert.match(english[0]?.content ?? "", /targetLocale/);
+  assert.match(english[0]?.content ?? "", /For\s+`en`, use natural, clear English/);
+  assert.match(english[1]?.content ?? "", /targetLocale="en"/);
+  assert.match(chinese[0]?.content ?? "", /For\s+`zh-CN`, use natural, clear Simplified Chinese/);
+  assert.match(chinese[1]?.content ?? "", /targetLocale="zh-CN"/);
+  assert.notEqual(english[1]?.content, chinese[1]?.content);
+  assert.equal(english[0]?.content, chinese[0]?.content);
+  assert.equal(english.at(-1)?.content, chinese.at(-1)?.content);
 });
 
 test("student profile serialization has fixed fields and missing input defaults stay stable", async () => {
@@ -267,7 +301,7 @@ test("execution packet is ordered, provider-independent, and blocks hidden data"
     generationSpec,
     promptAsset,
   );
-  assert.equal(first.generationSpec.specVersion, "0.4a.2");
+  assert.equal(first.generationSpec.specVersion, "0.4a.3");
   assert.equal(JSON.stringify(first), JSON.stringify(second));
   assert.deepEqual(
     first.cases.map((caseValue) => caseValue.caseId),
@@ -318,7 +352,7 @@ test("dry executor consumes only the execution packet and emits generation-bound
       return `Dry response for ${input.caseId}.`;
     },
   });
-  assert.equal(corpus.corpusVersion, "0.4a.2");
+  assert.equal(corpus.corpusVersion, "0.4a.3");
   assert.deepEqual(seen, ["fraction-misconception-001:3"]);
   assert.deepEqual(corpus.generationSpec, generationSpec);
   assert.equal(corpus.responses[0]?.provenance, "synthetic");
@@ -347,7 +381,7 @@ test("corpus generation identity rejects mismatched spec and response IDs", asyn
   } as const;
   const corpusIdentity = {
     corpusId: "identity-corpus",
-    corpusVersion: "0.4a.2",
+    corpusVersion: "0.4a.3",
   } as const;
   const corpus = parseTutorResponseCorpus({
     schemaVersion: 1,

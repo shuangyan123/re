@@ -10,6 +10,8 @@ export {
   TUTOR_EVAL_EVALUATOR_VERSION,
   TUTOR_EVAL_LEGACY_DATASET_ID,
   TUTOR_EVAL_LEGACY_DATASET_VERSION,
+  TUTOR_CASE_LOCALES,
+  DEFAULT_TUTOR_CASE_LOCALE,
   toTutorTurnInput,
 } from "./contracts/index.js";
 export { runTutorBenchmark, runTutorEval } from "./runner/index.js";
@@ -29,6 +31,7 @@ export type {
   TutorEvalCase,
   TutorEvalDataset,
 } from "./contracts/tutor-eval.js";
+export type { TutorCaseLocale } from "./contracts/locale.js";
 export type { HttpTutorOptions } from "./adapters/http-tutor.js";
 export type { TutorEvalRubric } from "./contracts/rubric.js";
 export type {

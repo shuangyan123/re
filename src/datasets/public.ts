@@ -8,6 +8,11 @@ import {
   type TutorEvalDifficulty,
   type TutorEvalStudentProfile,
 } from "../contracts/index.js";
+import {
+  isTutorCaseLocale,
+  resolveTutorCaseLocale,
+  type TutorCaseLocale,
+} from "../contracts/index.js";
 import { buildTutorEvalCoverageReport, type TutorEvalCoverageReport } from "./coverage.js";
 
 export const TUTOR_EVAL_PUBLIC_CASE_SCHEMA_VERSION = 1 as const;
@@ -44,6 +49,8 @@ export interface TutorEvalPublicCase {
   readonly schemaVersion: typeof TUTOR_EVAL_PUBLIC_CASE_SCHEMA_VERSION;
   readonly id: string;
   readonly version: string;
+  /** Optional for old public artifacts; new serialization always includes it. */
+  readonly locale?: TutorCaseLocale;
   readonly metadata: {
     readonly subject: string;
     readonly topic: string;
@@ -206,6 +213,7 @@ export function toPublicTutorEvalCase(
     schemaVersion: TUTOR_EVAL_PUBLIC_CASE_SCHEMA_VERSION,
     id: tutorEvalCase.id,
     version: tutorEvalCase.version,
+    locale: resolveTutorCaseLocale(tutorEvalCase.locale),
     metadata: {
       subject: metadata.subject,
       topic: metadata.topic,
@@ -408,6 +416,7 @@ function isPublicCase(value: unknown): value is TutorEvalPublicCase {
     (metadata.taxonomyVersion !== undefined && typeof metadata.taxonomyVersion !== "string") ||
     (metadata.learningTask !== undefined && typeof metadata.learningTask !== "string") ||
     (metadata.studentState !== undefined && typeof metadata.studentState !== "string") ||
+    (value.locale !== undefined && !isTutorCaseLocale(value.locale)) ||
     (tutorInput.problemContext !== undefined && typeof tutorInput.problemContext !== "string") ||
     (value.disclosurePolicy !== undefined && typeof value.disclosurePolicy !== "string") ||
     (value.adaptationPairId !== undefined && typeof value.adaptationPairId !== "string") ||

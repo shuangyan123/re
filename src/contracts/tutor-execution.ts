@@ -11,12 +11,19 @@ import {
   type TutorVisibleCasePacket,
 } from "./tutor-response-corpus.js";
 import type { TutorEvalCase, TutorEvalDataset } from "./tutor-eval.js";
+import {
+  readTutorCaseLocale,
+  resolveTutorCaseLocale,
+  type TutorCaseLocale,
+} from "./locale.js";
 
 export const TUTOR_EXECUTION_PACKET_SCHEMA_VERSION = 1 as const;
 
 export interface TutorExecutionPacketCase {
   readonly caseId: string;
   readonly caseVersion: string;
+  /** Optional on legacy packets; new packets record the target case locale. */
+  readonly locale?: TutorCaseLocale;
   readonly messages: readonly TutorGenerationMessage[];
 }
 
@@ -106,14 +113,16 @@ function parseCase(value: unknown): TutorExecutionPacketCase | null {
   const messages = Array.isArray(record?.messages)
     ? record.messages.map(parseMessage)
     : null;
+  const locale = readTutorCaseLocale(record?.locale);
   if (
     record === null ||
-    !hasOnlyKeys(record, ["caseId", "caseVersion", "messages"]) ||
+    !hasOnlyKeys(record, ["caseId", "caseVersion", "locale", "messages"]) ||
     !identifier(record.caseId) ||
     !identifier(record.caseVersion) ||
     messages === null ||
     messages.length < 3 ||
     messages.some((message): message is null => message === null) ||
+    locale === null ||
     messages[0]?.role !== "system" ||
     messages[1]?.role !== "user" ||
     messages[messages.length - 1]?.role !== "user"
@@ -123,6 +132,7 @@ function parseCase(value: unknown): TutorExecutionPacketCase | null {
   return {
     caseId: record.caseId,
     caseVersion: record.caseVersion,
+    locale: resolveTutorCaseLocale(locale),
     messages: messages as TutorGenerationMessage[],
   };
 }
@@ -199,6 +209,7 @@ function toExecutionCase(
   return {
     caseId: visibleCase.caseId,
     caseVersion: visibleCase.caseVersion,
+    locale: resolveTutorCaseLocale(visibleCase.locale),
     messages: buildTutorGenerationMessages(visibleCase, generationSpec, promptAsset),
   };
 }

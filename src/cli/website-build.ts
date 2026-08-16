@@ -8,7 +8,12 @@ import {
   loadTutorEvalDataset,
   type PublicBenchmarkArtifacts,
 } from "../datasets/index.js";
+import {
+  parseTutorEvaluationAuditArtifact,
+  type TutorEvaluationAuditArtifact,
+} from "../reporting/index.js";
 import { renderPage, type SitePage } from "../site/html.js";
+import { resolveSiteLocale, type SiteLocale } from "../site/i18n.js";
 import {
   renderDataIndexPage,
   renderHomePage,
@@ -24,6 +29,11 @@ import {
   renderTrialsPage,
 } from "../site/pages/data.js";
 import {
+  auditRoute,
+  renderTutorEvaluationAuditIndexPage,
+  renderTutorEvaluationAuditPage,
+} from "../site/pages/audit.js";
+import {
   renderAboutPage,
   renderDocsPage,
   renderMethodologyPage,
@@ -32,11 +42,20 @@ import {
 
 const websiteRoot = resolve(process.cwd(), "website");
 const defaultOutputDirectory = resolve(websiteRoot, "dist");
+const privateOutputDirectory = resolve(websiteRoot, "private-dist");
+
+function isWithinDirectory(candidate: string, directory: string): boolean {
+  const resolvedCandidate = resolve(candidate);
+  return resolvedCandidate === directory || resolvedCandidate.startsWith(`${directory}${process.platform === "win32" ? "\\" : "/"}`);
+}
 
 export interface BuildOptions {
   readonly outputDirectory?: string;
   readonly siteUrl?: string;
   readonly basePath?: string;
+  readonly locale?: SiteLocale;
+  /** Explicit local-only input; never loaded by the default public build. */
+  readonly evaluationPath?: string;
 }
 
 interface RoutePage {
@@ -63,6 +82,7 @@ async function writePage(
   artifacts: PublicBenchmarkArtifacts,
   siteUrl: string | undefined,
   basePath: string | undefined,
+  locale: SiteLocale,
 ): Promise<void> {
   const outputPath = pageOutputPath(outputDirectory, page.route);
   await mkdir(dirname(outputPath), { recursive: true });
@@ -72,12 +92,22 @@ async function writePage(
       benchmark: artifacts.benchmark,
       ...(siteUrl === undefined ? {} : { siteUrl }),
       ...(basePath === undefined ? {} : { basePath }),
+      locale,
     }),
     "utf8",
   );
 }
 
-function routePages(artifacts: PublicBenchmarkArtifacts): readonly RoutePage[] {
+interface LocalAuditBuildData {
+  readonly artifact: TutorEvaluationAuditArtifact;
+  readonly dataset: Awaited<ReturnType<typeof loadTutorEvalDataset>>;
+  readonly locale: SiteLocale;
+}
+
+function routePages(
+  artifacts: PublicBenchmarkArtifacts,
+  audit: LocalAuditBuildData | undefined,
+): readonly RoutePage[] {
   const pages: RoutePage[] = [
     { outputRoute: "/", page: renderHomePage(artifacts) },
     { outputRoute: "/leaderboard/", page: renderLeaderboardPage(artifacts) },
@@ -93,19 +123,62 @@ function routePages(artifacts: PublicBenchmarkArtifacts): readonly RoutePage[] {
     { outputRoute: "/docs/", page: renderDocsPage(artifacts) },
     { outputRoute: "/about/", page: renderAboutPage(artifacts) },
   ];
-  return [
+  const routePages = [
     ...pages,
     ...artifacts.cases.cases.map((caseArtifact) => ({
       outputRoute: `/data/cases/${encodeURIComponent(caseArtifact.id)}/`,
       page: renderCaseDetailPage(artifacts, caseArtifact),
     })),
   ];
+  if (audit !== undefined) {
+    routePages.push({
+      outputRoute: `/audit/runs/${encodeURIComponent(audit.artifact.evaluation.runId)}/`,
+      page: renderTutorEvaluationAuditIndexPage({
+        artifact: audit.artifact,
+        dataset: audit.dataset,
+        locale: audit.locale,
+      }),
+    });
+    for (const caseResult of audit.artifact.evaluation.caseResults) {
+      routePages.push({
+        outputRoute: auditRoute(
+          audit.artifact.evaluation.runId,
+          caseResult.caseId,
+          caseResult.runIndex,
+        ),
+        page: renderTutorEvaluationAuditPage({
+          artifact: audit.artifact,
+          dataset: audit.dataset,
+          caseId: caseResult.caseId,
+          runIndex: caseResult.runIndex,
+          locale: audit.locale,
+        }),
+      });
+    }
+  }
+  return routePages;
 }
 
 export async function buildWebsite(options: BuildOptions = {}): Promise<number> {
   const outputDirectory = options.outputDirectory ?? defaultOutputDirectory;
+  if (options.evaluationPath !== undefined && !isWithinDirectory(outputDirectory, privateOutputDirectory)) {
+    throw new Error("Evaluation artifacts can only be rendered under website/private-dist.");
+  }
   const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
   const artifacts = buildPublicBenchmarkArtifacts(dataset);
+  const locale = options.locale ?? "en";
+  let audit: LocalAuditBuildData | undefined;
+  if (options.evaluationPath !== undefined) {
+    const evaluationValue = JSON.parse(
+      await readFile(options.evaluationPath, "utf8"),
+    ) as unknown;
+    const artifact = parseTutorEvaluationAuditArtifact(evaluationValue);
+    audit = {
+      artifact,
+      dataset: await loadTutorEvalDataset(artifact.evaluation.datasetId),
+      locale,
+    };
+  }
   const stylesheet = await readFile(join(websiteRoot, "src", "styles.css"), "utf8");
   const clientScript = await readFile(join(websiteRoot, "src", "site.js"), "utf8");
 
@@ -118,7 +191,7 @@ export async function buildWebsite(options: BuildOptions = {}): Promise<number> 
   await writeJson(outputDirectory, "models.json", artifacts.models);
   await writeJson(outputDirectory, "trials.json", artifacts.trials);
 
-  const pages = routePages(artifacts);
+  const pages = routePages(artifacts, audit);
   for (const routePage of pages) {
     await writePage(
       outputDirectory,
@@ -126,6 +199,7 @@ export async function buildWebsite(options: BuildOptions = {}): Promise<number> 
       artifacts,
       options.siteUrl,
       options.basePath,
+      locale,
     );
   }
   await writeFile(
@@ -141,6 +215,7 @@ export async function buildWebsite(options: BuildOptions = {}): Promise<number> 
         benchmark: artifacts.benchmark,
         ...(options.siteUrl === undefined ? {} : { siteUrl: options.siteUrl }),
         ...(options.basePath === undefined ? {} : { basePath: options.basePath }),
+        locale,
       },
     ),
     "utf8",
@@ -157,6 +232,26 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   }
   const outputDirectory =
     outputArgument === undefined ? defaultOutputDirectory : resolve(process.cwd(), outputArgument);
+  const evaluationArgumentIndex = args.indexOf("--evaluation");
+  const evaluationArgument = evaluationArgumentIndex === -1
+    ? undefined
+    : args[evaluationArgumentIndex + 1];
+  if (
+    evaluationArgumentIndex !== -1 &&
+    (evaluationArgument === undefined || evaluationArgument.startsWith("--"))
+  ) {
+    throw new Error("Evaluation artifact path is required after --evaluation.");
+  }
+  const localeArgumentIndex = args.indexOf("--locale");
+  const localeArgument = localeArgumentIndex === -1
+    ? undefined
+    : args[localeArgumentIndex + 1];
+  if (
+    localeArgumentIndex !== -1 &&
+    (localeArgument === undefined || localeArgument.startsWith("--"))
+  ) {
+    throw new Error("Locale is required after --locale.");
+  }
   const websitePrefix = `${websiteRoot}${process.platform === "win32" ? "\\" : "/"}`;
   if (
     outputDirectory !== websiteRoot &&
@@ -164,15 +259,29 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   ) {
     throw new Error("Website output must stay inside the website directory.");
   }
+  if (
+    evaluationArgument !== undefined &&
+    !isWithinDirectory(outputDirectory, privateOutputDirectory)
+  ) {
+    throw new Error("--evaluation requires an output directory under website/private-dist.");
+  }
   const siteUrl = process.env.TUTOR_BENCHMARK_SITE_URL?.trim() || undefined;
   const basePath = process.env.TUTOR_BENCHMARK_SITE_BASE_PATH?.trim() || undefined;
   const routeCount = await buildWebsite({
     outputDirectory,
+    locale: resolveSiteLocale(localeArgument),
+    ...(evaluationArgument === undefined
+      ? {}
+      : { evaluationPath: resolve(process.cwd(), evaluationArgument) }),
     ...(siteUrl === undefined ? {} : { siteUrl }),
     ...(basePath === undefined ? {} : { basePath }),
   });
   console.log(`Built Tutor Benchmark website: ${outputDirectory}`);
   console.log(`Routes: ${routeCount}`);
+  console.log(`UI locale: ${resolveSiteLocale(localeArgument)}`);
+  if (evaluationArgument !== undefined) {
+    console.log("Local audit pages: enabled (private-dist only)");
+  }
   console.log("Public model rankings: none");
   console.log("Secrets required: none");
 }

@@ -557,7 +557,7 @@ test("tutorbench collect rejects recorded_model and canonical collection preserv
     assert.equal(packets.length, 2);
     const packet = parseTutorExecutionPacketFile(packets[0]);
     assert.equal(packet.cases.length, 1);
-    assert.equal(packet.generationSpec.specVersion, "0.4a.2");
+    assert.equal(packet.generationSpec.specVersion, "0.4a.3");
     assert.equal(packet.generationSpec.maxOutputTokens, 1024);
     assert.equal(packet.cases[0]?.messages[0]?.role, "system");
     assert.equal("currentStudentMessage" in packets[0]!, false);
@@ -571,10 +571,10 @@ test("tutorbench collect rejects recorded_model and canonical collection preserv
       readonly responses: readonly { readonly responseText: string }[];
     };
     assert.equal(corpus.provenance, "recorded_model");
-    assert.equal(corpus.generationSpec?.specVersion, "0.4a.2");
+    assert.equal(corpus.generationSpec?.specVersion, "0.4a.3");
     assert.equal(corpus.generationSpec?.maxOutputTokens, 1024);
     assert.equal(corpus.tutor.promptId, "tutor-baseline-system");
-    assert.equal(corpus.tutor.promptVersion, "0.1");
+    assert.equal(corpus.tutor.promptVersion, "0.2");
     assert.equal(corpus.responses.length, 1);
     assert.equal(corpus.responses[0]?.responseText, "Canonical synthetic host response.");
     assert.doesNotMatch(JSON.stringify(corpus), /synthetic host failure/);
