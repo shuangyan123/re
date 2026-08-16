@@ -18,7 +18,8 @@
 ## 0.2 Rubric & Dataset Design — PARTIAL: 0.2A dataset + 0.2B calibration infrastructure + critical-failure extension
 
 - [x] Versioned pedagogical taxonomy and structured scenario difficulty
-- [x] Curated 24-case synthetic dataset across five subjects
+- [x] Curated 24-case English synthetic dataset across five subjects
+- [x] Authored 24-case `zh-CN` cohort with locale-aware coverage and reporting
 - [x] Atomic rubric authoring metadata and double-counting rules
 - [x] Disclosure-policy coverage and counterfactual adaptation pairs
 - [x] Dataset integrity validation and deterministic coverage report

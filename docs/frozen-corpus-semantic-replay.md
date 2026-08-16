@@ -105,8 +105,10 @@ node dist/src/cli/tutorbench.js evaluate `
 The flag can be combined independently with `--case`, `--limit`, `--full`, or
 an explicitly opted-in Judge provider. It does not call a Tutor provider. A partial source
 corpus remains partial, and `--full` still fails when required responses are
-missing. A current corpus already at `0.2a.1` follows the normal path and does
-not emit `semanticReplay` provenance.
+missing. A historical corpus already at `0.2a.1` follows the explicit
+historical-loader path and does not emit `semanticReplay` provenance. The
+current bilingual dataset is `0.2a.2`; no automatic `.2a.1 -> .2a.2` replay
+transition exists.
 
 ## Result provenance
 

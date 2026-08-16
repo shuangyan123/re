@@ -230,7 +230,7 @@ export function renderPage(page: SitePage, context: SiteRenderContext = {}): str
     <main id="main-content">${page.content}</main>
     ${renderFooter(context.benchmark ?? ({
       statusLabel: "Developer Preview",
-      dataset: { id: "tutor-eval-v0.2a", version: "0.2a.1" },
+      dataset: { id: "tutor-eval-v0.2a", version: "0.2a.2" },
     }), locale)}
   </body>
 </html>

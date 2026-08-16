@@ -5,6 +5,7 @@ import {
   type TutorEvalCategory,
   type TutorEvalDataset,
 } from "../contracts/index.js";
+import { resolveTutorCaseLocale } from "../contracts/locale.js";
 import { assertValidTutorEvalDatasetIntegrity } from "./integrity.js";
 
 export interface TutorEvalCoverageReport {
@@ -13,6 +14,7 @@ export interface TutorEvalCoverageReport {
   readonly caseCount: number;
   readonly rubricCount: number;
   readonly casesBySubject: Readonly<Record<string, number>>;
+  readonly casesByLocale: Readonly<Record<string, number>>;
   readonly casesByLearningTask: Readonly<Record<string, number>>;
   readonly casesByStudentState: Readonly<Record<string, number>>;
   readonly casesByCategory: Readonly<Record<TutorEvalCategory, number>>;
@@ -22,6 +24,7 @@ export interface TutorEvalCoverageReport {
   readonly casesByTaskDifficulty: Readonly<Record<string, number>>;
   readonly casesByPedagogicalDifficulty: Readonly<Record<string, number>>;
   readonly counterfactualPairCount: number;
+  readonly crossLocaleGroupCount: number;
   readonly criticalRubricCount: number;
   readonly judgeRequiredRubricCount: number;
 }
@@ -66,6 +69,7 @@ export function buildTutorEvalCoverageReport(
     expectedDatasetVersion: dataset.version,
   });
   const subjects = new Map<string, number>();
+  const locales = new Map<string, number>();
   const learningTasks = new Map<string, number>();
   const studentStates = new Map<string, number>();
   const capabilities = new Map<string, number>();
@@ -76,12 +80,14 @@ export function buildTutorEvalCoverageReport(
     disclosurePolicies.map((policy) => [policy, 0]),
   );
   const pairIds = new Set<string>();
+  const crossLocaleGroupIds = new Set<string>();
   let rubricCount = 0;
   let criticalRubricCount = 0;
   let judgeRequiredRubricCount = 0;
 
   for (const caseValue of dataset.cases) {
     increment(subjects, caseValue.metadata.subject);
+    increment(locales, resolveTutorCaseLocale(caseValue.locale));
     if (caseValue.metadata.learningTask !== undefined) {
       increment(learningTasks, caseValue.metadata.learningTask);
     }
@@ -104,6 +110,9 @@ export function buildTutorEvalCoverageReport(
     if (caseValue.adaptationPairId !== undefined) {
       pairIds.add(caseValue.adaptationPairId);
     }
+    if (caseValue.crossLocaleGroupId !== undefined) {
+      crossLocaleGroupIds.add(caseValue.crossLocaleGroupId);
+    }
     rubricCount += caseValue.evaluatorOnly.rubrics.length;
     criticalRubricCount += caseValue.evaluatorOnly.rubrics.filter(
       (rubric) => rubric.critical === true,
@@ -119,6 +128,7 @@ export function buildTutorEvalCoverageReport(
     caseCount: dataset.cases.length,
     rubricCount,
     casesBySubject: sortedCounts(subjects),
+    casesByLocale: sortedCounts(locales),
     casesByLearningTask: sortedCounts(learningTasks),
     casesByStudentState: sortedCounts(studentStates),
     casesByCategory: countCategories(dataset),
@@ -130,6 +140,7 @@ export function buildTutorEvalCoverageReport(
     casesByTaskDifficulty: sortedCounts(taskDifficulties),
     casesByPedagogicalDifficulty: sortedCounts(pedagogicalDifficulties),
     counterfactualPairCount: pairIds.size,
+    crossLocaleGroupCount: crossLocaleGroupIds.size,
     criticalRubricCount,
     judgeRequiredRubricCount,
   };

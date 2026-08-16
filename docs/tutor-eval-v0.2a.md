@@ -5,9 +5,20 @@ v0.1 execution contract. It measures observed tutoring behavior. It does not
 prove that a real student learned, retained, transferred, or can solve a new
 problem independently.
 
-The canonical dataset is `tutor-eval-v0.2a` and lives in
-`scenarios/tutor-eval-v0.2a/cases.json`. The seven v0.1 cases remain available
-through the legacy `tutor-eval-v0.1` loader for compatibility.
+The canonical dataset is `tutor-eval-v0.2a`. The current `0.2a.2` snapshot
+keeps the 24 English cases in `scenarios/tutor-eval-v0.2a/cases.json` and
+loads 24 authored Simplified Chinese counterparts from
+`scenarios/tutor-eval-v0.2a/cases.zh-CN.json`. The seven v0.1 cases remain
+available through the legacy `tutor-eval-v0.1` loader, and the previous
+English-only `0.2a.1` snapshot can be loaded explicitly for historical
+artifacts.
+
+The cross-locale cohort design, language-specific boundary, and compatibility
+rules are documented in
+[`TutorEval bilingual cohorts`](tutor-eval-bilingual-cohorts.md). This page
+continues to describe the shared 0.2A rubric/taxonomy semantics; it does not
+claim that authored locale counterparts have completed independent human
+equivalence validation.
 
 ## Taxonomy
 
@@ -162,9 +173,11 @@ The canonical dataset marks criteria that need semantic judgment with
 
 The deterministic ownership and proxy audit is recorded in
 [`docs/deterministic-verifier-audit.md`](deterministic-verifier-audit.md). The
-dataset/case identity remains `tutor-eval-v0.2a@0.2a.1`; replay results also carry
-the explicit evaluator semantic version so frozen response evidence is not
-silently compared across verifier revisions.
+The historical dataset/case identity described by the audit trail remains
+`tutor-eval-v0.2a@0.2a.1`; the current bilingual snapshot is
+`tutor-eval-v0.2a@0.2a.2`. Replay results also carry the explicit evaluator
+semantic version so frozen response evidence is not silently compared across
+verifier revisions.
 
 Historical frozen responses whose source identity predates `0.2a.1` remain
 strictly incompatible by default. The only reviewed exception is the explicit
@@ -195,11 +208,11 @@ The coverage report is a pure, deterministic JSON function and CLI:
 npm run coverage
 ```
 
-It reports case counts by subject, learning task, student state, category,
-capability tag, disclosure policy, learner level, task difficulty, and
-pedagogical difficulty, plus counterfactual-pair count, critical-rubric count,
-and future-Judge rubric count. It intentionally remains a small testable
-report, not a dashboard.
+It reports case counts by subject, resolved locale, learning task, student
+state, category, capability tag, disclosure policy, learner level, task
+difficulty, and pedagogical difficulty, plus counterfactual-pair count,
+cross-locale cohort count, critical-rubric count, and future-Judge rubric
+count. It intentionally remains a small testable report, not a dashboard.
 
 Independent rubric review and calibration are not complete in 0.2A. No
 `expert reviewed`, `validated`, or `calibrated` status is claimed without

@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import {
   assertValidTutorResponseCorpus,
   BenchmarkConfigurationError,
+  TUTOR_EVAL_DATASET_ID,
+  TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   parseCalibrationCandidateResponseFile,
   type CalibrationCandidateResponseFile,
   type TutorResponseCorpusSemanticReplay,
@@ -43,6 +45,21 @@ function defaultOutputPath(): string {
   return defaultCalibrationOutputPath(
     "calibration/private/critical-candidate-responses.json",
   );
+}
+
+function requestedDatasetVersionForCorpus(
+  datasetId: string,
+  datasetVersion: string,
+): string | undefined {
+  if (
+    datasetId === TUTOR_EVAL_DATASET_ID &&
+    (datasetVersion === "0.2a" || datasetVersion === TUTOR_EVAL_PREVIOUS_DATASET_VERSION)
+  ) {
+    // Historical critical-calibration preparation stays on the audited
+    // English-only target; it never promotes old responses into the new cohort.
+    return TUTOR_EVAL_PREVIOUS_DATASET_VERSION;
+  }
+  return undefined;
 }
 
 function requiredPath(
@@ -130,7 +147,10 @@ export async function prepareCriticalCalibrationCandidates(
   options: Omit<CriticalCalibrationPrepareCliOptions, "help">,
 ): Promise<CriticalCalibrationPreparationResult> {
   const corpus = await loadTutorResponseCorpus(options.corpusPath);
-  const dataset = await loadTutorEvalDataset(corpus.datasetId);
+  const dataset = await loadTutorEvalDataset(
+    corpus.datasetId,
+    requestedDatasetVersionForCorpus(corpus.datasetId, corpus.datasetVersion),
+  );
   const replayPlan = options.allowCompatibleReplay
     ? resolveTutorResponseCorpusReplay(corpus, dataset)
     : undefined;

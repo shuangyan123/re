@@ -41,6 +41,21 @@
         element.textContent = translated;
       }
     });
+    document.querySelectorAll("[data-ui-option-en]").forEach((element) => {
+      const attribute = locale === "zh-CN" ? "data-ui-option-zh-cn" : "data-ui-option-en";
+      const translated = element.getAttribute(attribute);
+      if (translated !== null) {
+        element.textContent = translated;
+      }
+    });
+    document.querySelectorAll("[data-case-count-value]").forEach((element) => {
+      const templateAttribute = locale === "zh-CN"
+        ? "data-case-count-template-zh-cn"
+        : "data-case-count-template-en";
+      const template = element.getAttribute(templateAttribute) ?? "Showing {count} cases";
+      const count = element.getAttribute("data-case-count-value") ?? "0";
+      element.textContent = template.replace("{count}", count);
+    });
     if (localeSwitcher instanceof HTMLSelectElement) {
       localeSwitcher.value = locale;
       const label = document.querySelector('[data-ui-text="selectLanguage"]');
@@ -79,6 +94,7 @@
   const resultCount = document.querySelector("#case-result-count");
   const emptyState = document.querySelector("#case-filter-empty");
   const parameterByFilter = {
+    locale: "locale",
     subject: "subject",
     learnerLevel: "learnerLevel",
     taskDifficulty: "taskDifficulty",
@@ -95,6 +111,7 @@
   }
 
   function matches(card, values) {
+    const locale = card.dataset.caseLocale ?? "";
     const subject = card.dataset.caseSubject ?? "";
     const learnerLevel = card.dataset.caseLearnerLevel ?? "";
     const taskDifficulty = card.dataset.caseTaskDifficulty ?? "";
@@ -103,6 +120,7 @@
     const studentState = card.dataset.caseStudentState ?? "";
     const disclosurePolicy = card.dataset.caseDisclosurePolicy ?? "";
     return (
+      (!values.locale || values.locale === locale) &&
       (!values.subject || values.subject === subject) &&
       (!values.learnerLevel || values.learnerLevel === learnerLevel) &&
       (!values.taskDifficulty || values.taskDifficulty === taskDifficulty) &&
@@ -136,7 +154,15 @@
       }
     });
     if (resultCount instanceof HTMLElement) {
-      resultCount.textContent = `Showing ${visibleCount} case${visibleCount === 1 ? "" : "s"}`;
+      const uiLocale = document.documentElement.dataset.uiLocale === "zh-CN"
+        ? "zh-CN"
+        : "en";
+      const templateAttribute = uiLocale === "zh-CN"
+        ? "data-case-count-template-zh-cn"
+        : "data-case-count-template-en";
+      const template = resultCount.getAttribute(templateAttribute) ?? "Showing {count} cases";
+      resultCount.setAttribute("data-case-count-value", String(visibleCount));
+      resultCount.textContent = template.replace("{count}", String(visibleCount));
     }
     if (emptyState instanceof HTMLElement) {
       emptyState.hidden = visibleCount !== 0;

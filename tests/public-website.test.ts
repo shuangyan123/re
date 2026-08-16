@@ -33,6 +33,7 @@ test("public case serialization omits evaluator-only fields by default", async (
   assert.doesNotMatch(serialized, /evaluatorOnly|groundTruth|knownMisconception|rubrics|misconceptions/);
   assert.equal(publicCase.id, tutorEvalCase.id);
   assert.equal(publicCase.locale, "en");
+  assert.equal(publicCase.crossLocaleGroupId, tutorEvalCase.crossLocaleGroupId);
   assert.equal(publicCase.tutorInput.studentMessage, tutorEvalCase.tutorInput.studentMessage);
 });
 
@@ -55,8 +56,10 @@ test("public artifacts contain the real dataset and no model or trial rankings",
   const serializedCases = JSON.stringify(artifacts.cases);
 
   assert.equal(artifacts.benchmark.status, "developer-preview");
-  assert.equal(artifacts.benchmark.dataset.caseCount, 24);
-  assert.equal(artifacts.cases.cases.length, 24);
+  assert.equal(artifacts.benchmark.dataset.caseCount, 48);
+  assert.equal(artifacts.benchmark.dataset.crossLocaleGroupCount, 24);
+  assert.equal(artifacts.cases.cases.length, 48);
+  assert.deepEqual(artifacts.benchmark.coverage.casesByLocale, { en: 24, "zh-CN": 24 });
   assert.equal(artifacts.models.available, false);
   assert.equal(artifacts.models.entries.length, 0);
   assert.equal(artifacts.trials.available, false);
@@ -84,6 +87,7 @@ test("generated public artifacts pass the runtime read-layer parser", async () =
     cases: { cases: Array<Record<string, unknown>> };
   };
   delete legacyPublicArtifact.cases.cases[0]?.locale;
+  delete legacyPublicArtifact.cases.cases[0]?.crossLocaleGroupId;
   assert.doesNotThrow(() => parsePublicBenchmarkArtifacts(legacyPublicArtifact));
 
   const tampered = JSON.parse(JSON.stringify(artifacts)) as PublicBenchmarkArtifacts & {
@@ -113,7 +117,7 @@ test("static website build emits the public artifact files and route shell", asy
       "utf8",
     );
 
-    assert.equal(routeCount, 37);
+    assert.equal(routeCount, 61);
     assert.match(homeHtml, /Developer Preview/);
     assert.match(homeHtml, /No calibrated public model runs yet\./);
     assert.match(homeHtml, /href="\/leaderboard\//);
@@ -156,6 +160,10 @@ test("static website build prefixes project-site paths without changing local de
     assert.match(homeHtml, /src="\/re\/assets\/site\.js"/);
     assert.match(homeHtml, /<link rel="canonical" href="https:\/\/shuangyan123\.github\.io\/re\//);
     assert.match(casesHtml, /href="\/re\/data\/cases\/fraction-misconception-001\//);
+    assert.match(casesHtml, /data-case-filter="locale"/);
+    assert.match(casesHtml, /data-case-locale="zh-CN"/);
+    assert.match(casesHtml, /English/);
+    assert.match(casesHtml, /Chinese/);
     assert.doesNotMatch(homeHtml, /(?:href|src)="\/(?:leaderboard|assets)\//);
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });

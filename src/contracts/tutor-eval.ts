@@ -16,7 +16,9 @@ import {
 } from "./locale.js";
 
 export const TUTOR_EVAL_DATASET_ID = "tutor-eval-v0.2a" as const;
-export const TUTOR_EVAL_DATASET_VERSION = "0.2a.1" as const;
+export const TUTOR_EVAL_DATASET_VERSION = "0.2a.2" as const;
+/** The last English-only dataset snapshot remains readable for old artifacts. */
+export const TUTOR_EVAL_PREVIOUS_DATASET_VERSION = "0.2a.1" as const;
 /**
  * Evaluation semantics are versioned separately from dataset/case identity so
  * immutable Tutor response corpora can be replayed under an explicitly named
@@ -124,6 +126,12 @@ export interface TutorEvalCase {
     readonly disclosurePolicy: DisclosurePolicy;
     readonly rubrics: readonly TutorEvalRubric[];
   };
+  /**
+   * Authored grouping for a cross-locale cohort. This is useful for grouping,
+   * audit, and reporting only; it is not evidence that two cases are
+   * scientifically equivalent or human-validated.
+   */
+  readonly crossLocaleGroupId?: string;
   readonly adaptationPairId?: string;
   readonly adaptationVariant?: string;
 }

@@ -19,6 +19,7 @@ import {
   type TutorUnderTest,
   type TutorEvalJudge,
   partitionTutorEvalRubrics,
+  resolveTutorCaseLocale,
   toTutorTurnInput,
 } from "../contracts/index.js";
 import {
@@ -257,6 +258,7 @@ function tutorAdapterErrorResult(
   return {
     caseId: tutorEvalCase.id,
     caseVersion: tutorEvalCase.version,
+    locale: resolveTutorCaseLocale(tutorEvalCase.locale),
     runIndex,
     status: "error",
     passed: false,
@@ -370,6 +372,7 @@ async function runCase(
   return {
     caseId: tutorEvalCase.id,
     caseVersion: tutorEvalCase.version,
+    locale: resolveTutorCaseLocale(tutorEvalCase.locale),
     runIndex,
     status: hasError ? "error" : aggregate.passed ? "passed" : "failed",
     passed: !hasError && aggregate.passed,

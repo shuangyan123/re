@@ -4,7 +4,10 @@ import type {
   TutorEvalCaseRunResult,
   TutorEvalRubric,
 } from "../../contracts/index.js";
-import type { TutorEvaluationAuditArtifact } from "../../reporting/index.js";
+import {
+  buildTutorEvalLocaleBreakdowns,
+  type TutorEvaluationAuditArtifact,
+} from "../../reporting/index.js";
 import {
   escapeHtml,
   humanize,
@@ -94,6 +97,38 @@ function resultBadge(
       ? "danger"
       : "warning";
   return `<span class="status-badge status-${tone}">${resultLabel(value, locale)}</span>`;
+}
+
+function localeLabel(localeValue: string, uiLocale: SiteLocale): string {
+  return renderUiText(
+    localeValue === "zh-CN" ? "localeChinese" : "localeEnglish",
+    uiLocale,
+  );
+}
+
+function renderLocaleBreakdown(
+  artifact: TutorEvaluationAuditArtifact,
+  dataset: TutorEvaluationAuditIndexInput["dataset"],
+  locale: SiteLocale,
+): string {
+  const breakdowns = buildTutorEvalLocaleBreakdowns(artifact.evaluation, dataset);
+  return `<section class="panel detail-section audit-section" aria-labelledby="audit-locale-breakdown">
+    <p class="eyebrow">${renderUiText("localeBreakdown", locale)}</p>
+    <h2 id="audit-locale-breakdown">${renderUiText("localeBreakdown", locale)}</h2>
+    <div class="locale-breakdown-grid">${breakdowns.map((breakdown) => `
+      <article class="locale-breakdown" data-audit-locale="${escapeHtml(breakdown.locale)}">
+        <div class="split-heading"><h3>${localeLabel(breakdown.locale, locale)}</h3><span class="status-badge status-muted">${escapeHtml(breakdown.locale)}</span></div>
+        ${localizedKeyValueList([
+          ["case", String(breakdown.caseCount)],
+          ["runLabel", String(breakdown.caseRunCount)],
+          ["pass", String(breakdown.passedCount)],
+          ["fail", String(breakdown.failedCount)],
+          ["error", String(breakdown.errorCount)],
+        ], locale)}
+        <div class="pill-row">${Object.entries(breakdown.categoryScores).map(([category, score]) => `<span class="dimension-pill">${categoryLabel(category, locale)}: ${escapeHtml(score === null ? "n/a" : score.toFixed(2))}</span>`).join("")}</div>
+        <p class="audit-evidence">${renderUiText("score", locale)}: ${escapeHtml(breakdown.overallScore === null ? "n/a" : breakdown.overallScore.toFixed(2))} · ${renderUiText("criticalFailure", locale)}: ${escapeHtml(`${(breakdown.criticalFailureRate * 100).toFixed(2)}%`)} · ${renderUiText("answerLeakage", locale)}: ${escapeHtml(`${(breakdown.answerLeakageRate * 100).toFixed(2)}%`)}</p>
+      </article>`).join("")}</div>
+  </section>`;
 }
 
 function renderConversation(caseValue: TutorEvalCase, locale: SiteLocale): string {
@@ -322,13 +357,14 @@ export function renderTutorEvaluationAuditIndexPage(
   const runId = artifact.evaluation.runId;
   const caseLinks = artifact.evaluation.caseResults.map((caseResult) => {
     const caseValue = dataset.cases.find((item) => item.id === caseResult.caseId);
-    return `<li><a class="text-link" href="${auditRoute(runId, caseResult.caseId, caseResult.runIndex)}">${escapeHtml(caseResult.caseId)} · ${renderUiText("runLabel", locale)} ${caseResult.runIndex}</a><span>${caseValue === undefined ? "" : ` · ${escapeHtml(caseValue.metadata.topic)}`} · ${resultBadge(caseResult.status, locale)}</span></li>`;
+    const targetLocale = caseResult.locale ?? caseValue?.locale ?? "en";
+    return `<li><a class="text-link" href="${auditRoute(runId, caseResult.caseId, caseResult.runIndex)}">${escapeHtml(caseResult.caseId)} · ${renderUiText("runLabel", locale)} ${caseResult.runIndex}</a><span>${caseValue === undefined ? "" : ` · ${escapeHtml(caseValue.metadata.topic)}`} · ${escapeHtml(targetLocale)} · ${resultBadge(caseResult.status, locale)}</span></li>`;
   });
   return page(
     `${siteText(locale, "auditRun")} — Tutor Benchmark`,
     "Private, local audit view for a validated TutorEval evaluation artifact.",
     `/audit/runs/${encodeURIComponent(runId)}/`,
-    `<section class="page-intro"><div class="shell narrow-shell"><div class="eyebrow-row">${renderStatusBadge(siteText(locale, "privateAudit"), "preview")}<span class="eyebrow">${escapeHtml(runId)}</span></div><h1>${renderUiText("auditRun", locale)}</h1><p class="lede">${renderUiText("originalTutorResponse", locale)} · ${escapeHtml(artifact.evaluation.datasetId)}@${escapeHtml(artifact.evaluation.datasetVersion)}</p></div></section><section class="section"><div class="shell detail-grid"><main class="detail-main"><section class="panel detail-section audit-section"><p class="eyebrow">${renderUiText("coverage", locale)}</p><h2>${renderUiText("auditCases", locale)}</h2>${localizedKeyValueList([["case", String(artifact.evaluation.caseCount)], ["runLabel", String(artifact.evaluation.caseRunCount)], ["pass", String(artifact.evaluation.passedCount)], ["fail", String(artifact.evaluation.failedCount)], ["error", String(artifact.evaluation.errorCount)]], locale)}<ul class="audit-list">${caseLinks.join("")}</ul></section></main><aside class="detail-side"><section class="panel detail-section audit-section"><p class="eyebrow">${renderUiText("model", locale)}</p><h2>${escapeHtml(artifact.evaluation.tutor.model)}</h2>${localizedKeyValueList([["provider", artifact.evaluation.tutor.provider], ["promptVersion", artifact.evaluation.tutor.promptVersion], ["evaluatorVersion", artifact.evaluation.evaluatorVersion ?? "legacy"], ["coverage", artifact.artifactMetadata?.status ?? siteText(locale, "preliminary")], ...(artifact.artifactMetadata?.calibrationStatus === undefined ? [] : [["calibration", artifact.artifactMetadata.calibrationStatus] as const])], locale)}</section></aside></div></section>`,
+    `<section class="page-intro"><div class="shell narrow-shell"><div class="eyebrow-row">${renderStatusBadge(siteText(locale, "privateAudit"), "preview")}<span class="eyebrow">${escapeHtml(runId)}</span></div><h1>${renderUiText("auditRun", locale)}</h1><p class="lede">${renderUiText("originalTutorResponse", locale)} · ${escapeHtml(artifact.evaluation.datasetId)}@${escapeHtml(artifact.evaluation.datasetVersion)}</p></div></section><section class="section"><div class="shell detail-grid"><main class="detail-main"><section class="panel detail-section audit-section"><p class="eyebrow">${renderUiText("coverage", locale)}</p><h2>${renderUiText("auditCases", locale)}</h2>${localizedKeyValueList([["case", String(artifact.evaluation.caseCount)], ["runLabel", String(artifact.evaluation.caseRunCount)], ["pass", String(artifact.evaluation.passedCount)], ["fail", String(artifact.evaluation.failedCount)], ["error", String(artifact.evaluation.errorCount)]], locale)}<ul class="audit-list">${caseLinks.join("")}</ul></section>${renderLocaleBreakdown(artifact, dataset, locale)}</main><aside class="detail-side"><section class="panel detail-section audit-section"><p class="eyebrow">${renderUiText("model", locale)}</p><h2>${escapeHtml(artifact.evaluation.tutor.model)}</h2>${localizedKeyValueList([["provider", artifact.evaluation.tutor.provider], ["promptVersion", artifact.evaluation.tutor.promptVersion], ["evaluatorVersion", artifact.evaluation.evaluatorVersion ?? "legacy"], ["coverage", artifact.artifactMetadata?.status ?? siteText(locale, "preliminary")], ...(artifact.artifactMetadata?.calibrationStatus === undefined ? [] : [["calibration", artifact.artifactMetadata.calibrationStatus] as const])], locale)}</section></aside></div></section>`,
   );
 }
 

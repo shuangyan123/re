@@ -3,6 +3,7 @@
     "schemaVersion": 1,
     "id": "fraction-misconception-001",
     "version": "1.1.0",
+    "crossLocaleGroupId": "fraction-misconception-001",
     "metadata": {
       "subject": "mathematics",
       "topic": "adding fractions",
@@ -35,6 +36,7 @@
     "schemaVersion": 1,
     "id": "hint-only-linear-equation-001",
     "version": "1.1.0",
+    "crossLocaleGroupId": "hint-only-linear-equation-001",
     "metadata": {
       "subject": "mathematics",
       "topic": "linear equations",
@@ -66,6 +68,7 @@
     "schemaVersion": 1,
     "id": "correct-answer-wrong-reasoning-001",
     "version": "1.1.0",
+    "crossLocaleGroupId": "correct-answer-wrong-reasoning-001",
     "metadata": {
       "subject": "mathematics",
       "topic": "multiplication reasoning",
@@ -97,6 +100,7 @@
     "schemaVersion": 1,
     "id": "paired-fraction-procedural-001",
     "version": "1.1.0",
+    "crossLocaleGroupId": "paired-fraction-procedural-001",
     "adaptationPairId": "fraction-counterfactual-001",
     "adaptationVariant": "procedural-error",
     "metadata": {
@@ -130,6 +134,7 @@
     "schemaVersion": 1,
     "id": "paired-fraction-conceptual-001",
     "version": "1.1.0",
+    "crossLocaleGroupId": "paired-fraction-conceptual-001",
     "adaptationPairId": "fraction-counterfactual-001",
     "adaptationVariant": "conceptual-gap",
     "metadata": {
@@ -163,6 +168,7 @@
     "schemaVersion": 1,
     "id": "weak-foundation-fractions-001",
     "version": "1.1.0",
+    "crossLocaleGroupId": "weak-foundation-fractions-001",
     "metadata": {
       "subject": "mathematics",
       "topic": "fraction meaning",
@@ -194,6 +200,7 @@
     "schemaVersion": 1,
     "id": "full-solution-check-001",
     "version": "1.1.0",
+    "crossLocaleGroupId": "full-solution-check-001",
     "metadata": {
       "subject": "mathematics",
       "topic": "linear equations",
@@ -225,6 +232,7 @@
     "schemaVersion": 1,
     "id": "paired-multiplication-procedural-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "paired-multiplication-procedural-001",
     "adaptationPairId": "multiplication-counterfactual-001",
     "adaptationVariant": "procedural-error",
     "metadata": {
@@ -257,6 +265,7 @@
     "schemaVersion": 1,
     "id": "paired-multiplication-conceptual-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "paired-multiplication-conceptual-001",
     "adaptationPairId": "multiplication-counterfactual-001",
     "adaptationVariant": "conceptual-gap",
     "metadata": {
@@ -290,6 +299,7 @@
     "schemaVersion": 1,
     "id": "science-density-knowledge-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "science-density-knowledge-001",
     "metadata": {
       "subject": "science",
       "topic": "density",
@@ -320,6 +330,7 @@
     "schemaVersion": 1,
     "id": "science-force-transfer-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "science-force-transfer-001",
     "metadata": {
       "subject": "science",
       "topic": "forces",
@@ -350,6 +361,7 @@
     "schemaVersion": 1,
     "id": "science-photosynthesis-concept-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "science-photosynthesis-concept-001",
     "metadata": {
       "subject": "science",
       "topic": "photosynthesis",
@@ -381,6 +393,7 @@
     "schemaVersion": 1,
     "id": "science-graph-error-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "science-graph-error-001",
     "metadata": {
       "subject": "science",
       "topic": "reading graphs",
@@ -411,6 +424,7 @@
     "schemaVersion": 1,
     "id": "language-evidence-argument-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "language-evidence-argument-001",
     "metadata": {
       "subject": "language",
       "topic": "textual evidence",
@@ -441,6 +455,7 @@
     "schemaVersion": 1,
     "id": "language-verb-check-001",
     "version": "1.0.1",
+    "crossLocaleGroupId": "language-verb-check-001",
     "metadata": {
       "subject": "language",
       "topic": "subject-verb agreement",
@@ -472,6 +487,7 @@
     "schemaVersion": 1,
     "id": "language-word-context-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "language-word-context-001",
     "metadata": {
       "subject": "language",
       "topic": "word meaning from context",
@@ -502,6 +518,7 @@
     "schemaVersion": 1,
     "id": "history-source-context-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "history-source-context-001",
     "metadata": {
       "subject": "history_or_social_studies",
       "topic": "primary sources",
@@ -532,6 +549,7 @@
     "schemaVersion": 1,
     "id": "history-cause-check-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "history-cause-check-001",
     "metadata": {
       "subject": "history_or_social_studies",
       "topic": "historical causation",
@@ -562,6 +580,7 @@
     "schemaVersion": 1,
     "id": "history-source-bias-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "history-source-bias-001",
     "metadata": {
       "subject": "history_or_social_studies",
       "topic": "source bias",
@@ -593,6 +612,7 @@
     "schemaVersion": 1,
     "id": "programming-loop-diagnosis-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "programming-loop-diagnosis-001",
     "metadata": {
       "subject": "programming",
       "topic": "loops",
@@ -624,6 +644,7 @@
     "schemaVersion": 1,
     "id": "programming-function-recall-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "programming-function-recall-001",
     "metadata": {
       "subject": "programming",
       "topic": "functions",
@@ -655,6 +676,7 @@
     "schemaVersion": 1,
     "id": "programming-test-failure-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "programming-test-failure-001",
     "metadata": {
       "subject": "programming",
       "topic": "tests",
@@ -685,6 +707,7 @@
     "schemaVersion": 1,
     "id": "programming-off-by-one-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "programming-off-by-one-001",
     "metadata": {
       "subject": "programming",
       "topic": "array indexing",
@@ -716,6 +739,7 @@
     "schemaVersion": 1,
     "id": "programming-abstraction-transfer-001",
     "version": "1.0.0",
+    "crossLocaleGroupId": "programming-abstraction-transfer-001",
     "metadata": {
       "subject": "programming",
       "topic": "abstraction and reuse",

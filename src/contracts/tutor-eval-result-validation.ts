@@ -6,6 +6,7 @@ import {
   type TutorEvalRunResult,
 } from "./result.js";
 import { TUTOR_EVAL_CATEGORIES } from "./tutor-eval.js";
+import { isTutorCaseLocale } from "./locale.js";
 import { isTutorEvalJudgeResult } from "./tutor-eval-validation.js";
 
 type UnknownRecord = Record<string, unknown>;
@@ -165,6 +166,7 @@ function isCaseRunResult(value: unknown): value is TutorEvalCaseRunResult {
     record !== null &&
     typeof record.caseId === "string" &&
     typeof record.caseVersion === "string" &&
+    (record.locale === undefined || isTutorCaseLocale(record.locale)) &&
     typeof record.runIndex === "number" &&
     Number.isInteger(record.runIndex) &&
     record.runIndex >= 1 &&

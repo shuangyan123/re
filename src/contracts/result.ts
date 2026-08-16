@@ -6,6 +6,7 @@ import type {
   TutorCriticalFailure,
   TutorEvalCategory,
 } from "./tutor-eval.js";
+import type { TutorCaseLocale } from "./locale.js";
 
 export const RESULT_SCHEMA_VERSION = 1 as const;
 export const TUTOR_EVAL_RESULT_SCHEMA_VERSION = 1 as const;
@@ -129,6 +130,8 @@ export interface TutorEvalJudgeDescriptor {
 export interface TutorEvalCaseRunResult {
   readonly caseId: string;
   readonly caseVersion: string;
+  /** Optional for v1 artifact compatibility; new runs record the resolved case locale. */
+  readonly locale?: TutorCaseLocale;
   readonly runIndex: number;
   readonly status: "passed" | "failed" | "error";
   readonly passed: boolean;

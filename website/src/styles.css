@@ -989,6 +989,19 @@ blockquote {
   color: var(--ink);
 }
 
+.case-meta code,
+.localized-case-locale code {
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+.localized-case-locale {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .case-card .tag-list {
   min-height: 32px;
   margin-bottom: 18px;
@@ -1017,6 +1030,26 @@ blockquote {
   display: grid;
   gap: 18px;
   min-width: 0;
+}
+
+.locale-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.locale-breakdown {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.locale-breakdown h3 {
+  margin: 0;
+  font-size: 17px;
 }
 
 .detail-section,
@@ -1490,6 +1523,10 @@ blockquote {
 }
 
 @media (max-width: 760px) {
+  .locale-breakdown-grid {
+    grid-template-columns: 1fr;
+  }
+
   .shell {
     width: min(calc(100% - 32px), var(--shell));
   }

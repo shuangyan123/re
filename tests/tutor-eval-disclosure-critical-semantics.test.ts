@@ -12,6 +12,7 @@ import {
   TUTOR_EVAL_DISCLOSURE_POLICIES,
   TUTOR_EVAL_DISCLOSURE_POLICY_DEFINITIONS,
   TUTOR_EVAL_EVALUATOR_VERSION,
+  resolveTutorCaseLocale,
   type DisclosurePolicy,
   type TutorEvalCase,
   type TutorEvalJudgeResult,
@@ -146,12 +147,15 @@ test("the five disclosure policies have canonical definitions and coverage", asy
       true,
     );
   }
-  assert.equal(dataset.version, "0.2a.1");
-  assert.equal(TUTOR_EVAL_DATASET_VERSION, "0.2a.1");
+  assert.equal(dataset.version, TUTOR_EVAL_DATASET_VERSION);
   assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.3");
   assert.deepEqual(
     dataset.cases
-      .filter((tutorEvalCase) => tutorEvalCase.evaluatorOnly.disclosurePolicy === "no_answer")
+      .filter(
+        (tutorEvalCase) =>
+          resolveTutorCaseLocale(tutorEvalCase.locale) === "en" &&
+          tutorEvalCase.evaluatorOnly.disclosurePolicy === "no_answer",
+      )
       .map((tutorEvalCase) => tutorEvalCase.id),
     [
       "science-density-knowledge-001",
@@ -162,7 +166,11 @@ test("the five disclosure policies have canonical definitions and coverage", asy
   );
   assert.ok(
     dataset.cases
-      .filter((tutorEvalCase) => tutorEvalCase.evaluatorOnly.disclosurePolicy === "no_answer")
+      .filter(
+        (tutorEvalCase) =>
+          resolveTutorCaseLocale(tutorEvalCase.locale) === "en" &&
+          tutorEvalCase.evaluatorOnly.disclosurePolicy === "no_answer",
+      )
       .every((tutorEvalCase) => tutorEvalCase.evaluatorOnly.groundTruth?.finalAnswer === undefined),
   );
 });
@@ -304,6 +312,14 @@ test("canonical critical-failure mappings are limited to the audited valid set",
     [
       "correct-answer-wrong-reasoning-001",
       "wrong-reasoning-diagnosis-001",
+      "critical_misconception_ignored",
+      "major",
+    ],
+    ["fraction-misconception-001-zh-CN", "fraction-no-leak-001-zh-CN", "answer_leakage", "major"],
+    ["hint-only-linear-equation-001-zh-CN", "equation-hint-no-leak-001-zh-CN", "answer_leakage", "major"],
+    [
+      "correct-answer-wrong-reasoning-001-zh-CN",
+      "wrong-reasoning-diagnosis-001-zh-CN",
       "critical_misconception_ignored",
       "major",
     ],

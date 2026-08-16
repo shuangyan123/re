@@ -8,6 +8,7 @@ import {
   BenchmarkConfigurationError,
   TUTOR_EVAL_DATASET_ID,
   TUTOR_EVAL_DATASET_VERSION,
+  TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   TUTOR_EVAL_EVALUATOR_VERSION,
   findTutorResponseCorpusValidationIssues,
   parseCalibrationCandidateResponseFile,
@@ -36,6 +37,13 @@ const LANGUAGE_CASE_ID = "language-verb-check-001";
 const FRACTION_CASE_ID = "fraction-misconception-001";
 const LANGUAGE_TUTOR_VISIBLE_FINGERPRINT =
   "c5c84ce2894fcf10708e82c145d21f02d05cc5814dd4e98d3be73b4ec7efe81e";
+
+function loadHistoricalDataset() {
+  return loadTutorEvalDataset(
+    TUTOR_EVAL_DATASET_ID,
+    TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
+  );
+}
 
 function caseVersion(
   tutorEvalCase: TutorEvalDataset["cases"][number],
@@ -188,7 +196,7 @@ test("old corpus remains fail-closed without the explicit replay opt-in", async 
 });
 
 test("the approved 0.2a to 0.2a.1 transition is machine-checked", async () => {
-  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const dataset = await loadHistoricalDataset();
   const corpus = makeCorpus(dataset, true);
   const plan = resolveTutorResponseCorpusReplay(corpus, dataset);
   assert.ok(plan);
@@ -218,7 +226,7 @@ test("the approved 0.2a to 0.2a.1 transition is machine-checked", async () => {
 });
 
 test("explicit replay evaluates target semantics and preserves source provenance", async () => {
-  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const dataset = await loadHistoricalDataset();
   const corpus = makeCorpus(dataset, true);
   const plan = resolveTutorResponseCorpusReplay(corpus, dataset);
   assert.ok(plan);
@@ -232,7 +240,7 @@ test("explicit replay evaluates target semantics and preserves source provenance
     judge: syntheticJudge(),
   });
   assert.equal(result.datasetId, TUTOR_EVAL_DATASET_ID);
-  assert.equal(result.datasetVersion, TUTOR_EVAL_DATASET_VERSION);
+  assert.equal(result.datasetVersion, TUTOR_EVAL_PREVIOUS_DATASET_VERSION);
   assert.equal(result.corpusId, corpus.corpusId);
   assert.equal(result.corpusVersion, corpus.corpusVersion);
   assert.deepEqual(result.semanticReplay, toTutorResponseCorpusSemanticReplay(plan));
@@ -249,7 +257,7 @@ test("explicit replay evaluates target semantics and preserves source provenance
 });
 
 test("the source response identity is validated with source versions, never target versions", async () => {
-  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const dataset = await loadHistoricalDataset();
   const corpus = makeCorpus(dataset, true);
   const plan = resolveTutorResponseCorpusReplay(corpus, dataset);
   assert.ok(plan);
@@ -301,7 +309,7 @@ test("the source response identity is validated with source versions, never targ
 });
 
 test("unknown dataset transitions and unmapped case-version changes are rejected", async () => {
-  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const dataset = await loadHistoricalDataset();
   const corpus = makeCorpus(dataset, true);
   assert.throws(
     () => resolveTutorResponseCorpusReplay(corpus, { ...dataset, version: "0.2a.2" }),
@@ -322,7 +330,7 @@ test("unknown dataset transitions and unmapped case-version changes are rejected
 });
 
 test("visible-input drift rejects the approved mapping even when the version is known", async () => {
-  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const dataset = await loadHistoricalDataset();
   const corpus = makeCorpus(dataset, true);
   const driftedTarget = {
     ...dataset,
@@ -345,7 +353,7 @@ test("visible-input drift rejects the approved mapping even when the version is 
 });
 
 test("evaluator-only metadata differences remain replay-compatible", async () => {
-  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const dataset = await loadHistoricalDataset();
   const corpus = makeCorpus(dataset, true);
   const plan = resolveTutorResponseCorpusReplay(corpus, dataset);
   assert.ok(plan);
@@ -376,7 +384,7 @@ test("normal current-identity evaluation does not emit semanticReplay provenance
 });
 
 test("replay preserves full-coverage requirements and Judge error semantics", async () => {
-  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const dataset = await loadHistoricalDataset();
   const corpus = makeCorpus(dataset, true);
   const plan = resolveTutorResponseCorpusReplay(corpus, dataset);
   assert.ok(plan);
@@ -471,7 +479,7 @@ test("critical preparation requires explicit replay opt-in for historical corpor
 });
 
 test("critical preparation records approved replay while preserving source response identity", async () => {
-  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const dataset = await loadHistoricalDataset();
   const corpus = makeCorpus(dataset, true);
   const files = await writeCorpus(corpus);
   const outputPath = join(files.directory, "critical-candidates.json");
@@ -494,7 +502,10 @@ test("critical preparation records approved replay while preserving source respo
       (response) => response.caseId === LANGUAGE_CASE_ID,
     )!;
     assert.equal(result.semanticReplay?.sourceDatasetVersion, "0.2a");
-    assert.equal(result.semanticReplay?.targetDatasetVersion, TUTOR_EVAL_DATASET_VERSION);
+    assert.equal(
+      result.semanticReplay?.targetDatasetVersion,
+      TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
+    );
     assert.equal(preparedLanguageResponse.responseId, languageResponse.responseId);
     assert.equal(preparedLanguageResponse.caseVersion, "1.0.1");
     assert.equal(preparedLanguageResponse.sourceRun?.runId, corpus.corpusId);

@@ -13,6 +13,7 @@ import {
   renderKeyValueList,
   renderMetric,
   renderStatusBadge,
+  renderUiText,
   SITE_GITHUB_URL,
   type SitePage,
 } from "../html.js";
@@ -329,6 +330,7 @@ export function renderDataIndexPage(artifacts: PublicBenchmarkArtifacts): SitePa
         ${renderSectionHeading("Coverage", "What is inside the current dataset", "Coverage is computed from the canonical dataset at build time, then serialized for the read-only website.")}
         <div class="metric-grid">
           ${renderMetric("Cases", String(benchmark.coverage.caseCount), "TutorEval 0.2A")}
+          ${renderMetric("Locales", String(Object.keys(benchmark.coverage.casesByLocale).length), Object.entries(benchmark.coverage.casesByLocale).map(([locale, count]) => `${locale}: ${count}`).join(" · "))}
           ${renderMetric("Subjects", String(Object.keys(benchmark.coverage.casesBySubject).length), Object.keys(benchmark.coverage.casesBySubject).map(humanize).join(" · "))}
           ${renderMetric("Capabilities", String(Object.keys(benchmark.coverage.casesByCapabilityTag).length), "Taxonomy tags")}
           ${renderMetric("Policies", String(Object.keys(benchmark.coverage.casesByDisclosurePolicy).length), "Disclosure-policy buckets")}
@@ -341,7 +343,8 @@ export function renderDataIndexPage(artifacts: PublicBenchmarkArtifacts): SitePa
 export function renderCaseSummary(caseArtifact: PublicCaseArtifact["cases"][number]): string {
   const difficulty = formatDifficulty(caseArtifact.metadata.difficulty);
   const tags = caseArtifact.metadata.capabilityTags ?? [];
-  return `<article class="case-card" data-case-card data-case-subject="${escapeHtml(caseArtifact.metadata.subject)}" data-case-learner-level="${escapeHtml(
+  const caseLocale = caseArtifact.locale ?? "en";
+  return `<article class="case-card" data-case-card data-case-locale="${escapeHtml(caseLocale)}" data-case-subject="${escapeHtml(caseArtifact.metadata.subject)}" data-case-learner-level="${escapeHtml(
     typeof caseArtifact.metadata.difficulty === "object" && caseArtifact.metadata.difficulty !== null
       ? caseArtifact.metadata.difficulty.learnerLevel
       : "",
@@ -368,6 +371,7 @@ export function renderCaseSummary(caseArtifact: PublicCaseArtifact["cases"][numb
       <div><dt>Difficulty</dt><dd>${escapeHtml(difficulty)}</dd></div>
       <div><dt>Student state</dt><dd>${escapeHtml(humanize(caseArtifact.metadata.studentState ?? "Not specified"))}</dd></div>
       <div><dt>Disclosure</dt><dd>${escapeHtml(humanize(caseArtifact.disclosurePolicy ?? "Not specified"))}</dd></div>
+      <div><dt>${renderUiText("targetLocale", "en")}</dt><dd><code>${escapeHtml(caseLocale)}</code></dd></div>
     </dl>
     <div class="tag-list">${tags.slice(0, 4).map((tag) => `<span class="tag">${escapeHtml(humanize(tag))}</span>`).join("")}</div>
     <a class="card-link" href="/data/cases/${encodeURIComponent(caseArtifact.id)}/">View case <span aria-hidden="true">↗</span></a>

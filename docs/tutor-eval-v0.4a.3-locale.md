@@ -2,8 +2,10 @@
 
 0.4A.3 keeps the 0.4A.2 portable baseline profile available for historical
 replay and adds an explicit case-locale instruction to new Tutor generation.
-It does not translate Tutor or Judge output and does not change evaluator
-scoring semantics.
+The current bilingual case content and its compatibility boundary are defined
+in [`TutorEval bilingual cohorts`](tutor-eval-bilingual-cohorts.md). This
+document covers the locale plumbing; it does not translate Tutor or Judge
+output and does not change evaluator scoring semantics.
 
 ## Case locale
 
@@ -25,6 +27,11 @@ The public case serializer exposes the resolved locale. Existing corpus,
 execution-packet, and public-artifact readers accept the field as optional, so
 legacy artifacts remain readable and resolve missing locale to English at the
 visible-input boundary.
+
+The current 0.2A dataset has 24 English cases and 24 `zh-CN` cases. Evaluation
+reports retain the existing overall score and add a non-weighted breakdown by
+resolved case locale. The developer Case Explorer exposes the same case
+locale independently from the interface-locale selector.
 
 ## Generation identity
 
