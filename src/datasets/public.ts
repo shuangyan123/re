@@ -74,6 +74,8 @@ export interface TutorEvalPublicCase {
    * outside the public artifact.
    */
   readonly disclosurePolicy?: DisclosurePolicy;
+  /** Authored grouping for audit/reporting; not a scientific equivalence claim. */
+  readonly crossLocaleGroupId?: string;
   readonly adaptationPairId?: string;
   readonly adaptationVariant?: string;
 }
@@ -96,6 +98,7 @@ export interface PublicBenchmarkDatasetSummary {
   readonly capabilityCount: number;
   readonly disclosurePolicyCount: number;
   readonly counterfactualPairCount: number;
+  readonly crossLocaleGroupCount: number;
 }
 
 export interface PublicBenchmarkArtifact {
@@ -252,6 +255,9 @@ export function toPublicTutorEvalCase(
             : { adaptationVariant: tutorEvalCase.adaptationVariant }),
         }
       : {}),
+    ...(tutorEvalCase.crossLocaleGroupId === undefined
+      ? {}
+      : { crossLocaleGroupId: tutorEvalCase.crossLocaleGroupId }),
   };
 }
 
@@ -270,6 +276,7 @@ function buildDatasetSummary(
       (policy) => coverage.casesByDisclosurePolicy[policy as DisclosurePolicy] > 0,
     ).length,
     counterfactualPairCount: coverage.counterfactualPairCount,
+    crossLocaleGroupCount: coverage.crossLocaleGroupCount,
   };
 }
 
@@ -419,6 +426,7 @@ function isPublicCase(value: unknown): value is TutorEvalPublicCase {
     (value.locale !== undefined && !isTutorCaseLocale(value.locale)) ||
     (tutorInput.problemContext !== undefined && typeof tutorInput.problemContext !== "string") ||
     (value.disclosurePolicy !== undefined && typeof value.disclosurePolicy !== "string") ||
+    (value.crossLocaleGroupId !== undefined && typeof value.crossLocaleGroupId !== "string") ||
     (value.adaptationPairId !== undefined && typeof value.adaptationPairId !== "string") ||
     (value.adaptationVariant !== undefined && typeof value.adaptationVariant !== "string")
   ) {

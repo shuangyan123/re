@@ -1,0 +1,793 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "fraction-misconception-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "fraction-misconception-001",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "分数相加",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "error_diagnosis",
+      "studentState": "conceptual_misconception",
+      "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["misconception_identification", "error_localization", "scaffolding", "answer_non_disclosure", "student_executable_action"],
+      "tags": ["synthetic", "diagnosis", "guidance"]
+    },
+    "tutorInput": {
+      "learningObjective": "先帮学生找出分数单位不同的问题，再引导他自己完成计算，不要直接给出答案。",
+      "studentProfile": { "knownConcepts": ["分子和分母", "分数相加"], "misconceptions": ["把分子和分母直接相加"], "level": "小学阶段", "goal": "自己算出两个分数的和" },
+      "studentMessage": "我在算 1/3 + 1/6 时把分子和分母都直接相加了，这样算对吗？",
+      "problemContext": "两个分数的单位大小不同，需要先想办法把它们改写成相同的单位；请不要直接说出最后答案。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "7/12", "acceptedAnswers": ["7/12"], "requiredConcepts": ["公分母", "分数单位"] },
+      "knownMisconception": "学生把分母当成可以像普通数字一样直接相加的数，没有注意分数单位的大小。",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "fraction-diagnosis-001-zh-CN", "category": "diagnosis", "criterion": "指出学生直接相加分母的错误，并说明问题在于分数单位不同。", "weight": 2, "behavior": "required", "capabilityTag": "misconception_identification", "evaluationType": "judge" },
+        { "id": "fraction-guidance-001-zh-CN", "category": "guidance", "criterion": "引导学生在计算前先寻找公分母。", "weight": 2, "behavior": "required", "capabilityTag": "scaffolding", "critical": true, "evaluationType": "judge" },
+        { "id": "fraction-actionability-001-zh-CN", "category": "actionability", "criterion": "最后给出一个学生可以自己完成的具体下一步。", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" },
+        { "id": "fraction-no-leak-001-zh-CN", "category": "guidance", "criterion": "学生只要求提示时，不要说出最后答案。", "weight": 1, "behavior": "prohibited", "capabilityTag": "answer_non_disclosure", "evaluationType": "deterministic", "evaluatorId": "direct_answer_leak", "config": { "forbiddenFinalAnswer": "7/12" }, "criticalFailure": { "type": "answer_leakage", "severity": "major" } }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "hint-only-linear-equation-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "hint-only-linear-equation-001",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "一元一次方程",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "hint_request",
+      "studentState": "stuck_without_attempt",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 2, "pedagogicalDifficulty": 2 },
+      "capabilityTags": ["hint_calibration", "answer_non_disclosure", "student_agency", "clear_next_step"],
+      "tags": ["synthetic", "hint-only"]
+    },
+    "tutorInput": {
+      "learningObjective": "只给学生解方程的第一步提示，让他自己完成后面的运算。",
+      "studentProfile": { "knownConcepts": ["等式", "加法和减法"], "misconceptions": ["不知道该先消去哪一项"], "level": "初中阶段", "goal": "自己解出方程" },
+      "studentMessage": "我想解 2x + 3 = 11，但不知道第一步该做什么。可以给我一个提示吗？",
+      "problemContext": "学生还没有尝试任何一步，并且明确要求提示，不要直接告诉他 x 的值。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "x=4", "acceptedAnswers": ["x=4", "4"], "requiredConcepts": ["逆运算", "等式两边"] },
+      "knownMisconception": "学生不知道如何选择第一步逆运算。",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "equation-hint-no-leak-001-zh-CN", "category": "guidance", "criterion": "给出第一步提示，但不要直接说出 x=4。", "weight": 2, "behavior": "prohibited", "capabilityTag": "answer_non_disclosure", "critical": true, "evaluationType": "deterministic", "evaluatorId": "direct_answer_leak", "config": { "forbiddenFinalAnswer": "x=4" }, "criticalFailure": { "type": "answer_leakage", "severity": "major" } },
+        { "id": "equation-hint-next-step-001-zh-CN", "category": "actionability", "criterion": "明确告诉学生第一步可以考虑哪一个可逆运算。", "weight": 1, "behavior": "required", "capabilityTag": "clear_next_step", "evaluationType": "judge" },
+        { "id": "equation-hint-agency-001-zh-CN", "category": "guidance", "criterion": "让学生自己完成第一步运算，而不是替他做完。", "weight": 1, "behavior": "desirable", "capabilityTag": "student_agency", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "correct-answer-wrong-reasoning-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "correct-answer-wrong-reasoning-001",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "乘法意义",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "reasoning_checking",
+      "studentState": "correct_answer_wrong_reasoning",
+      "difficulty": { "learnerLevel": "elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["correct_answer_wrong_reasoning", "reasoning_consistency", "conceptual_correctness", "misconception_identification"],
+      "tags": ["synthetic", "correctness", "diagnosis"]
+    },
+    "tutorInput": {
+      "learningObjective": "即使学生的数值答案是对的，也要帮助他纠正乘法意义上的错误推理。",
+      "studentProfile": { "knownConcepts": ["逐个数数"], "misconceptions": ["3 + 4 是 3 × 4 的理由"], "level": "小学阶段", "goal": "理解乘法表示相同数量的几组" },
+      "studentMessage": "我知道 3 × 4 等于 12，因为 3 + 4 = 7，再加 5 就是 12。我的想法没问题吧？",
+      "problemContext": "学生最后的答案是对的，但解释使用了不成立的运算关系。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "12", "acceptedAnswers": ["12"], "requiredConcepts": ["三组四个", "重复相加"] },
+      "knownMisconception": "学生还没有把乘法和相等的几组或重复相加联系起来。",
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        { "id": "wrong-reasoning-diagnosis-001-zh-CN", "category": "diagnosis", "criterion": "指出答案虽然正确，但学生给出的理由并不能说明乘法的意义。", "weight": 2, "behavior": "required", "capabilityTag": "correct_answer_wrong_reasoning", "critical": true, "evaluationType": "judge", "criticalFailure": { "type": "critical_misconception_ignored", "severity": "major" } },
+        { "id": "wrong-reasoning-concept-001-zh-CN", "category": "correctness", "criterion": "用相等的几组或重复相加解释乘法，不要认可错误的解释。", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
+        { "id": "wrong-reasoning-answer-001-zh-CN", "category": "correctness", "criterion": "保留数值上正确的答案 12。", "weight": 1, "behavior": "required", "capabilityTag": "reasoning_consistency", "evaluationType": "deterministic", "evaluatorId": "matches_ground_truth" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "paired-fraction-procedural-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "paired-fraction-procedural-001",
+    "adaptationPairId": "fraction-counterfactual-001-zh-CN",
+    "adaptationVariant": "procedural-error",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "分数加法",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "procedural_error",
+      "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["procedural_correctness", "error_localization", "misconception_specific_adaptation", "procedural_prompting", "student_executable_action", "counterfactual_adaptation"],
+      "tags": ["synthetic", "counterfactual", "procedural-error"]
+    },
+    "tutorInput": {
+      "learningObjective": "保留学生对公分母的理解，只纠正最后一步的计算方法。",
+      "studentProfile": { "knownConcepts": ["公分母", "等值分数"], "misconceptions": ["找到公分母后还要把分母相加"], "level": "小学高年级", "goal": "准确地进行分数加法" },
+      "studentMessage": "我已经找到了 2/3 + 1/3 的公分母，可是算成了 3/6。到底哪一步错了？",
+      "problemContext": "学生已经理解关键概念，只在最后的计算步骤上出错。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "3/3", "acceptedAnswers": ["3/3", "1"], "requiredConcepts": ["分母保持不变", "分子相加"] },
+      "knownMisconception": "学生找对了公分母，却又把分母相加了。",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "paired-fraction-procedural-adaptation-001-zh-CN", "category": "adaptation", "criterion": "针对学生在分母这一步的局部错误提供帮助，不要重新讲一遍所有分数概念。", "weight": 2, "behavior": "required", "capabilityTag": "misconception_specific_adaptation", "evaluationType": "judge" },
+        { "id": "paired-fraction-procedural-guidance-001-zh-CN", "category": "guidance", "criterion": "引导学生把下一小步放在分子上。", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "judge" },
+        { "id": "paired-fraction-procedural-action-001-zh-CN", "category": "actionability", "criterion": "给学生一个可以马上执行的具体运算。", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "paired-fraction-conceptual-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "paired-fraction-conceptual-001",
+    "adaptationPairId": "fraction-counterfactual-001-zh-CN",
+    "adaptationVariant": "conceptual-gap",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "分数加法",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "conceptual_misconception",
+      "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["conceptual_correctness", "prior_knowledge_adaptation", "explanation_depth_adaptation", "conceptual_prompting", "student_executable_action", "counterfactual_adaptation"],
+      "tags": ["synthetic", "counterfactual", "conceptual-gap"]
+    },
+    "tutorInput": {
+      "learningObjective": "先建立学生对分母表示相等单位的理解，再帮助他思考这道题。",
+      "studentProfile": { "knownConcepts": ["整数加法"], "misconceptions": ["分数的分子和分母都可以直接相加"], "level": "小学高年级", "goal": "理解并完成分数加法" },
+      "studentMessage": "为什么 2/3 + 1/3 不能算成 3/6？我不明白分母到底表示什么。",
+      "problemContext": "学生还没有理解分母表示的单位，也还没有开始计算。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "3/3", "acceptedAnswers": ["3/3", "1"], "requiredConcepts": ["整体", "大小相同的单位", "公分母"] },
+      "knownMisconception": "学生把分母当成普通数字，而没有把它理解成单位大小。",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "paired-fraction-conceptual-adaptation-001-zh-CN", "category": "adaptation", "criterion": "把分母解释成整体被分成的相等部分的大小，不要假定学生已经掌握这个概念。", "weight": 2, "behavior": "required", "capabilityTag": "prior_knowledge_adaptation", "evaluationType": "judge" },
+        { "id": "paired-fraction-conceptual-guidance-001-zh-CN", "category": "guidance", "criterion": "用一个小而清楚的比较，帮助学生思考相同的分数单位。", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_prompting", "evaluationType": "judge" },
+        { "id": "paired-fraction-conceptual-action-001-zh-CN", "category": "actionability", "criterion": "给学生一个具体的下一步，而不是直接给出完整解法。", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "weak-foundation-fractions-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "weak-foundation-fractions-001",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "分数的意义",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "concept_explanation",
+      "studentState": "novice",
+      "difficulty": { "learnerLevel": "beginner", "taskDifficulty": 1, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["conceptual_correctness", "explanation_depth_adaptation", "scaffolding", "student_executable_action"],
+      "tags": ["synthetic", "small-steps"]
+    },
+    "tutorInput": {
+      "learningObjective": "用具体、简单的小步骤，帮助刚开始学习的学生理解 2/3。",
+      "studentProfile": { "knownConcepts": ["数到十"], "misconceptions": ["2/3 只是把 2 除以 3，和整体没有关系"], "level": "刚开始学习分数", "goal": "理解分数表示什么" },
+      "studentMessage": "我一直不明白分数。2/3 到底是什么意思？",
+      "problemContext": "学生需要具体的说法，以及一个简单的理解检查。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["整体", "三个相等部分", "其中两个部分"] },
+      "knownMisconception": "学生还没有建立分数的部分与整体模型。",
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        { "id": "weak-foundation-adaptation-001-zh-CN", "category": "adaptation", "criterion": "用适合初学者的具体语言说明整体和相等的部分。", "weight": 2, "behavior": "required", "capabilityTag": "explanation_depth_adaptation", "evaluationType": "judge" },
+        { "id": "weak-foundation-guidance-001-zh-CN", "category": "guidance", "criterion": "把解释拆成少量、容易理解的小步骤。", "weight": 1, "behavior": "required", "capabilityTag": "scaffolding", "evaluationType": "judge" },
+        { "id": "weak-foundation-actionability-001-zh-CN", "category": "actionability", "criterion": "请学生接下来完成一个具体的小检查或画图。", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "full-solution-check-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "full-solution-check-001",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "一元一次方程",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "answer_checking",
+      "studentState": "uncertain_but_correct",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 2, "pedagogicalDifficulty": 2 },
+      "capabilityTags": ["factual_correctness", "procedural_correctness", "check_for_understanding", "procedural_prompting"],
+      "tags": ["synthetic", "full-solution-allowed"]
+    },
+    "tutorInput": {
+      "learningObjective": "核对学生提出的解法，并清楚地解释怎样验证。",
+      "studentProfile": { "knownConcepts": ["逆运算"], "misconceptions": [], "level": "初中阶段", "goal": "检查解出的方程" },
+      "studentMessage": "我解 2x + 3 = 11 得到 x=4。请帮我检查一下，并把解法写出来。",
+      "problemContext": "学生明确要求核对答案和完整解法，因此可以展示完整步骤。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "x=4", "acceptedAnswers": ["x=4", "4"], "requiredConcepts": ["减去 3", "除以 2"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "full_solution_allowed",
+      "rubrics": [
+        { "id": "full-solution-correctness-001-zh-CN", "category": "correctness", "criterion": "说明或核对正确的解 x=4。", "weight": 2, "behavior": "required", "capabilityTag": "factual_correctness", "evaluationType": "deterministic", "evaluatorId": "contains_normalized_expression", "config": { "requiredExpression": "x=4" } },
+        { "id": "full-solution-disclosure-001-zh-CN", "category": "guidance", "criterion": "在政策允许时，给出学生所要求的完整解法。", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "judge" },
+        { "id": "full-solution-check-001-zh-CN", "category": "actionability", "criterion": "展示一个具体的代入或验算步骤。", "weight": 1, "behavior": "required", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "paired-multiplication-procedural-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "paired-multiplication-procedural-001",
+    "adaptationPairId": "multiplication-counterfactual-001-zh-CN",
+    "adaptationVariant": "procedural-error",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "用相等的组理解乘法",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "procedural_error",
+      "difficulty": { "learnerLevel": "elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["procedural_correctness", "misconception_specific_adaptation", "counterfactual_adaptation", "student_executable_action"],
+      "tags": ["synthetic", "counterfactual", "procedural-error"]
+    },
+    "tutorInput": {
+      "learningObjective": "保留学生对相等分组的理解，只纠正他写重复加法式子时的错误。",
+      "studentProfile": { "knownConcepts": ["相等的组"], "misconceptions": ["3+4 表示三组四个"], "level": "小学阶段", "goal": "用分组表示乘法" },
+      "studentMessage": "我画了三组、每组四个，但写成了 3+4，没有写 4+4+4。我该改哪里？",
+      "problemContext": "学生已经懂得相等的组，只是在写重复加法时弄错了顺序。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "12", "acceptedAnswers": ["12"], "requiredConcepts": ["三组四个", "重复相加"] },
+      "knownMisconception": "学生能画出相等的组，但重复加法的写法还不对。",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "paired-multiplication-procedural-adaptation-001-zh-CN", "category": "adaptation", "criterion": "只纠正重复加法的写法，同时保留学生对分组模型的理解。", "weight": 2, "behavior": "required", "capabilityTag": "misconception_specific_adaptation", "evaluationType": "judge" },
+        { "id": "paired-multiplication-procedural-next-001-zh-CN", "category": "actionability", "criterion": "请学生根据自己的图写出一个重复加法式子。", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "paired-multiplication-conceptual-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "paired-multiplication-conceptual-001",
+    "adaptationPairId": "multiplication-counterfactual-001-zh-CN",
+    "adaptationVariant": "conceptual-gap",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "用相等的组理解乘法",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "conceptual_misconception",
+      "difficulty": { "learnerLevel": "elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["conceptual_correctness", "prior_knowledge_adaptation", "explanation_depth_adaptation", "counterfactual_adaptation", "procedural_prompting", "student_executable_action"],
+      "tags": ["synthetic", "counterfactual", "conceptual-gap"]
+    },
+    "tutorInput": {
+      "learningObjective": "在要求学生计算前，先帮助他理解乘法表示相等的几组。",
+      "studentProfile": { "knownConcepts": ["数数"], "misconceptions": ["乘法只是把两个数字合在一起"], "level": "小学阶段", "goal": "理解乘法表示相等的组" },
+      "studentMessage": "为什么 3 × 4 会表示几组东西？我以为它只是把两个数合起来。",
+      "problemContext": "学生还没有把乘法和相等的组或重复相加联系起来。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "12", "acceptedAnswers": ["12"], "requiredConcepts": ["三组四个", "重复相加"] },
+      "knownMisconception": "学生把乘法看成任意的运算，而没有理解相等的组。",
+      "disclosurePolicy": "full_solution_required",
+      "rubrics": [
+        { "id": "paired-multiplication-conceptual-adaptation-001-zh-CN", "category": "adaptation", "criterion": "先介绍相等的组，再依赖乘法的计算步骤。", "weight": 2, "behavior": "required", "capabilityTag": "prior_knowledge_adaptation", "evaluationType": "judge" },
+        { "id": "paired-multiplication-full-solution-001-zh-CN", "category": "guidance", "criterion": "政策要求完整解答时，给出完整的请求解法，而不是只给含糊的提示。", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "judge" },
+        { "id": "paired-multiplication-conceptual-check-001-zh-CN", "category": "actionability", "criterion": "请学生画出三组、每组四个的图。", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "science-density-knowledge-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "science-density-knowledge-001",
+    "metadata": {
+      "subject": "science",
+      "topic": "密度",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "knowledge_recall",
+      "studentState": "novice",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 2, "pedagogicalDifficulty": 1 },
+      "capabilityTags": ["factual_correctness", "conceptual_correctness", "productive_question"],
+      "tags": ["synthetic", "science", "no-answer"]
+    },
+    "tutorInput": {
+      "learningObjective": "帮助学生回忆密度和质量、体积之间的关系。",
+      "studentProfile": { "knownConcepts": ["质量", "体积"], "misconceptions": [], "level": "初中阶段", "goal": "回忆密度的含义" },
+      "studentMessage": "密度到底是在比较物体的什么？我有点想不起来了。",
+      "problemContext": "学生只需要回忆概念，不要求计算，也没有提供具体物体。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["质量", "体积"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "no_answer",
+      "rubrics": [
+        { "id": "science-density-correctness-001-zh-CN", "category": "correctness", "criterion": "说明密度描述的是质量和体积之间的关系。", "weight": 2, "behavior": "required", "capabilityTag": "factual_correctness", "evaluationType": "judge" },
+        { "id": "science-density-question-001-zh-CN", "category": "actionability", "criterion": "提出一个学生下一步可以回答的简短回忆问题。", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "science-force-transfer-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "science-force-transfer-001",
+    "metadata": {
+      "subject": "science",
+      "topic": "力的平衡与迁移",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "transfer_preparation",
+      "studentState": "partial_understanding",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 3, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["conceptual_correctness", "difficulty_adaptation", "counterfactual_adaptation", "student_executable_action"],
+      "tags": ["synthetic", "science", "transfer"]
+    },
+    "tutorInput": {
+      "learningObjective": "把新情境和学生已经理解的平衡力联系起来，帮助他迁移这个概念。",
+      "studentProfile": { "knownConcepts": ["平衡力", "推和拉"], "misconceptions": ["物体只要在运动，就一定有一个更大的力在推它"], "level": "初中阶段", "goal": "把力的概念用到新例子上" },
+      "studentMessage": "如果自行车匀速前进，是不是说明向前的力一定比阻力大？",
+      "problemContext": "学生知道平衡力的定义，但还没有把它用于运动中的新情境。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["合力", "相反方向的力"] },
+      "knownMisconception": "学生把有运动误解成合力一定不为零。",
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        { "id": "science-force-transfer-001-zh-CN", "category": "adaptation", "criterion": "把新例子和学生原来理解的平衡力联系起来。", "weight": 2, "behavior": "required", "capabilityTag": "counterfactual_adaptation", "evaluationType": "judge" },
+        { "id": "science-force-action-001-zh-CN", "category": "actionability", "criterion": "请学生在这个例子里指出两个方向相反的力。", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "science-photosynthesis-concept-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "science-photosynthesis-concept-001",
+    "metadata": {
+      "subject": "science",
+      "topic": "光合作用",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "concept_explanation",
+      "studentState": "novice",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 3, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["conceptual_correctness", "misleading_simplification", "scaffolding", "check_for_understanding"],
+      "tags": ["synthetic", "science", "concept"]
+    },
+    "tutorInput": {
+      "learningObjective": "清楚解释光合作用怎样利用光能和二氧化碳，同时避免把概念讲得失真。",
+      "studentProfile": { "knownConcepts": ["植物需要光"], "misconceptions": ["植物把阳光当食物吃进去"], "level": "初中阶段", "goal": "理解光合作用的基本过程" },
+      "studentMessage": "植物是不是把阳光吃进去，然后就长大了？能解释一下吗？",
+      "problemContext": "学生正在第一次学习光合作用，允许给出完整的概念解释。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["光能", "二氧化碳", "植物制造有机物"] },
+      "knownMisconception": "学生把光合作用误解成植物直接吃阳光。",
+      "disclosurePolicy": "full_solution_allowed",
+      "rubrics": [
+        { "id": "science-photosynthesis-concept-001-zh-CN", "category": "correctness", "criterion": "说明光能如何参与利用二氧化碳的过程。", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
+        { "id": "science-photosynthesis-no-simplification-001-zh-CN", "category": "correctness", "criterion": "避免把光合作用简单说成植物在吃阳光这一误导性说法。", "weight": 1, "behavior": "prohibited", "capabilityTag": "misleading_simplification", "evaluationType": "judge" },
+        { "id": "science-photosynthesis-check-001-zh-CN", "category": "actionability", "criterion": "检查学生能否说出这个过程使用的一种输入。", "weight": 1, "behavior": "desirable", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "science-graph-error-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "science-graph-error-001",
+    "metadata": {
+      "subject": "science",
+      "topic": "读取科学图表",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "error_diagnosis",
+      "studentState": "overconfident_incorrect",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 3, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["error_detection", "error_localization", "uncertainty_detection", "procedural_prompting"],
+      "tags": ["synthetic", "science", "diagnosis"]
+    },
+    "tutorInput": {
+      "learningObjective": "帮助学生找出图轴和结论之间的不一致，而不是只说他看错了。",
+      "studentProfile": { "knownConcepts": ["横轴和纵轴"], "misconceptions": ["只要曲线向上，变化率就一定变大"], "level": "初中阶段", "goal": "正确读取科学图表" },
+      "studentMessage": "这条线一直往上，所以变化率一直在变大，对吧？",
+      "problemContext": "图表的纵轴不是变化率，学生把纵轴含义和斜率混在了一起。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["纵轴含义", "变化率"] },
+      "knownMisconception": "学生没有先核对纵轴表示什么，就把上升的曲线当成变化率变大。",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "science-graph-location-001-zh-CN", "category": "diagnosis", "criterion": "指出图轴的含义与学生关于变化率的结论之间的不匹配。", "weight": 2, "behavior": "required", "capabilityTag": "error_localization", "evaluationType": "judge" },
+        { "id": "science-graph-check-001-zh-CN", "category": "guidance", "criterion": "请学生在解释这个点之前先读出纵轴的含义。", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "language-evidence-argument-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "language-evidence-argument-001",
+    "metadata": {
+      "subject": "language",
+      "topic": "用文本证据支持观点",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "partial_understanding",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 3, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["reasoning_consistency", "scaffolding", "answer_non_disclosure", "productive_question"],
+      "tags": ["synthetic", "language", "hint-only"]
+    },
+    "tutorInput": {
+      "learningObjective": "引导学生自己找到能支持观点的句子，而不是替他补出证据。",
+      "studentProfile": { "knownConcepts": ["中心意思"], "misconceptions": ["只要观点听起来合理，就不需要引用原文"], "level": "中学阶段", "goal": "用文本证据支持观点" },
+      "studentMessage": "我觉得主人公很勇敢，但不知道该引用哪一句话来证明。能给我一点提示吗？",
+      "problemContext": "学生需要从文章中寻找证据，但没有提供文章原文或现成引文。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["文本句子", "支持观点"] },
+      "knownMisconception": "学生把有道理的观点和有文本证据混为一谈。",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "language-evidence-hint-001-zh-CN", "category": "guidance", "criterion": "请学生先找出一句能支持这个判断的原文。", "weight": 2, "behavior": "required", "capabilityTag": "scaffolding", "evaluationType": "judge" },
+        { "id": "language-evidence-leak-001-zh-CN", "category": "guidance", "criterion": "不要替学生编造或提供题目中没有给出的引文。", "weight": 1, "behavior": "prohibited", "capabilityTag": "answer_non_disclosure", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "language-verb-check-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "language-verb-check-001",
+    "metadata": {
+      "subject": "language",
+      "topic": "主谓一致",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "answer_checking",
+      "studentState": "overconfident_incorrect",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 2, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["error_detection", "error_localization", "procedural_correctness", "check_for_understanding"],
+      "tags": ["synthetic", "language", "full-solution-required"]
+    },
+    "tutorInput": {
+      "learningObjective": "检查学生的句子，指出主谓一致错误，而不是直接认可它。",
+      "studentProfile": { "knownConcepts": ["名词", "动词"], "misconceptions": ["动词要跟主语旁边最近的复数名词一致"], "level": "初中阶段", "goal": "检查句子的语法" },
+      "studentMessage": "The list of examples are on the page. 这句话对吗？",
+      "problemContext": "句子的真正主语是单数，虽然旁边有一个复数名词；需要说明主语和动词怎样对应。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["主语", "动词"] },
+      "knownMisconception": "学生根据离动词最近的名词选择动词形式，而没有先找真正的主语。",
+      "disclosurePolicy": "full_solution_required",
+      "rubrics": [
+        { "id": "language-verb-diagnosis-001-zh-CN", "category": "diagnosis", "criterion": "找出主语和动词之间的主谓一致错误。", "weight": 2, "behavior": "required", "capabilityTag": "error_localization", "critical": true, "evaluationType": "judge" },
+        { "id": "language-verb-solution-001-zh-CN", "category": "correctness", "criterion": "说出正确的动词形式，并解释真正起决定作用的主语。", "weight": 2, "behavior": "required", "capabilityTag": "procedural_correctness", "evaluationType": "judge" },
+        { "id": "language-verb-check-001-zh-CN", "category": "actionability", "criterion": "请学生重新读一遍改正后的句子，并圈出主语。", "weight": 1, "behavior": "desirable", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "language-word-context-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "language-word-context-001",
+    "metadata": {
+      "subject": "language",
+      "topic": "根据上下文理解词义",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "knowledge_recall",
+      "studentState": "uncertain_but_correct",
+      "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 2 },
+      "capabilityTags": ["conceptual_correctness", "uncertainty_detection", "productive_question"],
+      "tags": ["synthetic", "language", "no-answer"]
+    },
+    "tutorInput": {
+      "learningObjective": "帮助学生用上下文线索推断词义，并说出支持判断的证据。",
+      "studentProfile": { "knownConcepts": ["句子意思"], "misconceptions": [], "level": "小学高年级", "goal": "推断词语的意思" },
+      "studentMessage": "我觉得 reluctant 是‘不太确定’的意思，但又不是完全有把握。",
+      "problemContext": "上下文写到人物在同意之前停顿了一下，学生需要从这个线索检查自己的猜测。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["上下文", "行为线索"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "no_answer",
+      "rubrics": [
+        { "id": "language-word-context-001-zh-CN", "category": "correctness", "criterion": "解释周围的上下文怎样支持学生提出的词义。", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
+        { "id": "language-word-question-001-zh-CN", "category": "actionability", "criterion": "请学生指出句子中的一个具体线索。", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "history-source-context-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "history-source-context-001",
+    "metadata": {
+      "subject": "history_or_social_studies",
+      "topic": "一手史料与历史语境",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "concept_explanation",
+      "studentState": "novice",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 3, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["conceptual_correctness", "prior_knowledge_adaptation", "explanation_depth_adaptation", "productive_question"],
+      "tags": ["synthetic", "history", "no-answer"]
+    },
+    "tutorInput": {
+      "learningObjective": "解释在解读一手史料前，为什么要关注作者和写作背景。",
+      "studentProfile": { "knownConcepts": ["事件发生的时间顺序"], "misconceptions": [], "level": "高中阶段", "goal": "理解一手史料" },
+      "studentMessage": "同一件事为什么会被两份史料写得不一样？",
+      "problemContext": "学生知道事件发生的日期，但还不了解作者的立场和写作背景。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["立场", "背景"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "no_answer",
+      "rubrics": [
+        { "id": "history-source-concept-001-zh-CN", "category": "correctness", "criterion": "说明史料作者的立场和写作背景会影响叙述。", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
+        { "id": "history-source-question-001-zh-CN", "category": "actionability", "criterion": "请学生指出史料由谁、在什么时候写成。", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "history-cause-check-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "history-cause-check-001",
+    "metadata": {
+      "subject": "history_or_social_studies",
+      "topic": "历史因果关系",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "reasoning_checking",
+      "studentState": "uncertain_but_correct",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 4, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["reasoning_consistency", "uncertainty_detection", "clear_next_step", "student_executable_action"],
+      "tags": ["synthetic", "history", "partial-solution"]
+    },
+    "tutorInput": {
+      "learningObjective": "帮助学生区分促成事件的一个原因和‘唯一原因’的说法。",
+      "studentProfile": { "knownConcepts": ["事件发生的先后顺序"], "misconceptions": ["一件事单独造成了整场冲突"], "level": "高中阶段", "goal": "分析历史事件的原因" },
+      "studentMessage": "我觉得整场冲突就是一件事造成的，但也不太确定。",
+      "problemContext": "学生提到了一个合理的原因，却把它说成了充分且唯一的原因。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["原因", "证据"] },
+      "knownMisconception": "学生把一个促成因素夸大成唯一原因。",
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        { "id": "history-cause-reasoning-001-zh-CN", "category": "diagnosis", "criterion": "识别出学生把一个促成因素说成了唯一原因。", "weight": 2, "behavior": "required", "capabilityTag": "reasoning_consistency", "evaluationType": "judge" },
+        { "id": "history-cause-next-001-zh-CN", "category": "actionability", "criterion": "请学生再找出一个促成因素，并为它找一条证据。", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "history-source-bias-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "history-source-bias-001",
+    "metadata": {
+      "subject": "history_or_social_studies",
+      "topic": "史料偏见",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "answer_checking",
+      "studentState": "overconfident_incorrect",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 3, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["factual_correctness", "misleading_simplification", "error_detection", "check_for_understanding"],
+      "tags": ["synthetic", "history", "full-solution-allowed"]
+    },
+    "tutorInput": {
+      "learningObjective": "检查学生认为史料完全客观的说法，并介绍一个更准确的分析偏见的方法。",
+      "studentProfile": { "knownConcepts": ["一手史料"], "misconceptions": ["只要写了日期和事实，史料就一定客观"], "level": "高中阶段", "goal": "判断史料的可靠性" },
+      "studentMessage": "这份史料列出了很多日期，所以它不可能有偏见。我的推理对吗？",
+      "problemContext": "史料由一位有明确政治目的的参与者写成；学生需要区分事实信息和作者视角。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["立场", "目的"] },
+      "knownMisconception": "学生把听起来像事实的措辞当成了客观性的证明。",
+      "disclosurePolicy": "full_solution_allowed",
+      "rubrics": [
+        { "id": "history-source-bias-diagnosis-001-zh-CN", "category": "diagnosis", "criterion": "指出学生据此推断客观性为什么不充分。", "weight": 2, "behavior": "required", "capabilityTag": "error_detection", "evaluationType": "judge" },
+        { "id": "history-source-bias-explanation-001-zh-CN", "category": "correctness", "criterion": "解释作者的立场和写作目的怎样影响史料解读。", "weight": 2, "behavior": "required", "capabilityTag": "misleading_simplification", "evaluationType": "judge" },
+        { "id": "history-source-bias-check-001-zh-CN", "category": "actionability", "criterion": "请学生记录作者的身份和目的，作为检查偏见的一步。", "weight": 1, "behavior": "desirable", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "programming-loop-diagnosis-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "programming-loop-diagnosis-001",
+    "metadata": {
+      "subject": "programming",
+      "topic": "循环",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "error_diagnosis",
+      "studentState": "procedural_error",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 3, "pedagogicalDifficulty": 4 },
+      "capabilityTags": ["error_detection", "error_localization", "procedural_prompting", "student_executable_action", "overhelping_avoidance"],
+      "tags": ["synthetic", "programming", "hint-only"]
+    },
+    "tutorInput": {
+      "learningObjective": "帮助学生找出循环为什么不会结束，并提出一个可以验证的下一步。",
+      "studentProfile": { "knownConcepts": ["变量", "while 循环"], "misconceptions": ["只要在循环里某处加一，就足以让循环结束"], "level": "初中阶段", "goal": "调试一个循环" },
+      "studentMessage": "我的循环一直在打印，可是我明明在循环里把计数器加一了。",
+      "problemContext": "计数器虽然初始化了，但循环条件始终不会变成 false；学生需要先追踪一次状态变化。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["条件", "计数器"] },
+      "knownMisconception": "学生只看到了局部的加一操作，没有检查它是否影响循环条件。",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "programming-loop-location-001-zh-CN", "category": "diagnosis", "criterion": "找出仍然为真的循环条件。", "weight": 2, "behavior": "required", "capabilityTag": "error_localization", "evaluationType": "judge" },
+        { "id": "programming-loop-next-001-zh-CN", "category": "actionability", "criterion": "请学生追踪一次迭代中的计数器和条件。", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" },
+        { "id": "programming-loop-no-solution-001-zh-CN", "category": "guidance", "criterion": "在学生检查状态变化前，不要替他重写完整的循环。", "weight": 1, "behavior": "prohibited", "capabilityTag": "overhelping_avoidance", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "programming-function-recall-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "programming-function-recall-001",
+    "metadata": {
+      "subject": "programming",
+      "topic": "函数",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "knowledge_recall",
+      "studentState": "novice",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 2, "pedagogicalDifficulty": 2 },
+      "capabilityTags": ["factual_correctness", "conceptual_correctness", "scaffolding", "clear_next_step"],
+      "tags": ["synthetic", "programming", "full-solution-allowed"]
+    },
+    "tutorInput": {
+      "learningObjective": "用简短的方式解释函数接收的输入和返回值分别做什么。",
+      "studentProfile": { "knownConcepts": ["变量"], "misconceptions": [], "level": "初中阶段", "goal": "理解函数的输入和输出" },
+      "studentMessage": "函数的参数和返回值有什么区别？",
+      "problemContext": "学生第一次学习函数，适合用一个小例子解释，不要求指定某种编程语言。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["输入", "返回"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "full_solution_allowed",
+      "rubrics": [
+        { "id": "programming-function-correctness-001-zh-CN", "category": "correctness", "criterion": "区分传入函数的值和函数返回的值。", "weight": 2, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
+        { "id": "programming-function-example-001-zh-CN", "category": "guidance", "criterion": "用一个小例子说明，不要求使用特定编程语言。", "weight": 1, "behavior": "desirable", "capabilityTag": "scaffolding", "evaluationType": "judge" },
+        { "id": "programming-function-next-001-zh-CN", "category": "actionability", "criterion": "请学生在例子中标出一个输入和一个返回值。", "weight": 1, "behavior": "desirable", "capabilityTag": "clear_next_step", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "programming-test-failure-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "programming-test-failure-001",
+    "metadata": {
+      "subject": "programming",
+      "topic": "测试失败排查",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "guided_problem_solving",
+      "studentState": "stuck_without_attempt",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 4, "pedagogicalDifficulty": 5 },
+      "capabilityTags": ["knowledge_gap_identification", "student_executable_action", "productive_question", "difficulty_adaptation"],
+      "tags": ["synthetic", "programming", "full-solution-required"]
+    },
+    "tutorInput": {
+      "learningObjective": "帮助学生把失败的测试报告转化成第一个调试动作。",
+      "studentProfile": { "knownConcepts": ["断言"], "misconceptions": [], "level": "高中阶段", "goal": "从测试输出开始调试" },
+      "studentMessage": "测试失败了，但我完全不知道该从哪里开始。",
+      "problemContext": "学生没有提供尝试过的诊断，也没有贴出相关的测试输出；需要先补齐最有用的信息。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["失败的测试", "期望值和实际值"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "full_solution_required",
+      "rubrics": [
+        { "id": "programming-test-question-001-zh-CN", "category": "diagnosis", "criterion": "询问失败的测试名称，以及期望值和实际值的差异。", "weight": 2, "behavior": "required", "capabilityTag": "knowledge_gap_identification", "evaluationType": "judge" },
+        { "id": "programming-test-action-001-zh-CN", "category": "actionability", "criterion": "根据已有的失败信息给出第一个调试动作。", "weight": 2, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "programming-off-by-one-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "programming-off-by-one-001",
+    "metadata": {
+      "subject": "programming",
+      "topic": "数组索引",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "error_diagnosis",
+      "studentState": "overconfident_incorrect",
+      "difficulty": { "learnerLevel": "middle-school", "taskDifficulty": 3, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["error_detection", "procedural_correctness", "procedural_prompting", "check_for_understanding"],
+      "tags": ["synthetic", "programming", "partial-solution"]
+    },
+    "tutorInput": {
+      "learningObjective": "帮助学生检查数组越界的一位偏差，而不是把报错当成随机现象。",
+      "studentProfile": { "knownConcepts": ["数组", "索引"], "misconceptions": ["长度为 3 的数组的最后一个索引是 3"], "level": "初中阶段", "goal": "调试数组访问" },
+      "studentMessage": "数组长度是 3，所以访问 item[3] 应该就是最后一项。为什么会报错？",
+      "problemContext": "使用的是从 0 开始的索引规则；学生把数组长度和最后一个有效索引混为一谈。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["从 0 开始", "长度"] },
+      "knownMisconception": "学生把数组长度和从零开始的最后一个有效索引混淆了。",
+      "disclosurePolicy": "partial_solution",
+      "rubrics": [
+        { "id": "programming-off-by-one-diagnosis-001-zh-CN", "category": "diagnosis", "criterion": "指出从 0 开始计数时，最后一个有效索引比长度小 1。", "weight": 2, "behavior": "required", "capabilityTag": "error_detection", "evaluationType": "judge" },
+        { "id": "programming-off-by-one-check-001-zh-CN", "category": "guidance", "criterion": "请学生在改代码前先把索引和数组长度对照检查。", "weight": 1, "behavior": "required", "capabilityTag": "procedural_prompting", "evaluationType": "judge" },
+        { "id": "programming-off-by-one-action-001-zh-CN", "category": "actionability", "criterion": "给学生一个可以执行的索引检查。", "weight": 1, "behavior": "desirable", "capabilityTag": "check_for_understanding", "evaluationType": "judge" }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "programming-abstraction-transfer-001-zh-CN",
+    "version": "1.0.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "programming-abstraction-transfer-001",
+    "metadata": {
+      "subject": "programming",
+      "topic": "抽象与复用",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "transfer_preparation",
+      "studentState": "partial_understanding",
+      "difficulty": { "learnerLevel": "secondary", "taskDifficulty": 4, "pedagogicalDifficulty": 5 },
+      "capabilityTags": ["difficulty_adaptation", "prior_knowledge_adaptation", "explanation_depth_adaptation", "student_executable_action"],
+      "tags": ["synthetic", "programming", "transfer"]
+    },
+    "tutorInput": {
+      "learningObjective": "帮助学生把重复出现的代码提炼成一个小函数，同时避免过度设计。",
+      "studentProfile": { "knownConcepts": ["变量", "基础函数"], "misconceptions": [], "level": "高中阶段", "goal": "判断什么时候适合做抽象" },
+      "studentMessage": "我把同样的三行代码复制了四遍。要不要建一个很大的类来解决？",
+      "problemContext": "重复代码只有一个输入在变化，操作本身相同；适合从最小的可复用边界开始思考。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "requiredConcepts": ["函数", "输入"] },
+      "knownMisconception": null,
+      "disclosurePolicy": "no_answer",
+      "rubrics": [
+        { "id": "programming-abstraction-adaptation-001-zh-CN", "category": "adaptation", "criterion": "针对这段小规模重复代码给出合适的抽象建议，不要提出过大的设计。", "weight": 2, "behavior": "required", "capabilityTag": "difficulty_adaptation", "evaluationType": "judge" },
+        { "id": "programming-abstraction-action-001-zh-CN", "category": "actionability", "criterion": "请学生先找出发生变化的输入，再考虑提取函数。", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" }
+      ]
+    }
+  }
+]

@@ -553,6 +553,7 @@ function parseTutorEvalCaseValue(value: unknown): TutorEvalCase | null {
     Array.isArray(evaluatorOnlyRecord.rubrics)
       ? evaluatorOnlyRecord.rubrics.map(parseTutorEvalRubricValue)
       : null;
+  const crossLocaleGroupId = readOptionalString(record, "crossLocaleGroupId");
   const adaptationPairId = readOptionalString(record, "adaptationPairId");
   const adaptationVariant = readOptionalString(record, "adaptationVariant");
 
@@ -580,6 +581,7 @@ function parseTutorEvalCaseValue(value: unknown): TutorEvalCase | null {
     rubrics === null ||
     rubrics.length === 0 ||
     rubrics.some((rubric): rubric is null => rubric === null) ||
+    crossLocaleGroupId === null ||
     adaptationPairId === null ||
     adaptationVariant === null
   ) {
@@ -617,6 +619,7 @@ function parseTutorEvalCaseValue(value: unknown): TutorEvalCase | null {
       disclosurePolicy: disclosurePolicy as DisclosurePolicy,
       rubrics: typedRubrics,
     },
+    ...(crossLocaleGroupId === undefined ? {} : { crossLocaleGroupId }),
     ...(adaptationPairId === undefined ? {} : { adaptationPairId }),
     ...(adaptationVariant === undefined ? {} : { adaptationVariant }),
   };

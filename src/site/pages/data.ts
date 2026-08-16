@@ -10,8 +10,10 @@ import {
   renderEmptyState,
   renderKeyValueList,
   renderStatusBadge,
+  renderUiText,
   type SitePage,
 } from "../html.js";
+import { siteText } from "../i18n.js";
 import { renderCaseSummary } from "./overview.js";
 
 function page(
@@ -34,6 +36,21 @@ function selectOptions(values: readonly string[], emptyLabel: string): string {
   ].join("");
 }
 
+function localeOptions(values: readonly string[]): string {
+  const labelFor = (locale: string, uiLocale: "en" | "zh-CN"): string =>
+    locale === "en"
+      ? siteText(uiLocale, "localeEnglish")
+      : locale === "zh-CN"
+        ? siteText(uiLocale, "localeChinese")
+        : locale;
+  return [
+    `<option value="" data-ui-option-en="${escapeHtml(siteText("en", "allLocales"))}" data-ui-option-zh-cn="${escapeHtml(siteText("zh-CN", "allLocales"))}">${escapeHtml(siteText("en", "allLocales"))}</option>`,
+    ...values.map((locale) =>
+      `<option value="${escapeHtml(locale)}" data-ui-option-en="${escapeHtml(labelFor(locale, "en"))}" data-ui-option-zh-cn="${escapeHtml(labelFor(locale, "zh-CN"))}">${escapeHtml(labelFor(locale, "en"))}</option>`,
+    ),
+  ].join("");
+}
+
 function difficultyValues(
   cases: readonly TutorEvalPublicCase[],
   key: "learnerLevel" | "taskDifficulty" | "pedagogicalDifficulty",
@@ -51,6 +68,7 @@ function difficultyValues(
 
 export function renderCasesPage(artifacts: PublicBenchmarkArtifacts): SitePage {
   const publicCases = artifacts.cases.cases;
+  const locales = uniqueSorted(publicCases.map((item) => item.locale ?? "en"));
   const subjects = uniqueSorted(publicCases.map((item) => item.metadata.subject));
   const capabilities = uniqueSorted(
     publicCases.flatMap((item) => item.metadata.capabilityTags ?? []),
@@ -79,8 +97,9 @@ export function renderCasesPage(artifacts: PublicBenchmarkArtifacts): SitePage {
     <section class="section section-muted">
       <div class="shell">
         <form class="filter-bar" id="case-filters" aria-label="Filter public cases">
-          <div class="filter-bar-head"><div><p class="eyebrow">Explore ${escapeHtml(String(publicCases.length))} cases</p><p id="case-result-count" class="filter-result" aria-live="polite">Showing ${escapeHtml(String(publicCases.length))} cases</p></div><button class="button button-quiet" type="reset" id="case-filter-reset">Reset filters</button></div>
+          <div class="filter-bar-head"><div><p class="eyebrow">Explore ${escapeHtml(String(publicCases.length))} cases</p><p id="case-result-count" class="filter-result" aria-live="polite" data-case-count-template-en="${escapeHtml(siteText("en", "showingCases"))}" data-case-count-template-zh-cn="${escapeHtml(siteText("zh-CN", "showingCases"))}">${escapeHtml(siteText("en", "showingCases").replace("{count}", String(publicCases.length)))}</p></div><button class="button button-quiet" type="reset" id="case-filter-reset">${renderUiText("resetFilters", "en")}</button></div>
           <div class="filter-grid">
+            <label>${renderUiText("caseLocale", "en")}<select data-case-filter="locale">${localeOptions(locales)}</select></label>
             <label>Subject<select data-case-filter="subject">${selectOptions(subjects, "All subjects")}</select></label>
             <label>Learner level<select data-case-filter="learnerLevel">${selectOptions(difficultyValues(publicCases, "learnerLevel"), "All levels")}</select></label>
             <label>Task difficulty<select data-case-filter="taskDifficulty">${selectOptions(difficultyValues(publicCases, "taskDifficulty"), "All levels")}</select></label>
@@ -177,12 +196,13 @@ export function renderCaseDetailPage(
               ["Case ID", caseArtifact.id],
               ["Case version", caseArtifact.version],
               ["Dataset", `${artifacts.cases.datasetId}@${artifacts.cases.datasetVersion}`],
-              ["Target locale", caseArtifact.locale ?? "en"],
               ["Subject", humanize(caseArtifact.metadata.subject)],
               ["Topic", humanize(caseArtifact.metadata.topic)],
               ["Difficulty", difficulty],
               ["Disclosure policy", humanize(caseArtifact.disclosurePolicy ?? "Not specified")],
             ])}
+            <p class="localized-case-locale">${renderUiText("targetLocale", "en")}: <code>${escapeHtml(caseArtifact.locale ?? "en")}</code></p>
+            ${caseArtifact.crossLocaleGroupId === undefined ? "" : `<p class="localized-case-locale">${renderUiText("crossLocaleGroup", "en")}: <code>${escapeHtml(caseArtifact.crossLocaleGroupId)}</code></p>`}
           </section>
           <section class="panel detail-section" aria-labelledby="profile-title">
             <p class="eyebrow">Student profile</p><h2 id="profile-title">Known public context</h2>

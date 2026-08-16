@@ -4,6 +4,8 @@ import { test } from "node:test";
 import {
   BenchmarkConfigurationError,
   TUTOR_EVAL_DATASET_ID,
+  TUTOR_EVAL_DATASET_VERSION,
+  TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   TUTOR_EVAL_CAPABILITY_TAGS,
   TUTOR_EVAL_EVALUATOR_VERSION,
   TUTOR_EVAL_LEARNING_TASKS,
@@ -23,7 +25,7 @@ test("the canonical 0.2A dataset loads through the runtime contract and covers a
   const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
   const report = buildTutorEvalCoverageReport(dataset);
 
-  assert.equal(dataset.cases.length, 24);
+  assert.equal(dataset.cases.length, 48);
   assert.equal(
     dataset.cases.filter((caseValue) => caseValue.version === "1.1.0").length,
     7,
@@ -36,14 +38,16 @@ test("the canonical 0.2A dataset loads through the runtime contract and covers a
     "science",
   ]);
   assert.deepEqual(report.casesByDisclosurePolicy, {
-    full_solution_allowed: 4,
-    full_solution_required: 3,
-    hint_only: 8,
-    no_answer: 4,
-    partial_solution: 5,
+    full_solution_allowed: 8,
+    full_solution_required: 6,
+    hint_only: 16,
+    no_answer: 8,
+    partial_solution: 10,
   });
-  assert.equal(report.counterfactualPairCount, 2);
-  assert.equal(report.judgeRequiredRubricCount, 59);
+  assert.deepEqual(report.casesByLocale, { en: 24, "zh-CN": 24 });
+  assert.equal(report.counterfactualPairCount, 4);
+  assert.equal(report.crossLocaleGroupCount, 24);
+  assert.equal(report.judgeRequiredRubricCount, 118);
   const deterministicRubrics = dataset.cases
     .flatMap((caseValue) => caseValue.evaluatorOnly.rubrics)
     .filter((rubric) => rubric.evaluationType === "deterministic")
@@ -53,10 +57,14 @@ test("the canonical 0.2A dataset loads through the runtime contract and covers a
     ["equation-hint-no-leak-001", "direct_answer_leak"],
     ["wrong-reasoning-answer-001", "matches_ground_truth"],
     ["full-solution-correctness-001", "contains_normalized_expression"],
+    ["fraction-no-leak-001-zh-CN", "direct_answer_leak"],
+    ["equation-hint-no-leak-001-zh-CN", "direct_answer_leak"],
+    ["wrong-reasoning-answer-001-zh-CN", "matches_ground_truth"],
+    ["full-solution-correctness-001-zh-CN", "contains_normalized_expression"],
   ]);
   assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.3");
-  assert.equal(report.caseCount, 24);
-  assert.equal(report.rubricCount, 63);
+  assert.equal(report.caseCount, 48);
+  assert.equal(report.rubricCount, 126);
   for (const capabilityTag of TUTOR_EVAL_CAPABILITY_TAGS) {
     assert.ok(report.casesByCapabilityTag[capabilityTag] !== undefined, capabilityTag);
   }
@@ -88,10 +96,17 @@ test("coverage is deterministic and keeps every configured disclosure bucket", a
 test("legacy v0.1 cases remain readable while the canonical loader uses 0.2A", async () => {
   const legacy = await loadTutorEvalDataset(TUTOR_EVAL_LEGACY_DATASET_ID);
   const current = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const historical = await loadTutorEvalDataset(
+    TUTOR_EVAL_DATASET_ID,
+    TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
+  );
   assert.equal(legacy.version, "0.1");
   assert.equal(legacy.cases.length, 7);
-  assert.equal(current.version, "0.2a.1");
-  assert.equal(current.cases.length, 24);
+  assert.equal(current.version, TUTOR_EVAL_DATASET_VERSION);
+  assert.equal(current.cases.length, 48);
+  assert.equal(historical.version, TUTOR_EVAL_PREVIOUS_DATASET_VERSION);
+  assert.equal(historical.cases.length, 24);
+  assert.ok(historical.cases.every((caseValue) => (caseValue.locale ?? "en") === "en"));
 });
 
 test("structured taxonomy and difficulty metadata are runtime validated", async () => {
@@ -262,7 +277,7 @@ test("the integrity guard rejects invalid dataset and case versions", async () =
     },
     {
       requireTaxonomyMetadata: true,
-      expectedDatasetVersion: "0.2a.1",
+      expectedDatasetVersion: TUTOR_EVAL_DATASET_VERSION,
     },
   );
   assert.equal(

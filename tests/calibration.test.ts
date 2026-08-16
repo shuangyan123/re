@@ -19,6 +19,7 @@ import {
 } from "../src/calibration/io.js";
 import {
   BenchmarkConfigurationError,
+  TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   type CalibrationConfusionMatrix,
   type HumanRubricAnnotation,
 } from "../src/contracts/index.js";
@@ -33,7 +34,10 @@ const fixtureRoot = resolve(process.cwd(), "fixtures", "calibration");
 
 async function loadFixtureInput() {
   return {
-    dataset: await loadTutorEvalDataset("tutor-eval-v0.2a"),
+    dataset: await loadTutorEvalDataset(
+      "tutor-eval-v0.2a",
+      TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
+    ),
     candidates: await loadCalibrationCandidateResponseFile(
       resolve(fixtureRoot, "candidate-responses.json"),
     ),

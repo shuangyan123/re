@@ -17,6 +17,7 @@ import { runTutorEval } from "../src/runner/index.js";
 import { renderPage } from "../src/site/html.js";
 import { renderTutorMarkdown } from "../src/site/markdown.js";
 import {
+  renderTutorEvaluationAuditIndexPage,
   renderTutorEvaluationAuditPage,
 } from "../src/site/pages/audit.js";
 
@@ -193,6 +194,14 @@ test("audit page exposes actual context, criteria, evaluator fields, Judge evide
   assert.match(page.content, /Judge 原始结果/);
   assert.match(page.content, /audit-case-001/);
   assert.match(page.content, /zh-CN/);
+
+  const indexPage = renderTutorEvaluationAuditIndexPage({
+    artifact,
+    dataset,
+    locale: "zh-CN",
+  });
+  assert.match(indexPage.content, /按目标语言分组/);
+  assert.match(indexPage.content, /data-audit-locale="zh-CN"/);
   assert.doesNotMatch(page.content, /undefined|nullnull/);
 
   const englishPage = renderTutorEvaluationAuditPage({

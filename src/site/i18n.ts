@@ -80,7 +80,15 @@ export type SiteUiTextKey =
   | "cost"
   | "attempts"
   | "judge"
-  | "metrics";
+  | "metrics"
+  | "caseLocale"
+  | "allLocales"
+  | "localeEnglish"
+  | "localeChinese"
+  | "resetFilters"
+  | "showingCases"
+  | "localeBreakdown"
+  | "crossLocaleGroup";
 
 const translations: Record<SiteLocale, Record<SiteUiTextKey, string>> = {
   en: {
@@ -161,6 +169,14 @@ const translations: Record<SiteLocale, Record<SiteUiTextKey, string>> = {
     attempts: "Attempts",
     judge: "Judge",
     metrics: "Metrics",
+    caseLocale: "Case locale",
+    allLocales: "All",
+    localeEnglish: "English",
+    localeChinese: "Chinese",
+    resetFilters: "Reset filters",
+    showingCases: "Showing {count} cases",
+    localeBreakdown: "Locale breakdown",
+    crossLocaleGroup: "Construct cohort group",
   },
   "zh-CN": {
     leaderboard: "排行榜",
@@ -240,6 +256,14 @@ const translations: Record<SiteLocale, Record<SiteUiTextKey, string>> = {
     attempts: "尝试次数",
     judge: "Judge",
     metrics: "运行指标",
+    caseLocale: "案例语言",
+    allLocales: "全部",
+    localeEnglish: "英文",
+    localeChinese: "中文",
+    resetFilters: "重置筛选",
+    showingCases: "显示 {count} 个案例",
+    localeBreakdown: "按目标语言分组",
+    crossLocaleGroup: "构念分组",
   },
 };
 

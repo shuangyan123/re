@@ -2,6 +2,8 @@ import { resolve } from "node:path";
 
 import {
   BenchmarkConfigurationError,
+  TUTOR_EVAL_DATASET_ID,
+  TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   assertValidTutorResponseCorpus,
   type TutorResponseCorpusEvaluationResult,
 } from "../contracts/index.js";
@@ -172,6 +174,21 @@ Selection semantics:
 `);
 }
 
+function requestedDatasetVersionForCorpus(
+  datasetId: string,
+  datasetVersion: string,
+): string | undefined {
+  if (
+    datasetId === TUTOR_EVAL_DATASET_ID &&
+    (datasetVersion === "0.2a" || datasetVersion === TUTOR_EVAL_PREVIOUS_DATASET_VERSION)
+  ) {
+    // Keep the audited English-only replay target readable without treating
+    // the expanded bilingual dataset as a silent migration target.
+    return TUTOR_EVAL_PREVIOUS_DATASET_VERSION;
+  }
+  return undefined;
+}
+
 async function createJudgeIfRequested(
   liveJudge: boolean,
   deepSeekJudge: boolean,
@@ -247,7 +264,10 @@ export async function evaluateTutorResponseCorpus(
   options: BenchmarkCorpusCliOptions,
 ): Promise<TutorResponseCorpusEvaluationResult> {
   const corpus = await loadTutorResponseCorpus(options.corpusPath);
-  const dataset = await loadTutorEvalDataset(corpus.datasetId);
+  const dataset = await loadTutorEvalDataset(
+    corpus.datasetId,
+    requestedDatasetVersionForCorpus(corpus.datasetId, corpus.datasetVersion),
+  );
   const semanticReplay = options.allowCompatibleReplay
     ? resolveTutorResponseCorpusReplay(corpus, dataset)
     : undefined;

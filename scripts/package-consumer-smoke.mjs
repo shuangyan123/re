@@ -118,6 +118,7 @@ async function main() {
       "dist/src/index.d.ts",
       "dist/src/cli/tutorbench.js",
       "scenarios/tutor-eval-v0.2a/cases.json",
+      "scenarios/tutor-eval-v0.2a/cases.zh-CN.json",
       "prompts/tutor-baseline-system-v0.1.md",
     ]) {
       assertCondition(files.has(required), `Package is missing ${required}.`);
@@ -170,7 +171,7 @@ async function main() {
 } from "tutor-benchmark";
 
 const dataset = await loadTutorEvalDataset();
-if (dataset.id !== "tutor-eval-v0.2a" || dataset.cases.length !== 24) {
+if (dataset.id !== "tutor-eval-v0.2a" || dataset.cases.length !== 48) {
   throw new Error("Installed package did not load the canonical dataset asset.");
 }
 const firstCase = dataset.cases[0];

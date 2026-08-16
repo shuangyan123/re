@@ -81,5 +81,15 @@ test("the default dataset loader resolves the canonical TutorEval dataset", asyn
 
   assert.equal(dataset.id, publicApi.TUTOR_EVAL_DATASET_ID);
   assert.equal(dataset.version, publicApi.TUTOR_EVAL_DATASET_VERSION);
-  assert.equal(dataset.cases.length, 24);
+  assert.equal(dataset.cases.length, 48);
+  assert.deepEqual(
+    Object.fromEntries(
+      dataset.cases.reduce((counts, tutorEvalCase) => {
+        const locale = tutorEvalCase.locale ?? "en";
+        counts.set(locale, (counts.get(locale) ?? 0) + 1);
+        return counts;
+      }, new Map<string, number>()),
+    ),
+    { en: 24, "zh-CN": 24 },
+  );
 });

@@ -18,6 +18,7 @@ import {
 } from "../src/calibration/io.js";
 import {
   BenchmarkConfigurationError,
+  TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   type CalibrationCandidateResponseFile,
   type CriticalFailureCalibrationValidationInput,
   type TutorResponseCorpus,
@@ -37,7 +38,10 @@ const fixtureRoot = resolve(process.cwd(), "fixtures", "calibration");
 async function loadCriticalFixtureInput(): Promise<CriticalFailureCalibrationValidationInput> {
   const [dataset, candidates, targetFile, reviewerA, reviewerB, adjudicationFile] =
     await Promise.all([
-      loadTutorEvalDataset("tutor-eval-v0.2a"),
+      loadTutorEvalDataset(
+        "tutor-eval-v0.2a",
+        TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
+      ),
       loadCalibrationCandidateResponseFile(
         resolve(fixtureRoot, "critical-failure-candidate-responses.json"),
       ),
@@ -467,7 +471,10 @@ test("semantic replay provenance keeps target calibration identity separate from
 });
 
 test("corpus conversion can project an audited replay to target calibration identity without re-signing responseId", async () => {
-  const dataset = await loadTutorEvalDataset("tutor-eval-v0.2a");
+  const dataset = await loadTutorEvalDataset(
+    "tutor-eval-v0.2a",
+    TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
+  );
   const corpus: TutorResponseCorpus = {
     schemaVersion: 1,
     corpusId: "source-corpus",

@@ -11,6 +11,7 @@ import {
   TUTOR_EVAL_TAXONOMY_VERSION,
   type TutorEvalDifficulty,
 } from "../contracts/tutor-eval-taxonomy.js";
+import { resolveTutorCaseLocale } from "../contracts/locale.js";
 
 export type TutorEvalDatasetIntegrityIssueCode =
   | "version_invalid"
@@ -24,7 +25,10 @@ export type TutorEvalDatasetIntegrityIssueCode =
   | "difficulty_metadata_invalid"
   | "adaptation_pair_malformed"
   | "adaptation_pair_problem_mismatch"
-  | "adaptation_pair_state_not_counterfactual";
+  | "adaptation_pair_state_not_counterfactual"
+  | "cross_locale_group_missing"
+  | "cross_locale_group_malformed"
+  | "cross_locale_group_locale_mismatch";
 
 export interface TutorEvalDatasetIntegrityIssue {
   readonly code: TutorEvalDatasetIntegrityIssueCode;
@@ -38,6 +42,8 @@ export interface TutorEvalDatasetIntegrityOptions {
   readonly requireUniqueRubricIds?: boolean;
   readonly expectedTaxonomyVersion?: string;
   readonly expectedDatasetVersion?: string;
+  /** Require one English and one zh-CN member in every authored cohort group. */
+  readonly requireCrossLocaleGroups?: boolean;
 }
 
 function isStructuredDifficulty(
@@ -143,6 +149,48 @@ function validateAdaptationPairs(
   }
 }
 
+function validateCrossLocaleGroups(
+  cases: readonly TutorEvalCase[],
+  issues: TutorEvalDatasetIntegrityIssue[],
+  required: boolean,
+): void {
+  if (!required) {
+    return;
+  }
+  const groups = new Map<string, TutorEvalCase[]>();
+  for (const caseValue of cases) {
+    const groupId = caseValue.crossLocaleGroupId;
+    if (groupId === undefined) {
+      if (required) {
+        addIssue(issues, "cross_locale_group_missing", caseValue.id);
+      }
+      continue;
+    }
+    const group = groups.get(groupId) ?? [];
+    group.push(caseValue);
+    groups.set(groupId, group);
+  }
+
+  for (const group of groups.values()) {
+    if (group.length !== 2) {
+      for (const caseValue of group) {
+        addIssue(issues, "cross_locale_group_malformed", caseValue.id);
+      }
+      continue;
+    }
+    const localeCounts = new Map<string, number>();
+    for (const caseValue of group) {
+      const locale = resolveTutorCaseLocale(caseValue.locale);
+      localeCounts.set(locale, (localeCounts.get(locale) ?? 0) + 1);
+    }
+    if (localeCounts.get("en") !== 1 || localeCounts.get("zh-CN") !== 1) {
+      for (const caseValue of group) {
+        addIssue(issues, "cross_locale_group_locale_mismatch", caseValue.id);
+      }
+    }
+  }
+}
+
 export function findTutorEvalDatasetIntegrityIssues(
   dataset: TutorEvalDataset,
   options: TutorEvalDatasetIntegrityOptions = {},
@@ -242,6 +290,11 @@ export function findTutorEvalDatasetIntegrityIssues(
     }
   }
 
+  validateCrossLocaleGroups(
+    dataset.cases,
+    issues,
+    options.requireCrossLocaleGroups === true,
+  );
   validateAdaptationPairs(dataset.cases, issues);
   return issues;
 }
