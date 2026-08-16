@@ -10,6 +10,10 @@ import type {
   TutorEvalLearningTask,
   TutorEvalStudentState,
 } from "./tutor-eval-taxonomy.js";
+import {
+  resolveTutorCaseLocale,
+  type TutorCaseLocale,
+} from "./locale.js";
 
 export const TUTOR_EVAL_DATASET_ID = "tutor-eval-v0.2a" as const;
 export const TUTOR_EVAL_DATASET_VERSION = "0.2a.1" as const;
@@ -110,6 +114,8 @@ export interface TutorEvalCase {
   readonly schemaVersion: typeof TUTOR_EVAL_CASE_SCHEMA_VERSION;
   readonly id: string;
   readonly version: string;
+  /** Target language for Tutor output; omitted legacy cases resolve to English. */
+  readonly locale?: TutorCaseLocale;
   readonly metadata: TutorEvalCaseMetadata;
   readonly tutorInput: TutorEvalTutorInput;
   readonly evaluatorOnly: {
@@ -182,6 +188,7 @@ export function toTutorTurnInput(
     caseId: tutorEvalCase.id,
     caseVersion: tutorEvalCase.version,
     runIndex,
+    locale: resolveTutorCaseLocale(tutorEvalCase.locale),
     learningObjective: tutorInput.learningObjective,
     initialContext: tutorInput.problemContext ?? "",
     conversation: tutorInput.conversationHistory ?? [],

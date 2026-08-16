@@ -208,6 +208,7 @@ test("HTTP Tutor adapter runs through the real public benchmark runner", async (
       "currentStudentMessage",
       "initialContext",
       "learningObjective",
+      "locale",
       "runIndex",
       "scenarioId",
       "studentState",
@@ -217,6 +218,7 @@ test("HTTP Tutor adapter runs through the real public benchmark runner", async (
       serializedRequest,
       /evaluatorOnly|groundTruth|rubrics|rubricId|criticalFailure|Judge|reference|hidden-misconception/i,
     );
+    assert.equal(request.locale, "en");
     assert.deepEqual(request.conversation, [
       { role: "student", text: "I am stuck." },
       { role: "tutor", text: "What have you tried?" },

@@ -32,6 +32,7 @@ test("public case serialization omits evaluator-only fields by default", async (
   assert.equal("misconceptions" in (publicCase.tutorInput.studentProfile ?? {}), false);
   assert.doesNotMatch(serialized, /evaluatorOnly|groundTruth|knownMisconception|rubrics|misconceptions/);
   assert.equal(publicCase.id, tutorEvalCase.id);
+  assert.equal(publicCase.locale, "en");
   assert.equal(publicCase.tutorInput.studentMessage, tutorEvalCase.tutorInput.studentMessage);
 });
 
@@ -78,6 +79,12 @@ test("generated public artifacts pass the runtime read-layer parser", async () =
   const parsed = parsePublicBenchmarkArtifacts(artifacts);
   assert.equal(parsed.cases.datasetId, TUTOR_EVAL_DATASET_ID);
   assert.equal(parsed.benchmark.calibration.independentHumanCalibration, "not_completed");
+
+  const legacyPublicArtifact = JSON.parse(JSON.stringify(artifacts)) as {
+    cases: { cases: Array<Record<string, unknown>> };
+  };
+  delete legacyPublicArtifact.cases.cases[0]?.locale;
+  assert.doesNotThrow(() => parsePublicBenchmarkArtifacts(legacyPublicArtifact));
 
   const tampered = JSON.parse(JSON.stringify(artifacts)) as PublicBenchmarkArtifacts & {
     cases: { cases: Array<Record<string, unknown>> };
@@ -150,6 +157,18 @@ test("static website build prefixes project-site paths without changing local de
     assert.match(homeHtml, /<link rel="canonical" href="https:\/\/shuangyan123\.github\.io\/re\//);
     assert.match(casesHtml, /href="\/re\/data\/cases\/fraction-misconception-001\//);
     assert.doesNotMatch(homeHtml, /(?:href|src)="\/(?:leaderboard|assets)\//);
+  } finally {
+    await rm(outputDirectory, { recursive: true, force: true });
+  }
+});
+
+test("evaluation artifacts cannot be routed into the public website output", async () => {
+  const outputDirectory = await mkdtemp(join(tmpdir(), "tutor-benchmark-private-guard-"));
+  try {
+    await assert.rejects(
+      () => buildWebsite({ outputDirectory, evaluationPath: "artifacts/evaluation.json" }),
+      /private-dist/,
+    );
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });
   }

@@ -16,6 +16,10 @@ import type {
 } from "./tutor.js";
 import type { TutorGenerationSpec } from "./tutor-generation.js";
 import type { TutorResponseCorpusSemanticReplay } from "./tutor-response-replay.js";
+import {
+  resolveTutorCaseLocale,
+  type TutorCaseLocale,
+} from "./locale.js";
 
 export const TUTOR_RESPONSE_CORPUS_SCHEMA_VERSION = 1 as const;
 export const TUTOR_VISIBLE_CASE_PACKET_SCHEMA_VERSION = 1 as const;
@@ -68,6 +72,8 @@ export interface TutorResponseCorpus {
 export interface TutorVisibleCasePacket {
   readonly caseId: string;
   readonly caseVersion: string;
+  /** Optional on parsed legacy packets; newly built packets always include it. */
+  readonly locale?: TutorCaseLocale;
   readonly learningObjective: string;
   readonly studentProfile: StudentState;
   readonly conversationHistory: readonly TutorConversationMessage[];
@@ -131,6 +137,7 @@ export function toTutorVisibleCasePacket(
   return {
     caseId: tutorEvalCase.id,
     caseVersion: tutorEvalCase.version,
+    locale: resolveTutorCaseLocale(tutorEvalCase.locale),
     learningObjective: input.learningObjective ?? "",
     studentProfile: input.studentState,
     conversationHistory: input.conversation,

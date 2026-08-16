@@ -78,8 +78,8 @@ the host. The request has this shape and no Product Tutor fields:
   "datasetVersion": "...",
   "generationSpec": {
     "specId": "tutor-baseline-generation",
-    "specVersion": "0.4a.2",
-    "prompt": { "id": "tutor-baseline-system", "version": "0.1", "sha256": "..." },
+    "specVersion": "0.4a.3",
+    "prompt": { "id": "tutor-baseline-system", "version": "0.2", "sha256": "..." },
     "maxOutputTokens": 1024
   },
   "cases": [{ "caseId": "...", "caseVersion": "...", "messages": [] }]
@@ -88,7 +88,9 @@ the host. The request has this shape and no Product Tutor fields:
 
 The packet builder is the source of truth for the canonical system prompt,
 prompt SHA, visible context, conversation messages, and message order. The
-collector does not prepend a prompt, inject memory/persona, rewrite or
+collector also records each case's resolved `locale` and includes a stable
+`targetLocale=...` line in the visible generation context. The collector does
+not prepend a prompt, inject memory/persona, rewrite or
 truncate messages, or add a second hidden-data sanitizer. The packet firewall
 excludes evaluator-only annotations, ground truth, misconceptions, rubrics,
 critical failures, Judge prompts, reference answers, human annotations, and

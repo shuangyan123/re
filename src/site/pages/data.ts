@@ -177,6 +177,7 @@ export function renderCaseDetailPage(
               ["Case ID", caseArtifact.id],
               ["Case version", caseArtifact.version],
               ["Dataset", `${artifacts.cases.datasetId}@${artifacts.cases.datasetVersion}`],
+              ["Target locale", caseArtifact.locale ?? "en"],
               ["Subject", humanize(caseArtifact.metadata.subject)],
               ["Topic", humanize(caseArtifact.metadata.topic)],
               ["Difficulty", difficulty],

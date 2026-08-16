@@ -11,6 +11,10 @@ import {
 } from "./tutor-response-corpus.js";
 import type { TutorEvalDataset } from "./tutor-eval.js";
 import {
+  readTutorCaseLocale,
+  resolveTutorCaseLocale,
+} from "./locale.js";
+import {
   isTutorGenerationSpec,
   parseTutorGenerationSpec,
   tutorGenerationSpecsEqual,
@@ -419,11 +423,13 @@ function parseVisibleCase(value: unknown): TutorVisibleCasePacket | null {
   const record = asRecord(value);
   const studentProfile = parseStudentProfile(record?.studentProfile);
   const conversationHistory = parseConversation(record?.conversationHistory);
+  const locale = readTutorCaseLocale(record?.locale);
   if (
     record === null ||
     !hasOnlyKeys(record, [
       "caseId",
       "caseVersion",
+      "locale",
       "learningObjective",
       "studentProfile",
       "conversationHistory",
@@ -436,13 +442,15 @@ function parseVisibleCase(value: unknown): TutorVisibleCasePacket | null {
     studentProfile === null ||
     conversationHistory === null ||
     !nonEmptyString(record.studentMessage) ||
-    typeof record.problemContext !== "string"
+    typeof record.problemContext !== "string" ||
+    locale === null
   ) {
     return null;
   }
   return {
     caseId: record.caseId,
     caseVersion: record.caseVersion,
+    locale: resolveTutorCaseLocale(locale),
     learningObjective: record.learningObjective,
     studentProfile,
     conversationHistory,

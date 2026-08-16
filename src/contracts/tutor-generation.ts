@@ -5,6 +5,7 @@ import {
   TutorGenerationExecutionError,
 } from "./errors.js";
 import type { TutorVisibleCasePacket } from "./tutor-response-corpus.js";
+import { resolveTutorCaseLocale } from "./locale.js";
 
 export const TUTOR_GENERATION_SPEC_SCHEMA_VERSION = 1 as const;
 export const TUTOR_MIN_OUTPUT_TOKENS = 1 as const;
@@ -277,6 +278,7 @@ export function serializeTutorVisibleBenchmarkContext(
 ): string {
   return [
     "Tutor Benchmark visible context",
+    `targetLocale=${JSON.stringify(resolveTutorCaseLocale(visibleCase.locale))}`,
     `learningObjective=${JSON.stringify(visibleCase.learningObjective)}`,
     `studentProfile=${serializeTutorStudentProfile(visibleCase.studentProfile)}`,
     `problemContext=${JSON.stringify(visibleCase.problemContext)}`,

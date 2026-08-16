@@ -12,6 +12,61 @@
     });
   }
 
+  const localeSwitcher = document.querySelector("[data-locale-switcher]");
+  const localeStorageKey = "tutor-benchmark-ui-locale";
+
+  function isSiteLocale(value) {
+    return value === "en" || value === "zh-CN";
+  }
+
+  function storedLocale() {
+    try {
+      const value = window.localStorage.getItem(localeStorageKey);
+      return isSiteLocale(value) ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function applyLocale(locale) {
+    if (!isSiteLocale(locale)) {
+      return;
+    }
+    document.documentElement.lang = locale;
+    document.documentElement.dataset.uiLocale = locale;
+    document.querySelectorAll("[data-ui-text]").forEach((element) => {
+      const attribute = locale === "zh-CN" ? "data-ui-text-zh-cn" : "data-ui-text-en";
+      const translated = element.getAttribute(attribute);
+      if (translated !== null) {
+        element.textContent = translated;
+      }
+    });
+    if (localeSwitcher instanceof HTMLSelectElement) {
+      localeSwitcher.value = locale;
+      const label = document.querySelector('[data-ui-text="selectLanguage"]');
+      if (label instanceof HTMLElement && label.textContent !== null) {
+        localeSwitcher.setAttribute("aria-label", label.textContent);
+      }
+    }
+  }
+
+  const initialLocale = storedLocale() ?? document.documentElement.dataset.uiLocale ?? "en";
+  applyLocale(initialLocale);
+  if (localeSwitcher instanceof HTMLSelectElement) {
+    localeSwitcher.addEventListener("change", () => {
+      const locale = localeSwitcher.value;
+      if (!isSiteLocale(locale)) {
+        return;
+      }
+      try {
+        window.localStorage.setItem(localeStorageKey, locale);
+      } catch {
+        // A private browsing policy may deny storage; the current page still switches.
+      }
+      applyLocale(locale);
+    });
+  }
+
   const filterForm = document.querySelector("#case-filters");
   if (!(filterForm instanceof HTMLFormElement)) {
     return;

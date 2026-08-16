@@ -1,3 +1,5 @@
+import type { TutorCaseLocale } from "./locale.js";
+
 export type TutorMessageRole = "student" | "tutor";
 
 export interface TutorConversationMessage {
@@ -20,6 +22,8 @@ export interface TutorTurnInput {
   readonly caseVersion?: string;
   /** One-based generation run identity used by recorded/replay adapters. */
   readonly runIndex?: number;
+  /** Target case locale; omitted by legacy callers and resolved by case loaders. */
+  readonly locale?: TutorCaseLocale;
   readonly learningObjective?: string;
   readonly initialContext: string;
   readonly conversation: readonly TutorConversationMessage[];
