@@ -7,7 +7,11 @@ import { fileURLToPath } from "node:url";
 import { createHttpTutor, DEFAULT_HTTP_TUTOR_TIMEOUT_MS } from "../adapters/http-tutor.js";
 import { BenchmarkConfigurationError, TUTOR_EVAL_DATASET_ID, type TutorEvalDataset } from "../contracts/index.js";
 import { loadTutorEvalDataset } from "../datasets/index.js";
-import { formatTutorEvalSummary, writeTutorEvalResult } from "../reporting/index.js";
+import {
+  formatTutorEvalSummary,
+  writeTutorEvalResult,
+  type TutorEvalReportLocale,
+} from "../reporting/index.js";
 import { runTutorBenchmark } from "../runner/index.js";
 import {
   buildTutorBaselineEvaluationArtifact,
@@ -55,6 +59,7 @@ export interface TutorbenchRunOptions {
   readonly runsPerCase: number;
   readonly timeoutMs: number;
   readonly outputPath?: string;
+  readonly reportLocale?: TutorEvalReportLocale;
 }
 
 export type TutorbenchCliOptions =
@@ -107,6 +112,7 @@ export function parseTutorbenchArgs(
   let runsPerCase = 1;
   let timeoutMs: number = DEFAULT_HTTP_TUTOR_TIMEOUT_MS;
   let outputPath: string | undefined;
+  let reportLocale: TutorEvalReportLocale | undefined;
   const caseIds: string[] = [];
 
   for (let index = 1; index < args.length; index += 1) {
@@ -190,6 +196,16 @@ export function parseTutorbenchArgs(
       outputPath = resolve(outputValue);
       continue;
     }
+    if (argument === "--report-locale") {
+      reportLocale = parseReportLocale(nextTutorbenchValue(args, index, "--report-locale"));
+      index += 1;
+      continue;
+    }
+    const reportLocaleValue = tutorbenchOptionValue(argument, "--report-locale");
+    if (reportLocaleValue !== undefined) {
+      reportLocale = parseReportLocale(reportLocaleValue);
+      continue;
+    }
     throw new TutorbenchCliUsageError(`Unknown option: ${argument}`);
   }
 
@@ -210,8 +226,16 @@ export function parseTutorbenchArgs(
       runsPerCase,
       timeoutMs,
       ...(outputPath === undefined ? {} : { outputPath }),
+      ...(reportLocale === undefined ? {} : { reportLocale }),
     },
   };
+}
+
+function parseReportLocale(value: string): TutorEvalReportLocale {
+  if (value === "en" || value === "zh-CN") {
+    return value;
+  }
+  throw new TutorbenchCliUsageError("--report-locale must be en or zh-CN.");
 }
 
 function printHelp(): void {
@@ -239,6 +263,7 @@ Run options:
   --runs <n>            Run each selected case n times (default: 1)
   --timeout-ms <n>      Request timeout in milliseconds (default: ${DEFAULT_HTTP_TUTOR_TIMEOUT_MS})
   --output <path>       Write the TutorEvalRunResult JSON to this path
+  --report-locale <id>  Report labels only: en (default) or zh-CN
   --help                Show this help
 
 The external Tutor response must be JSON shaped as { "text": string, "metrics"?: object }.
@@ -267,6 +292,7 @@ function selectedDataset(
 function formatExternalTutorSummary(
   result: Awaited<ReturnType<typeof runTutorBenchmark>>,
   endpoint: string,
+  reportLocale: TutorEvalReportLocale | undefined,
 ): string {
   return [
     "Tutor Benchmark",
@@ -274,7 +300,7 @@ function formatExternalTutorSummary(
     "Tutor:",
     `  HTTP · ${endpoint}`,
     "",
-    formatTutorEvalSummary(result),
+    formatTutorEvalSummary(result, { reportLocale: reportLocale ?? "en" }),
   ].join("\n");
 }
 
@@ -293,7 +319,7 @@ export async function runTutorbench(
     runsPerCase: options.runsPerCase,
   });
 
-  console.log(formatExternalTutorSummary(result, tutor.endpoint));
+  console.log(formatExternalTutorSummary(result, tutor.endpoint, options.reportLocale));
   if (options.outputPath !== undefined) {
     await writeTutorEvalResult(result, options.outputPath);
     console.log(`\nWrote TutorEvalRunResult: ${options.outputPath}`);
@@ -311,7 +337,7 @@ async function runTutorbenchEvaluate(
   );
   const artifact = buildTutorBaselineEvaluationArtifact(result);
   await writeTutorCliJson(artifact, outputPath);
-  printTutorResponseCorpusEvaluation(result, outputPath, true);
+  printTutorResponseCorpusEvaluation(result, outputPath, true, options.reportLocale ?? "en");
   if (result.evaluation.errorCount > 0) {
     process.exitCode = 1;
   }

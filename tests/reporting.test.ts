@@ -106,8 +106,16 @@ test("TutorEval reporting adds locale breakdowns without changing overall aggreg
   assert.match(summary, /Language-context breakdown:/);
   assert.match(summary, /English-language context \(en\):/);
   assert.match(summary, /Chinese-language context \(zh-CN\):/);
-  assert.match(summary, /正确性:/);
-  assert.match(summary, /严重失败率:/);
+  assert.match(summary, /correctness:/);
+  assert.match(summary, /Critical failure rate:/);
+  assert.doesNotMatch(summary, /正确性:/);
+
+  const chineseSummary = formatTutorEvalSummary(result, { reportLocale: "zh-CN" });
+  assert.match(chineseSummary, /语言语境分组:/);
+  assert.match(chineseSummary, /英语语境 \(en\):/);
+  assert.match(chineseSummary, /中文语境 \(zh-CN\):/);
+  assert.match(chineseSummary, /正确性:/);
+  assert.match(chineseSummary, /严重失败率:/);
 
   const legacyResult = JSON.parse(JSON.stringify(result)) as TutorEvalRunResult;
   for (const caseResult of legacyResult.caseResults) {

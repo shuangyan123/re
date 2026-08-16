@@ -34,6 +34,7 @@ export type DeepSeekJudgeConfigurationErrorCode =
 const configurationMessages: Readonly<
   Record<DeepSeekJudgeConfigurationErrorCode, string>
 > = {
+  provider_invalid: "The DeepSeek Judge provider identity is invalid.",
   model_missing: "A concrete DeepSeek Chat Completions Judge model is required.",
   model_not_pinned:
     "The DeepSeek Judge model must be a concrete model identity, not latest, auto, or recommended.",
@@ -52,6 +53,9 @@ const configurationMessages: Readonly<
     "DEEPSEEK_JUDGE_REASONING_EFFORT cannot be configured when thinking is disabled.",
   max_tokens_invalid:
     "DEEPSEEK_JUDGE_MAX_TOKENS must be a positive integer.",
+  endpoint_path_invalid: "The DeepSeek Judge endpoint path is invalid.",
+  json_mode_invalid: "The DeepSeek Judge JSON mode is invalid.",
+  max_output_tokens_field_invalid: "The DeepSeek Judge output token field is invalid.",
 };
 
 export class DeepSeekJudgeConfigurationError extends Error {

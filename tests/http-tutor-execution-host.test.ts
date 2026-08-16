@@ -12,6 +12,7 @@ import {
   buildTutorExecutionPacketFile,
   digestTutorPrompt,
   parseTutorExecutionPacketFile,
+  resolveTutorCaseLocale,
 } from "../src/contracts/index.js";
 import {
   buildTutorBaselineGenerationSpec,
@@ -87,6 +88,54 @@ test("canonical HTTP host sends the validated packet and sanitizes the attested 
   }
 });
 
+test("canonical HTTP host preserves each case locale and targetLocale in the structured packet", async () => {
+  const dataset = await loadTutorEvalDataset();
+  const promptAsset = await loadTutorBaselinePrompt();
+  const generationSpec = buildTutorBaselineGenerationSpec(promptAsset);
+  const englishCase = dataset.cases.find((tutorEvalCase) =>
+    resolveTutorCaseLocale(tutorEvalCase.locale) === "en",
+  );
+  const chineseCase = dataset.cases.find((tutorEvalCase) =>
+    resolveTutorCaseLocale(tutorEvalCase.locale) === "zh-CN",
+  );
+  assert.ok(englishCase);
+  assert.ok(chineseCase);
+  const received: Record<string, unknown>[] = [];
+  const server = await startServer(async (request, response) => {
+    received.push(await readRequest(request));
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({
+      output: { text: "locale fixture response" },
+      executionSupport: { maxOutputTokens: true },
+    }));
+  });
+  try {
+    const host = createHttpTutorExecutionHost({ endpoint: server.endpoint });
+    await host.execute(buildTutorExecutionPacketFile(
+      dataset,
+      [englishCase],
+      generationSpec,
+      promptAsset,
+    ));
+    await host.execute(buildTutorExecutionPacketFile(
+      dataset,
+      [chineseCase],
+      generationSpec,
+      promptAsset,
+    ));
+    assert.equal(received.length, 2);
+    for (const [index, locale] of (["en", "zh-CN"] as const).entries()) {
+      const packet = parseTutorExecutionPacketFile(received[index]);
+      assert.equal(packet.cases[0]?.locale, locale);
+      assert.ok(packet.cases[0]?.messages.some((message) =>
+        new RegExp(`targetLocale=\\"${locale}`).test(message.content),
+      ));
+    }
+  } finally {
+    await server.close();
+  }
+});
+
 test("canonical HTTP host fails closed for missing support attestation and never retries", async () => {
   let requestCount = 0;
   const server = await startServer(async (_request, response) => {
@@ -127,6 +176,71 @@ test("canonical HTTP host fails closed for missing support attestation and never
     assert.equal(requestCount, 1);
   } finally {
     await server.close();
+  }
+});
+
+test("canonical HTTP host exposes only stable structural failure codes", async () => {
+  const dataset = await loadTutorEvalDataset();
+  const promptAsset = await loadTutorBaselinePrompt();
+  const generationSpec = buildTutorBaselineGenerationSpec(promptAsset);
+  const packet = buildTutorExecutionPacketFile(
+    dataset,
+    [dataset.cases[0]!],
+    generationSpec,
+    promptAsset,
+  );
+  for (const [status, code] of [
+    [401, "unauthorized"],
+    [403, "forbidden"],
+    [429, "rate_limited"],
+    [503, "server_error"],
+  ] as const) {
+    const server = await startServer(async (_request, response) => {
+      response.statusCode = status;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ error: "provider secret body" }));
+    });
+    try {
+      await assert.rejects(
+        () => createHttpTutorExecutionHost({ endpoint: server.endpoint }).execute(packet),
+        (error: unknown) => error instanceof HttpTutorExecutionHostRequestError &&
+          error.code === code &&
+          !error.message.includes("provider secret body"),
+      );
+    } finally {
+      await server.close();
+    }
+  }
+
+  const invalidJsonServer = await startServer(async (_request, response) => {
+    response.setHeader("content-type", "application/json");
+    response.end("not-json");
+  });
+  try {
+    await assert.rejects(
+      () => createHttpTutorExecutionHost({ endpoint: invalidJsonServer.endpoint }).execute(packet),
+      (error: unknown) => error instanceof HttpTutorExecutionHostRequestError &&
+        error.code === "invalid_json",
+    );
+  } finally {
+    await invalidJsonServer.close();
+  }
+
+  const invalidOutputServer = await startServer(async (_request, response) => {
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({
+      output: { text: 42 },
+      executionSupport: { maxOutputTokens: true },
+    }));
+  });
+  try {
+    await assert.rejects(
+      () => createHttpTutorExecutionHost({ endpoint: invalidOutputServer.endpoint }).execute(packet),
+      (error: unknown) => error instanceof HttpTutorExecutionHostRequestError &&
+        error.code === "invalid_response",
+    );
+  } finally {
+    await invalidOutputServer.close();
   }
 });
 

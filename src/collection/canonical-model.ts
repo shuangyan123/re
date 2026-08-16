@@ -5,6 +5,7 @@ import {
   type TutorEvalDataset,
   type TutorEvalTutorDescriptor,
   type TutorGenerationSpec,
+  type TutorResponseCorpus,
 } from "../contracts/index.js";
 import { buildTutorExecutionPacketFile } from "../contracts/tutor-execution.js";
 import type { HttpTutorExecutionHost } from "../adapters/http-tutor-execution-host.js";
@@ -27,6 +28,7 @@ export interface CollectCanonicalTutorModelOptions {
   readonly corpusVersion?: string;
   readonly transport?: TutorBaselineCollectionTransport;
   readonly outputPath?: string;
+  readonly resumeCorpus?: TutorResponseCorpus;
   readonly now?: () => Date;
 }
 
@@ -51,6 +53,7 @@ export async function collectCanonicalTutorModel(
     ...(options.corpusVersion === undefined ? {} : { corpusVersion: options.corpusVersion }),
     transport: options.transport ?? "http",
     ...(options.outputPath === undefined ? {} : { outputPath: options.outputPath }),
+    ...(options.resumeCorpus === undefined ? {} : { resumeCorpus: options.resumeCorpus }),
     ...(options.now === undefined ? {} : { now: options.now }),
     collectionMode: "canonical_model",
     executeResponse: async (tutorEvalCase, _runIndex) => {

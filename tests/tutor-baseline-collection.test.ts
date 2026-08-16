@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  collectTutorEvidence,
   collectTutorBaseline,
 } from "../src/collection/index.js";
 import {
@@ -14,6 +15,10 @@ import { deriveTutorResponseId } from "../src/corpus/index.js";
 import { RecordedTutor } from "../src/adapters/index.js";
 import { loadTutorEvalDataset } from "../src/datasets/index.js";
 import { runTutorResponseCorpus } from "../src/runner/index.js";
+import {
+  buildTutorBaselineGenerationSpec,
+  loadTutorBaselinePrompt,
+} from "../src/corpus/index.js";
 
 async function collectionContext(caseCount = 2): Promise<{
   readonly dataset: TutorEvalDataset;
@@ -219,4 +224,74 @@ test("response identity changes with model identity but never includes endpoint 
   assert.ok(first.corpus && second.corpus);
   assert.notEqual(first.corpus.responses[0]?.responseId, second.corpus.responses[0]?.responseId);
   assert.doesNotMatch(JSON.stringify(first.corpus), /127\.0\.0\.1|authorization|password|apiKey|rawProviderPayload/i);
+});
+
+test("canonical collection resumes only missing case-runs and rejects identity drift", async () => {
+  const { dataset } = await collectionContext(2);
+  const promptAsset = await loadTutorBaselinePrompt();
+  const generationSpec = buildTutorBaselineGenerationSpec(promptAsset);
+  const tutorDescriptor = {
+    provider: "fixture-recorded-provider",
+    model: "fixture-recorded-model",
+    promptId: generationSpec.prompt.id,
+    promptVersion: generationSpec.prompt.version,
+  } as const;
+  let calls = 0;
+  const first = await collectTutorEvidence({
+    dataset,
+    selectedCases: [dataset.cases[0]!],
+    generationSpec,
+    tutorDescriptor,
+    provenance: "recorded_model",
+    corpusId: "resume-fixture",
+    corpusVersion: generationSpec.specVersion,
+    transport: "http",
+    collectionMode: "canonical_model",
+    executeResponse: async (tutorEvalCase) => {
+      calls += 1;
+      return { text: `Recorded ${tutorEvalCase.id}.` };
+    },
+  });
+  const firstCorpus = first.corpus;
+  assert.ok(firstCorpus);
+  assert.equal(calls, 1);
+
+  const resumed = await collectTutorEvidence({
+    dataset,
+    generationSpec,
+    tutorDescriptor,
+    provenance: "recorded_model",
+    corpusId: "resume-fixture",
+    corpusVersion: generationSpec.specVersion,
+    transport: "http",
+    collectionMode: "canonical_model",
+    resumeCorpus: firstCorpus,
+    executeResponse: async (tutorEvalCase) => {
+      calls += 1;
+      return { text: `Recorded ${tutorEvalCase.id}.` };
+    },
+  });
+  assert.ok(resumed.corpus);
+  assert.equal(calls, 2);
+  assert.equal(resumed.report.reusedResponseCount, 1);
+  assert.equal(resumed.report.executedTutorCallCount, 1);
+  assert.equal(resumed.report.completedResponseCount, 2);
+  assert.equal(resumed.corpus.coverage, "full");
+  assert.equal(new Set(resumed.corpus.responses.map((response) => response.responseId)).size, 2);
+
+  await assert.rejects(
+    () => collectTutorEvidence({
+      dataset,
+      generationSpec,
+      tutorDescriptor: { ...tutorDescriptor, model: "drifted-model" },
+      provenance: "recorded_model",
+      corpusId: "resume-fixture",
+      corpusVersion: generationSpec.specVersion,
+      transport: "http",
+      collectionMode: "canonical_model",
+      resumeCorpus: firstCorpus,
+      executeResponse: async () => ({ text: "must not be called" }),
+    }),
+    (error: unknown) => error instanceof Error && /invalid/.test(error.message),
+  );
 });

@@ -256,8 +256,11 @@ or Tutor calls. See
 Corpus replay is offline. The OpenAI Responses Judge and DeepSeek Chat
 Completions Judge are separate optional evaluator integrations; live calls
 require an explicit provider flag and are not part of CI. `--judge-openai` and
-`--judge-deepseek` are mutually exclusive. Judge output always passes through
-the existing runtime parser and rubric-ownership validation.
+`--judge-deepseek`, and `--judge-chat-completions` are mutually exclusive.
+Judge output always passes through the existing runtime parser and
+rubric-ownership validation. The generic Chat Completions path supports
+provider-configured DeepSeek/MiniMax-compatible endpoints without requiring
+OpenAI quota.
 The repository keeps `openai@7.4.0` as a development dependency and exposes it
 as an optional peer so stable package-root and HTTP usage do not install or
 load OpenAI. Consumers explicitly using the OpenAI provider must install that
@@ -272,9 +275,12 @@ collection sends `TutorTurnInput` to an external orchestration and leaves
 execution host; only that path uses `recorded_model` provenance.
 
 The repository includes a local OpenAI Responses API host example at
-`examples/canonical-model-host/openai-server.mjs`. It is outside Benchmark Core
-and CI: credentials remain in environment variables, the host disables provider
-retries, and real artifacts remain under ignored `artifacts/real-model/` paths.
+`examples/canonical-model-host/openai-server.mjs` and a provider-neutral
+Chat Completions bridge at
+`examples/canonical-model-host/chat-completions-server.mjs`. Both are outside
+Benchmark Core and CI: credentials remain in environment variables, the hosts
+disable provider retries, and real artifacts remain under ignored
+`artifacts/real-model/` paths.
 The dry-run, smoke, full-run, validation, replay, and review sequence is in
 [`docs/first-real-baseline.md`](docs/first-real-baseline.md).
 
@@ -289,7 +295,8 @@ tutorbench collect \
 tutorbench collect-model \
   --http http://127.0.0.1:9000/generate \
   --provider <provider> \
-  --model <actual-model-id>
+  --model <actual-model-id> \
+  --locale zh-CN
 
 tutorbench evaluate --corpus artifacts/real-model/baseline.json
 ```
@@ -297,8 +304,9 @@ tutorbench evaluate --corpus artifacts/real-model/baseline.json
 For a frozen corpus, evaluation can select a deterministic subset without
 calling the Tutor again. Repeated `--case` values select explicit available
 cases; `--limit` then truncates that selection in stable case-ID order. An
-explicit DeepSeek Judge run requires a concrete provider model ID in the local
-environment:
+explicit Judge run requires a concrete provider model ID in the local
+environment. `--report-locale zh-CN` changes report labels only; it does not
+change case selection, `targetLocale`, scoring, or artifact identity.
 
 ```powershell
 $env:DEEPSEEK_API_KEY = "<local secret>"
@@ -378,7 +386,9 @@ tokens.
 
 Both paths are sequential, have no automatic retry, preserve successful
 responses on partial failure, and validate the same `TutorResponseCorpus`
-before success. Results are preliminary and uncalibrated; they are not public
+before success. A new `collect-model` run refuses to overwrite an existing
+corpus; use `--resume <path> --output <same-path>` to reuse only successful
+case-runs after identity validation. Results are preliminary and uncalibrated; they are not public
 leaderboard runs. See [the real-model baseline guide](docs/real-model-baselines.md).
 
 ## Public website / Developer Preview

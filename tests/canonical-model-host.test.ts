@@ -116,6 +116,57 @@ async function startHost(baseURL: string): Promise<HostProcess> {
   };
 }
 
+async function startChatCompletionsHost(baseURL: string): Promise<HostProcess> {
+  const child = spawn(
+    process.execPath,
+    [resolve(process.cwd(), "examples/canonical-model-host/chat-completions-server.mjs")],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        TUTOR_MODEL_API_KEY: "synthetic-test-key",
+        TUTOR_MODEL: "fake-model",
+        TUTOR_MODEL_BASE_URL: baseURL,
+        TUTOR_MODEL_API_PATH: "/chat/completions",
+        TUTOR_MODEL_MAX_OUTPUT_TOKENS_FIELD: "max_tokens",
+        TUTOR_MODEL_TIMEOUT_MS: "2000",
+        CANONICAL_MODEL_HOST_PORT: "0",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  let stdout = "";
+  let stderr = "";
+  child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString("utf8"); });
+  const endpoint = await new Promise<string>((resolveEndpoint, rejectEndpoint) => {
+    const onData = (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+      const match = stdout.match(/listening on (http:\/\/127\.0\.0\.1:\d+\/generate)/u);
+      if (match?.[1] !== undefined) {
+        child.stdout.off("data", onData);
+        resolveEndpoint(match[1]);
+      }
+    };
+    child.stdout.on("data", onData);
+    child.once("error", rejectEndpoint);
+    child.once("exit", (code) => {
+      rejectEndpoint(new Error(`generic canonical host exited before ready: ${code ?? "unknown"}`));
+    });
+  });
+  return {
+    endpoint,
+    child,
+    stderr: () => stderr,
+    close: async () => {
+      if (child.exitCode !== null) {
+        return;
+      }
+      child.kill();
+      await once(child, "exit");
+    },
+  };
+}
+
 async function packet(): Promise<TutorExecutionPacketFile> {
   const dataset = await loadTutorEvalDataset("tutor-eval-v0.2a");
   const promptAsset = await loadTutorBaselinePrompt();
@@ -245,6 +296,56 @@ test("OpenAI canonical host fails provider errors without retrying", async () =>
     assert.deepEqual(await response.json(), { error: "provider_request_failed" });
     assert.equal(provider.requests.length, 1);
     assert.doesNotMatch(host.stderr(), /provider secret error|synthetic-test-key/u);
+  } finally {
+    await host.close();
+    await provider.close();
+  }
+});
+
+test("generic Chat Completions canonical host forwards visible messages and strips provider fields", async () => {
+  const provider = await startFakeProvider({
+    id: "provider-secret",
+    choices: [{
+      message: {
+        content: "A fake Chat Completions tutor response.",
+        reasoning_content: "private provider reasoning",
+      },
+      finish_reason: "stop",
+    }],
+    usage: { prompt_tokens: 13, completion_tokens: 9, total_tokens: 22 },
+    rawProviderPayload: "provider secret",
+  });
+  const host = await startChatCompletionsHost(provider.baseURL);
+  try {
+    const executionPacket = await packet();
+    const response = await fetch(host.endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(executionPacket),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as Record<string, unknown>;
+    assert.deepEqual(body.executionSupport, { maxOutputTokens: true });
+    const output = body.output as {
+      readonly text: string;
+      readonly metrics: { readonly tokenUsage: Record<string, number> };
+    };
+    assert.equal(output.text, "A fake Chat Completions tutor response.");
+    assert.deepEqual(output.metrics.tokenUsage, {
+      inputTokens: 13,
+      outputTokens: 9,
+      totalTokens: 22,
+    });
+    assert.equal(provider.requests.length, 1);
+    const request = provider.requests[0]!;
+    assert.equal(request.model, "fake-model");
+    assert.deepEqual(request.messages, executionPacket.cases[0]!.messages);
+    assert.equal(request.max_tokens, 1024);
+    assert.equal(request.stream, false);
+    assert.equal("reasoning_content" in request, false);
+    const responseText = JSON.stringify(body);
+    assert.doesNotMatch(responseText, /provider-secret|rawProviderPayload|private provider reasoning|synthetic-test-key/u);
+    assert.doesNotMatch(host.stderr(), /synthetic-test-key|provider secret/u);
   } finally {
     await host.close();
     await provider.close();

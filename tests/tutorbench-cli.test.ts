@@ -170,6 +170,10 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
     "openai",
     "--model",
     "gpt-example",
+    "--locale",
+    "zh-CN",
+    "--resume",
+    "artifacts/resume.json",
     "--dry-run",
   ]);
   assert.equal(collectModel.help, false);
@@ -178,6 +182,8 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
   }
   assert.equal(collectModel.collectModel.provider, "openai");
   assert.equal(collectModel.collectModel.model, "gpt-example");
+  assert.equal(collectModel.collectModel.locale, "zh-CN");
+  assert.equal(collectModel.collectModel.resumePath, resolve(process.cwd(), "artifacts/resume.json"));
   assert.equal(collectModel.collectModel.dryRun, true);
 
   const evaluate = parseTutorbenchArgs([
@@ -190,6 +196,8 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
     "--limit",
     "1",
     "--judge-deepseek",
+    "--report-locale",
+    "zh-CN",
     "--output",
     "artifacts/result.json",
   ]);
@@ -201,6 +209,7 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
   assert.deepEqual(evaluate.evaluate.caseIds, ["case-b", "case-a"]);
   assert.equal(evaluate.evaluate.limit, 1);
   assert.equal(evaluate.evaluate.deepSeekJudge, true);
+  assert.equal(evaluate.evaluate.reportLocale, "zh-CN");
   assert.equal(evaluate.evaluate.liveJudge, false);
   assert.equal(evaluate.evaluate.allowCompatibleReplay, false);
   assert.equal(evaluate.evaluate.outputPath, resolve(process.cwd(), "artifacts/result.json"));
@@ -251,6 +260,12 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
     ]),
     /mutually exclusive/,
   );
+  const genericJudge = parseBenchmarkCorpusCliOptions([
+    "--corpus",
+    "corpus.json",
+    "--judge-chat-completions",
+  ]);
+  assert.equal(genericJudge.chatCompletionsJudge, true);
 });
 
 test("tutorbench executable supports help and rejects invalid commands", async () => {
@@ -612,7 +627,7 @@ test("tutorbench collect rejects recorded_model and canonical collection preserv
       caseId: failedPacketCase.caseId,
       caseVersion: failedPacketCase.caseVersion,
       runIndex: 1,
-      code: "execution_failed",
+      code: "execution_server_error",
     }]);
 
     const evaluation = await runCli([

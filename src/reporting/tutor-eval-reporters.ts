@@ -23,6 +23,87 @@ const categories: readonly TutorEvalCategory[] = [
   "actionability",
 ];
 
+export type TutorEvalReportLocale = "en" | "zh-CN";
+
+interface TutorEvalReportLabels {
+  readonly dataset: string;
+  readonly evaluator: string;
+  readonly tutor: string;
+  readonly prompt: string;
+  readonly judge: string;
+  readonly judgePrompt: string;
+  readonly judgeCalls: string;
+  readonly judgeLatency: string;
+  readonly judgeTokens: string;
+  readonly cases: string;
+  readonly runs: string;
+  readonly passed: string;
+  readonly failed: string;
+  readonly errors: string;
+  readonly criticalFailureRate: string;
+  readonly answerLeakageRate: string;
+  readonly overall: string;
+  readonly languageContextBreakdown: string;
+  readonly categories: Readonly<Record<TutorEvalCategory, string>>;
+}
+
+const reportLabels: Readonly<Record<TutorEvalReportLocale, TutorEvalReportLabels>> = {
+  en: {
+    dataset: "Dataset",
+    evaluator: "Evaluator",
+    tutor: "Tutor",
+    prompt: "Prompt",
+    judge: "Judge",
+    judgePrompt: "Judge prompt",
+    judgeCalls: "Judge calls",
+    judgeLatency: "Judge latency",
+    judgeTokens: "Judge tokens",
+    cases: "Cases",
+    runs: "runs",
+    passed: "Passed",
+    failed: "Failed",
+    errors: "Errors",
+    criticalFailureRate: "Critical failure rate",
+    answerLeakageRate: "Answer leakage rate",
+    overall: "Overall",
+    languageContextBreakdown: "Language-context breakdown",
+    categories: {
+      correctness: "correctness",
+      diagnosis: "diagnosis",
+      guidance: "guidance",
+      adaptation: "adaptation",
+      actionability: "actionability",
+    },
+  },
+  "zh-CN": {
+    dataset: "数据集",
+    evaluator: "评估器",
+    tutor: "Tutor",
+    prompt: "提示词",
+    judge: "Judge",
+    judgePrompt: "Judge 提示词",
+    judgeCalls: "Judge 调用",
+    judgeLatency: "Judge 延迟",
+    judgeTokens: "Judge tokens",
+    cases: "案例",
+    runs: "次运行",
+    passed: "通过",
+    failed: "失败",
+    errors: "错误",
+    criticalFailureRate: "严重失败率",
+    answerLeakageRate: "答案泄露率",
+    overall: "总体",
+    languageContextBreakdown: "语言语境分组",
+    categories: {
+      correctness: "正确性",
+      diagnosis: "诊断能力",
+      guidance: "引导能力",
+      adaptation: "适应能力",
+      actionability: "可执行性",
+    },
+  },
+};
+
 function formatScore(score: number | null): string {
   return score === null ? "n/a" : score.toFixed(2);
 }
@@ -107,7 +188,14 @@ export function buildTutorEvalLocaleBreakdowns(
     }));
 }
 
-function localeLabel(locale: TutorCaseLocale): string {
+function localeLabel(locale: TutorCaseLocale, reportLocale: TutorEvalReportLocale): string {
+  if (reportLocale === "zh-CN") {
+    return locale === "en"
+      ? "英语语境"
+      : locale === "zh-CN"
+        ? "中文语境"
+        : locale;
+  }
   return locale === "en"
     ? "English-language context"
     : locale === "zh-CN"
@@ -115,61 +203,19 @@ function localeLabel(locale: TutorCaseLocale): string {
       : locale;
 }
 
-const chineseCategoryLabels: Readonly<Record<TutorEvalCategory, string>> = {
-  correctness: "正确性",
-  diagnosis: "诊断能力",
-  guidance: "引导能力",
-  adaptation: "适应能力",
-  actionability: "可执行性",
-};
-
-function categoryLabel(category: TutorEvalCategory, locale: TutorCaseLocale): string {
-  return locale === "zh-CN" ? chineseCategoryLabels[category] : category;
-}
-
-function localeMetricLabels(locale: TutorCaseLocale): Readonly<{
-  readonly cases: string;
-  readonly runs: string;
-  readonly passed: string;
-  readonly failed: string;
-  readonly errors: string;
-  readonly criticalFailureRate: string;
-  readonly answerLeakageRate: string;
-  readonly overall: string;
-}> {
-  return locale === "zh-CN"
-    ? {
-        cases: "案例",
-        runs: "次运行",
-        passed: "通过",
-        failed: "失败",
-        errors: "错误",
-        criticalFailureRate: "严重失败率",
-        answerLeakageRate: "答案泄露率",
-        overall: "总体",
-      }
-    : {
-        cases: "Cases",
-        runs: "runs",
-        passed: "Passed",
-        failed: "Failed",
-        errors: "Errors",
-        criticalFailureRate: "Critical failure rate",
-        answerLeakageRate: "Answer leakage rate",
-        overall: "Overall",
-      };
-}
-
-function formatLocaleBreakdown(breakdown: TutorEvalLocaleBreakdown): readonly string[] {
-  const labels = localeMetricLabels(breakdown.locale);
+function formatLocaleBreakdown(
+  breakdown: TutorEvalLocaleBreakdown,
+  reportLocale: TutorEvalReportLocale,
+): readonly string[] {
+  const labels = reportLabels[reportLocale];
   return [
-    `${localeLabel(breakdown.locale)} (${breakdown.locale}):`,
+    `${localeLabel(breakdown.locale, reportLocale)} (${breakdown.locale}):`,
     `  ${labels.cases}: ${breakdown.caseCount} (${breakdown.caseRunCount} ${labels.runs})`,
     `  ${labels.passed}: ${breakdown.passedCount}`,
     `  ${labels.failed}: ${breakdown.failedCount}`,
     `  ${labels.errors}: ${breakdown.errorCount}`,
     ...categories.map(
-      (category) => `  ${categoryLabel(category, breakdown.locale)}: ${formatScore(breakdown.categoryScores[category])}`,
+      (category) => `  ${labels.categories[category]}: ${formatScore(breakdown.categoryScores[category])}`,
     ),
     `  ${labels.criticalFailureRate}: ${(breakdown.criticalFailureRate * 100).toFixed(2)}%`,
     `  ${labels.answerLeakageRate}: ${(breakdown.answerLeakageRate * 100).toFixed(2)}%`,
@@ -177,10 +223,15 @@ function formatLocaleBreakdown(breakdown: TutorEvalLocaleBreakdown): readonly st
   ];
 }
 
-export function formatTutorEvalSummary(result: TutorEvalRunResult): string {
+export function formatTutorEvalSummary(
+  result: TutorEvalRunResult,
+  options: { readonly reportLocale?: TutorEvalReportLocale } = {},
+): string {
   assertValidTutorEvalRunResult(result);
+  const reportLocale = options.reportLocale ?? "en";
+  const labels = reportLabels[reportLocale];
   const categoryLines = categories.map(
-    (category) => `${category}: ${formatScore(result.categoryScores[category])}`,
+    (category) => `${labels.categories[category]}: ${formatScore(result.categoryScores[category])}`,
   );
   const judgeMetrics = result.caseResults.flatMap((caseResult) =>
     caseResult.judgeMetrics === undefined || caseResult.judgeMetrics === null
@@ -191,17 +242,17 @@ export function formatTutorEvalSummary(result: TutorEvalRunResult): string {
     result.judge === null
       ? []
       : [
-          `Judge: ${result.judge.provider}/${result.judge.model}`,
-          `Judge prompt: ${result.judge.promptId ?? "unspecified"}@${result.judge.promptVersion}`,
+          `${labels.judge}: ${result.judge.provider}/${result.judge.model}`,
+          `${labels.judgePrompt}: ${result.judge.promptId ?? "unspecified"}@${result.judge.promptVersion}`,
           ...(judgeMetrics.length === 0
             ? []
             : [
-                `Judge calls: ${judgeMetrics.length}`,
-                `Judge latency: ${judgeMetrics.reduce(
+                `${labels.judgeCalls}: ${judgeMetrics.length}`,
+                `${labels.judgeLatency}: ${judgeMetrics.reduce(
                   (total, metrics) => total + metrics.latencyMs,
                   0,
                 )}ms`,
-                `Judge tokens: ${judgeMetrics.every(
+                `${labels.judgeTokens}: ${judgeMetrics.every(
                   (metrics) => metrics.tokenUsage === null,
                 )
                   ? "n/a"
@@ -213,24 +264,24 @@ export function formatTutorEvalSummary(result: TutorEvalRunResult): string {
               ]),
         ];
   const localeBreakdownLines = buildTutorEvalLocaleBreakdowns(result).flatMap(
-    (breakdown) => ["", ...formatLocaleBreakdown(breakdown)],
+    (breakdown) => ["", ...formatLocaleBreakdown(breakdown, reportLocale)],
   );
   return [
-    `Dataset: ${result.datasetId}@${result.datasetVersion}`,
-    `Evaluator: ${result.evaluatorVersion ?? "legacy"}`,
-    `Tutor: ${result.tutor.provider}/${result.tutor.model}`,
-    `Prompt: ${result.tutor.promptVersion}`,
+    `${labels.dataset}: ${result.datasetId}@${result.datasetVersion}`,
+    `${labels.evaluator}: ${result.evaluatorVersion ?? "legacy"}`,
+    `${labels.tutor}: ${result.tutor.provider}/${result.tutor.model}`,
+    `${labels.prompt}: ${result.tutor.promptVersion}`,
     ...judgeLines,
-    `Cases: ${result.caseCount} (${result.caseRunCount} runs)`,
-    `Passed: ${result.passedCount}`,
-    `Failed: ${result.failedCount}`,
-    `Errors: ${result.errorCount}`,
+    `${labels.cases}: ${result.caseCount} (${result.caseRunCount} ${labels.runs})`,
+    `${labels.passed}: ${result.passedCount}`,
+    `${labels.failed}: ${result.failedCount}`,
+    `${labels.errors}: ${result.errorCount}`,
     ...categoryLines,
-    `Overall: ${formatScore(result.overallScore)}`,
-    `Critical failure rate: ${(result.criticalFailureRate * 100).toFixed(2)}%`,
-    `Answer leakage rate: ${(result.answerLeakageRate * 100).toFixed(2)}%`,
+    `${labels.overall}: ${formatScore(result.overallScore)}`,
+    `${labels.criticalFailureRate}: ${(result.criticalFailureRate * 100).toFixed(2)}%`,
+    `${labels.answerLeakageRate}: ${(result.answerLeakageRate * 100).toFixed(2)}%`,
     "",
-    "Language-context breakdown:",
+    `${labels.languageContextBreakdown}:`,
     ...localeBreakdownLines,
   ].join("\n");
 }
