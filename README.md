@@ -80,15 +80,18 @@ const result = await runTutorBenchmark({ tutor, dataset });
 The canonical 0.2A dataset is the default. It intentionally contains both
 deterministic and Judge-required rubrics; a Judge is optional, but unresolved
 Judge evidence is reported as an error rather than silently omitted.
-The current snapshot is `tutor-eval-v0.2a@0.2a.2`: the original English
+The current snapshot is `tutor-eval-v0.2a@0.2a.3`: the original English
 cohort remains in `scenarios/tutor-eval-v0.2a/cases.json`, and the authored
 Simplified Chinese cohort is in `cases.zh-CN.json`. The previous English-only
-`0.2a.1` snapshot can be loaded explicitly for historical corpus and
-calibration work; it is not silently treated as the current bilingual dataset.
+`0.2a.1` snapshot and the previous bilingual `0.2a.2` snapshot can be loaded
+explicitly for historical corpus and calibration work; neither is silently
+treated as the current corrected bilingual dataset.
 
-The two locale cohorts are authored to target the same pedagogical constructs,
-but their `crossLocaleGroupId` is only a grouping/audit identity. It is not a
-claim of scientific equivalence or completed human validation. See
+The two cohorts are authored to target the same pedagogical constructs across
+language contexts. A locale breakdown observes tutoring performance in an
+English-language context or Chinese-language context; it is not a pure language
+ability test and is not a claim of scientific equivalence or completed human
+validation. See
 [`docs/tutor-eval-bilingual-cohorts.md`](docs/tutor-eval-bilingual-cohorts.md)
 for the boundaries and locale-aware reporting behavior.
 

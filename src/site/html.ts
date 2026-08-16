@@ -3,6 +3,10 @@ import type {
   TutorEvalPublicCase,
 } from "../datasets/public.js";
 import {
+  TUTOR_EVAL_DATASET_ID,
+  TUTOR_EVAL_DATASET_VERSION,
+} from "../contracts/index.js";
+import {
   resolveSiteLocale,
   siteText,
   type SiteLocale,
@@ -230,7 +234,7 @@ export function renderPage(page: SitePage, context: SiteRenderContext = {}): str
     <main id="main-content">${page.content}</main>
     ${renderFooter(context.benchmark ?? ({
       statusLabel: "Developer Preview",
-      dataset: { id: "tutor-eval-v0.2a", version: "0.2a.2" },
+      dataset: { id: TUTOR_EVAL_DATASET_ID, version: TUTOR_EVAL_DATASET_VERSION },
     }), locale)}
   </body>
 </html>
