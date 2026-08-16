@@ -199,6 +199,7 @@ npm run calibration:validate
 npm run calibration:report
 npm run calibration:aggregate
 npm run calibration:critical:export
+npm run calibration:critical:prepare
 npm run calibration:critical:validate
 npm run calibration:critical:report
 npm run calibration:critical:aggregate

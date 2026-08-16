@@ -90,6 +90,23 @@ function hasDuplicateIds(values: readonly string[]): boolean {
   return new Set(values).size !== values.length;
 }
 
+/**
+ * A target record ID is bookkeeping; this key identifies the judgment atom
+ * that a reviewer would actually score. It intentionally excludes targetId.
+ */
+export function criticalFailureTargetJudgmentKey(
+  target: CalibrationCriticalFailureTarget,
+): string {
+  return JSON.stringify([
+    target.datasetId,
+    target.datasetVersion,
+    target.caseId,
+    target.caseVersion,
+    target.responseId,
+    target.failureType,
+  ]);
+}
+
 function parseFixtureMarker(
   value: unknown,
 ): SyntheticFixtureMarker | null | undefined {
@@ -200,6 +217,9 @@ export function parseCalibrationCriticalFailureTargetFile(
     targets.some((target): target is null => target === null) ||
     hasDuplicateIds(
       (targets as CalibrationCriticalFailureTarget[]).map((target) => target.targetId),
+    ) ||
+    hasDuplicateIds(
+      (targets as CalibrationCriticalFailureTarget[]).map(criticalFailureTargetJudgmentKey),
     ) ||
     (targets as CalibrationCriticalFailureTarget[]).some(
       (target) =>
@@ -472,6 +492,7 @@ export type CriticalFailureCalibrationValidationIssueCode =
   | "critical_candidate_replay_invalid"
   | "critical_target_dataset_mismatch"
   | "critical_target_duplicate_id"
+  | "critical_target_duplicate_semantic_identity"
   | "critical_target_unknown_response"
   | "critical_target_case_version_mismatch"
   | "critical_target_unknown_case"
@@ -663,6 +684,7 @@ export function findCriticalFailureCalibrationValidationIssues(
   }
 
   const targetsById = new Map<string, CalibrationCriticalFailureTarget>();
+  const targetJudgmentKeys = new Set<string>();
   for (const target of input.targetFile.targets) {
     if (
       target.datasetId !== input.targetFile.datasetId ||
@@ -674,6 +696,11 @@ export function findCriticalFailureCalibrationValidationIssues(
       addIssue(issues, "critical_target_duplicate_id", targetDetails(target));
     }
     targetsById.set(target.targetId, target);
+    const judgmentKey = criticalFailureTargetJudgmentKey(target);
+    if (targetJudgmentKeys.has(judgmentKey)) {
+      addIssue(issues, "critical_target_duplicate_semantic_identity", targetDetails(target));
+    }
+    targetJudgmentKeys.add(judgmentKey);
     if (!criticalFailureTypes.has(target.failureType)) {
       addIssue(issues, "critical_target_unknown_failure_type", targetDetails(target));
     }

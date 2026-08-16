@@ -26,6 +26,7 @@ import {
   findCriticalFailureCalibrationReferenceReadinessIssues,
   findCriticalFailureCalibrationValidationIssues,
   parseCalibrationCriticalFailureAnnotationFile,
+  parseCalibrationCriticalFailureTargetFile,
   parseHumanCriticalFailureAnnotation,
 } from "../src/contracts/critical-failure-calibration-validation.js";
 import { parseCalibrationCandidateResponseFile } from "../src/contracts/calibration-validation.js";
@@ -198,6 +199,108 @@ test("atomic targets support multiple failure types for one response", async () 
   assert.equal(pair.unpairedLeft.length, 0);
   assert.equal(pair.unpairedRight.length, 0);
   assert.equal(pair.type.pairedResponseCount, 4);
+});
+
+test("critical target registry rejects duplicate semantic judgment atoms", async () => {
+  const input = await loadCriticalFixtureInput();
+  const firstTarget = input.targetFile.targets[0]!;
+
+  assert.throws(
+    () =>
+      parseCalibrationCriticalFailureTargetFile({
+        ...input.targetFile,
+        targets: [firstTarget, firstTarget],
+      }),
+    (error: unknown) =>
+      error instanceof BenchmarkConfigurationError &&
+      error.code === "calibration_critical_failure_target_invalid",
+  );
+  assert.throws(
+    () =>
+      parseCalibrationCriticalFailureTargetFile({
+        ...input.targetFile,
+        targets: [
+          firstTarget,
+          { ...firstTarget, targetId: "target-duplicate-semantic" },
+        ],
+      }),
+    (error: unknown) =>
+      error instanceof BenchmarkConfigurationError &&
+      error.code === "calibration_critical_failure_target_invalid",
+  );
+
+  const validIssues = findCriticalFailureCalibrationValidationIssues(input);
+  assert.equal(
+    validIssues.some((issue) => issue.code === "critical_target_duplicate_semantic_identity"),
+    false,
+  );
+
+  const semanticDuplicateIssues = findCriticalFailureCalibrationValidationIssues({
+    ...input,
+    targetFile: {
+      ...input.targetFile,
+      targets: [
+        ...input.targetFile.targets,
+        { ...firstTarget, targetId: "target-cross-file-semantic-duplicate" },
+      ],
+    },
+  });
+  assert.ok(
+    semanticDuplicateIssues.some(
+      (issue) =>
+        issue.code === "critical_target_duplicate_semantic_identity" &&
+        issue.targetId === "target-cross-file-semantic-duplicate",
+    ),
+  );
+
+  const caseMismatchIssues = findCriticalFailureCalibrationValidationIssues({
+    ...input,
+    targetFile: {
+      ...input.targetFile,
+      targets: [
+        ...input.targetFile.targets,
+        {
+          ...firstTarget,
+          targetId: "target-case-mismatch",
+          caseId: "history-source-context-001",
+          caseVersion: "1.0.0",
+        },
+      ],
+    },
+  });
+  assert.ok(
+    caseMismatchIssues.some(
+      (issue) => issue.code === "critical_target_case_version_mismatch",
+    ),
+  );
+  assert.equal(
+    caseMismatchIssues.some(
+      (issue) => issue.code === "critical_target_duplicate_semantic_identity",
+    ),
+    false,
+  );
+
+  const crossDatasetIssues = findCriticalFailureCalibrationValidationIssues({
+    ...input,
+    targetFile: {
+      ...input.targetFile,
+      targets: [
+        ...input.targetFile.targets,
+        { ...firstTarget, targetId: "target-dataset-version", datasetVersion: "0.2a" },
+      ],
+    },
+  });
+  assert.ok(
+    crossDatasetIssues.some(
+      (issue) => issue.code === "critical_target_dataset_mismatch",
+    ),
+  );
+  assert.equal(
+    crossDatasetIssues.some(
+      (issue) => issue.code === "critical_target_duplicate_semantic_identity",
+    ),
+    false,
+  );
 });
 
 test("critical annotations stay target-bound and reviewer streams stay isolated", async () => {

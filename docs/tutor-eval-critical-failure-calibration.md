@@ -131,6 +131,13 @@ The target file is also the audit record for why a reviewer was asked to judge
 one type. A future private run may generate a new ignored target file for its
 candidate corpus without changing the public dataset version.
 
+`targetId` is only the record identifier. The unique judgment atom is the
+tuple `datasetId + datasetVersion + caseId + caseVersion + responseId +
+failureType`; the parser and cross-file validator reject that tuple appearing
+more than once. Different failure types for one response remain independent
+targets, while changing the dataset version does not hide a cross-dataset
+mismatch.
+
 ## 9. Blind review packet
 
 `buildCalibrationCriticalFailurePacket()` emits a separate packet from the
@@ -278,6 +285,34 @@ The calibration contract does not re-sign a source response as target-native,
 recollect Tutor output, or infer compatibility from semver. Existing candidate
 files without `semanticReplay` remain readable.
 
+### Preparing real candidate responses
+
+The operator-only preparation command converts a frozen response corpus into
+the existing candidate-response contract without calling a Tutor, Judge, or
+provider:
+
+```bash
+npm run calibration:critical:prepare -- \
+  --corpus path/to/frozen-corpus.json \
+  --output artifacts/calibration/private/critical-candidate-responses.json
+```
+
+The default output is the ignored private path
+`artifacts/calibration/private/critical-candidate-responses.json`; real
+candidate response text must not be committed. A current `0.2a.1` corpus is
+prepared without replay. A historical `0.2a` corpus fails closed unless the
+operator explicitly adds `--allow-compatible-replay`; that flag uses only the
+existing audited replay registry and validates the source corpus against the
+source dataset first.
+
+Preparation preserves the source `responseId`, `sourceRun`, `sourceCorpus`,
+and any approved `semanticReplay`, while projecting the candidate to target
+dataset/case versions. It does not generate a target registry, reviewer
+annotations, adjudications, a blind packet, or Judge verdicts, and it never
+infers targets from `criticalFailures`. The next step is an independently
+audited private target registry followed by blind-packet generation and two
+reviewer streams.
+
 ## 19. Versioning
 
 The existing rubric constants remain unchanged:
@@ -299,6 +334,7 @@ The critical workflow is parallel to the existing rubric workflow:
 
 ```bash
 npm run calibration:critical:export
+npm run calibration:critical:prepare
 npm run calibration:critical:validate
 npm run calibration:critical:report
 npm run calibration:critical:aggregate
