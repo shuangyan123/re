@@ -103,9 +103,9 @@ test("TutorEval reporting adds locale breakdowns without changing overall aggreg
     result.caseCount,
   );
   const summary = formatTutorEvalSummary(result);
-  assert.match(summary, /Locale breakdown:/);
-  assert.match(summary, /English \(en\):/);
-  assert.match(summary, /中文 \(zh-CN\):/);
+  assert.match(summary, /Language-context breakdown:/);
+  assert.match(summary, /English-language context \(en\):/);
+  assert.match(summary, /Chinese-language context \(zh-CN\):/);
   assert.match(summary, /正确性:/);
   assert.match(summary, /严重失败率:/);
 

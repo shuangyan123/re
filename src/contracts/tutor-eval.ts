@@ -16,9 +16,11 @@ import {
 } from "./locale.js";
 
 export const TUTOR_EVAL_DATASET_ID = "tutor-eval-v0.2a" as const;
-export const TUTOR_EVAL_DATASET_VERSION = "0.2a.2" as const;
+export const TUTOR_EVAL_DATASET_VERSION = "0.2a.3" as const;
 /** The last English-only dataset snapshot remains readable for old artifacts. */
 export const TUTOR_EVAL_PREVIOUS_DATASET_VERSION = "0.2a.1" as const;
+/** The previous bilingual snapshot remains readable as an immutable data view. */
+export const TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION = "0.2a.2" as const;
 /**
  * Evaluation semantics are versioned separately from dataset/case identity so
  * immutable Tutor response corpora can be replayed under an explicitly named

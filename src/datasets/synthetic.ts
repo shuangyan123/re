@@ -9,6 +9,7 @@ import {
   TUTOR_EVAL_LEGACY_DATASET_VERSION,
   TUTOR_EVAL_DATASET_ID,
   TUTOR_EVAL_DATASET_VERSION,
+  TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   type TutorEvalDataset,
 } from "../contracts/index.js";
@@ -28,6 +29,14 @@ export async function loadTutorEvalDataset(
             strict: true,
             requireCrossLocaleGroups: true,
           }
+        : requestedVersion === TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION
+          ? {
+              directory: "tutor-eval-v0.2a",
+              version: TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
+              files: ["cases.json", "cases.zh-CN.0.2a.2.json"],
+              strict: true,
+              requireCrossLocaleGroups: true,
+            }
         : requestedVersion === TUTOR_EVAL_PREVIOUS_DATASET_VERSION
           ? {
               directory: "tutor-eval-v0.2a",

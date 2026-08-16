@@ -200,7 +200,7 @@ test("audit page exposes actual context, criteria, evaluator fields, Judge evide
     dataset,
     locale: "zh-CN",
   });
-  assert.match(indexPage.content, /按目标语言分组/);
+  assert.match(indexPage.content, /按教学语境分组/);
   assert.match(indexPage.content, /data-audit-locale="zh-CN"/);
   assert.doesNotMatch(page.content, /undefined|nullnull/);
 

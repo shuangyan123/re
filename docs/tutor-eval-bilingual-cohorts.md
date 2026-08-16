@@ -3,7 +3,7 @@
 The current canonical dataset is an authored bilingual development cohort:
 
 ```text
-tutor-eval-v0.2a@0.2a.2
+tutor-eval-v0.2a@0.2a.3
   24 English cases
   24 zh-CN cases
   24 cross-locale cohort groups
@@ -20,8 +20,10 @@ case ID, or create a Chinese frozen response for it.
 join authored counterparts for grouping, audit, coverage, and future analysis.
 The strict current loader requires each group to contain exactly one resolved
 `en` case and one `zh-CN` case. A group means that the authors targeted the same
-pedagogical construct; it is not evidence that the two cases are scientifically
-equivalent or that human reviewers have validated the pairing.
+pedagogical construct across language contexts. After the semantic audit, the
+pair is intended to represent a comparable learner state, but this is not
+evidence of psychometric equivalence, measurement invariance, or human
+validation.
 
 The English case IDs and visible text are unchanged. Their omitted `locale`
 continues to resolve to `en`, preserving the legacy fallback and visible-input
@@ -47,14 +49,25 @@ would test a different linguistic construct. It is an authored counterpart for
 the same broad language-teaching capability, not a claim of literal translation
 equivalence.
 
+## Interpretation boundary
+
+The English cohort is used to observe tutoring performance in an
+English-language context. The `zh-CN` cohort is used to observe tutoring
+performance in a Chinese-language context. This is a language-context
+breakdown, not a pure English-ability or Chinese-ability test: locale changes
+student input, context, profile wording, subject terminology, diagnostic cues,
+and response language. Score differences can also reflect Judge language
+effects, residual case differences, sampling noise, and model stochasticity.
+
 ## Versioning
 
 | Identity | Current decision | Reason |
 | --- | --- | --- |
-| Dataset | `tutor-eval-v0.2a@0.2a.2` | New locale-specific cases and cohort metadata change the canonical dataset content. |
+| Dataset | `tutor-eval-v0.2a@0.2a.3` | Corrected Tutor-visible and evaluator-semantic bilingual content. |
+| Historical dataset | `tutor-eval-v0.2a@0.2a.2` | Explicit immutable bilingual snapshot retained for historical artifacts. |
 | Historical dataset | `tutor-eval-v0.2a@0.2a.1` | Explicit loader path for the previous English-only snapshot. |
 | English case versions | Unchanged, including `language-verb-check-001@1.0.1` | Existing case semantics and Tutor-visible input remain intact. |
-| Chinese case versions | `1.0.0` | New independent case identities; no historical Chinese responses exist. |
+| Chinese case versions | `1.1.0` for corrected cases; otherwise `1.0.0` | Changed Tutor-visible or evaluator-semantic content is versioned explicitly. |
 | Tutor prompt | `tutor-baseline-system@0.2` unchanged | The locale-aware prompt already consumes `targetLocale`. |
 | Generation spec | `tutor-baseline-generation@0.4a.3` unchanged | No new generation controls or profile semantics were introduced. |
 | Evaluator | `0.3a.3` unchanged | Scoring, rubric ownership, and quality-gate semantics are reused. |
@@ -67,13 +80,18 @@ The current dataset loader accepts the previous version only when requested
 explicitly:
 
 ```ts
-const historical = await loadTutorEvalDataset(
+const historicalEnglish = await loadTutorEvalDataset(
   "tutor-eval-v0.2a",
   "0.2a.1",
 );
+const historicalBilingual = await loadTutorEvalDataset(
+  "tutor-eval-v0.2a",
+  "0.2a.2",
+);
 ```
 
-The loader does not infer a semantic migration from `0.2a.1` to `0.2a.2`.
+The loader does not infer a semantic migration from either historical snapshot
+to `0.2a.3`.
 
 ## Reporting and auditability
 
@@ -85,8 +103,9 @@ leakage rate for each locale. It does not compute a hidden 50/50 bilingual
 score or replace the existing overall score.
 
 Coverage reports expose `casesByLocale` and `crossLocaleGroupCount`. The public
-Case Explorer exposes a locale filter with `All` / `English` / `Chinese` (and
-`全部` / `英文` / `中文` in the interface locale), and cards/details show the
+Case Explorer exposes a locale filter with `All` / `English-language context` /
+`Chinese-language context` (and `全部` / `英文语境` / `中文语境` in the
+interface locale), and cards/details show the
 resolved target locale and authored cohort group. The private audit index shows
 the same locale breakdown and the audit detail preserves the actual stored
 Chinese Tutor response, Judge evidence, raw Judge JSON, criteria, and critical
@@ -102,13 +121,13 @@ Historical English corpus responses, response IDs, evaluation artifacts, and
 calibration fixtures are not rewritten. The existing replay registry remains
 exactly the audited `0.2a -> 0.2a.1` language-case transition. With explicit
 replay opt-in, old corpus and critical-calibration preparation resolve the
-historical `.2a.1` target; they are never promoted into the new bilingual
-`.2a.2` target. No `.2a.1 -> .2a.2` replay rule was added, and no Chinese corpus
+historical `.2a.1` target; they are never promoted into the corrected bilingual
+`.2a.3` target. No `.2a.2 -> .2a.3` replay rule was added, and no Chinese corpus
 or baseline result was fabricated.
 
 The cohort is synthetic and authored to target shared constructs. It has not
-received independent human rubric review, cross-locale equivalence validation,
-Judge-vs-human calibration, or statistical validation. A real Chinese corpus
+received independent human rubric review, Judge-vs-human calibration, or
+statistical validation. A real Chinese corpus
 must be produced by a separately authorized Tutor generation run. The public
 website's full-copy localization remains follow-up work; this change localizes
 the benchmark content, locale filter, reporting labels, and audit affordances

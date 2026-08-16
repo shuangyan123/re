@@ -108,7 +108,11 @@ export function buildTutorEvalLocaleBreakdowns(
 }
 
 function localeLabel(locale: TutorCaseLocale): string {
-  return locale === "en" ? "English" : locale === "zh-CN" ? "中文" : locale;
+  return locale === "en"
+    ? "English-language context"
+    : locale === "zh-CN"
+      ? "Chinese-language context"
+      : locale;
 }
 
 const chineseCategoryLabels: Readonly<Record<TutorEvalCategory, string>> = {
@@ -226,7 +230,7 @@ export function formatTutorEvalSummary(result: TutorEvalRunResult): string {
     `Critical failure rate: ${(result.criticalFailureRate * 100).toFixed(2)}%`,
     `Answer leakage rate: ${(result.answerLeakageRate * 100).toFixed(2)}%`,
     "",
-    "Locale breakdown:",
+    "Language-context breakdown:",
     ...localeBreakdownLines,
   ].join("\n");
 }

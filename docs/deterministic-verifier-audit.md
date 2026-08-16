@@ -20,7 +20,7 @@ responses in the local partial corpus. The corpus remains immutable and ignored.
 
 The dataset and case identity for this deterministic audit are the historical
 English-only snapshot `tutor-eval-v0.2a@0.2a.1`; visible inputs, rubric IDs,
-and criterion text are unchanged. The current `0.2a.2` bilingual snapshot
+and criterion text are unchanged. The current `0.2a.3` bilingual snapshot
 reuses these evaluator semantics and does not reinterpret this historical
 audit as a Chinese result. The language case version later changed only for the separate
 critical-failure mapping audit. Evaluation

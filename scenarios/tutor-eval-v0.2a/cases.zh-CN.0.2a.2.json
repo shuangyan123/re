@@ -2,7 +2,7 @@
   {
     "schemaVersion": 1,
     "id": "fraction-misconception-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "fraction-misconception-001",
     "metadata": {
@@ -17,9 +17,9 @@
     },
     "tutorInput": {
       "learningObjective": "先帮学生找出分数单位不同的问题，再引导他自己完成计算，不要直接给出答案。",
-      "studentProfile": { "knownConcepts": ["整数加法"], "misconceptions": ["把分子和分母直接相加"], "level": "小学高年级", "goal": "计算分母不同的分数的和" },
-      "studentMessage": "我觉得 1/3 + 1/4 = 2/7。能帮我检查一下吗？",
-      "problemContext": "学生正在练习分母不同的分数加法。"
+      "studentProfile": { "knownConcepts": ["分子和分母", "分数相加"], "misconceptions": ["把分子和分母直接相加"], "level": "小学阶段", "goal": "自己算出两个分数的和" },
+      "studentMessage": "我在算 1/3 + 1/6 时把分子和分母都直接相加了，这样算对吗？",
+      "problemContext": "两个分数的单位大小不同，需要先想办法把它们改写成相同的单位；请不要直接说出最后答案。"
     },
     "evaluatorOnly": {
       "groundTruth": { "finalAnswer": "7/12", "acceptedAnswers": ["7/12"], "requiredConcepts": ["公分母", "分数单位"] },
@@ -36,7 +36,7 @@
   {
     "schemaVersion": 1,
     "id": "hint-only-linear-equation-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "hint-only-linear-equation-001",
     "metadata": {
@@ -51,13 +51,13 @@
     },
     "tutorInput": {
       "learningObjective": "只给学生解方程的第一步提示，让他自己完成后面的运算。",
-      "studentProfile": { "knownConcepts": ["逆运算"], "misconceptions": [], "level": "初中阶段", "goal": "自己解出一元一次方程" },
-      "studentMessage": "我卡在 2x + 3 = 11。只给我一个提示，不要告诉我答案。",
-      "problemContext": "学生还没有写出第一步。"
+      "studentProfile": { "knownConcepts": ["等式", "加法和减法"], "misconceptions": ["不知道该先消去哪一项"], "level": "初中阶段", "goal": "自己解出方程" },
+      "studentMessage": "我想解 2x + 3 = 11，但不知道第一步该做什么。可以给我一个提示吗？",
+      "problemContext": "学生还没有尝试任何一步，并且明确要求提示，不要直接告诉他 x 的值。"
     },
     "evaluatorOnly": {
-      "groundTruth": { "finalAnswer": "x=4", "acceptedAnswers": ["x=4", "4"], "requiredConcepts": ["减去 3", "除以 2"] },
-      "knownMisconception": null,
+      "groundTruth": { "finalAnswer": "x=4", "acceptedAnswers": ["x=4", "4"], "requiredConcepts": ["逆运算", "等式两边"] },
+      "knownMisconception": "学生不知道如何选择第一步逆运算。",
       "disclosurePolicy": "hint_only",
       "rubrics": [
         { "id": "equation-hint-no-leak-001-zh-CN", "category": "guidance", "criterion": "给出第一步提示，但不要直接说出 x=4。", "weight": 2, "behavior": "prohibited", "capabilityTag": "answer_non_disclosure", "critical": true, "evaluationType": "deterministic", "evaluatorId": "direct_answer_leak", "config": { "forbiddenFinalAnswer": "x=4" }, "criticalFailure": { "type": "answer_leakage", "severity": "major" } },
@@ -307,7 +307,7 @@
   {
     "schemaVersion": 1,
     "id": "science-density-knowledge-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "science-density-knowledge-001",
     "metadata": {
@@ -322,9 +322,9 @@
     },
     "tutorInput": {
       "learningObjective": "帮助学生回忆密度和质量、体积之间的关系。",
-      "studentProfile": { "knownConcepts": [], "misconceptions": [], "level": "初中阶段", "goal": "回忆密度的含义" },
-      "studentMessage": "密度到底表示什么？我有点想不起来了。",
-      "problemContext": "学生正在计算前回忆密度的定义。"
+      "studentProfile": { "knownConcepts": ["质量", "体积"], "misconceptions": [], "level": "初中阶段", "goal": "回忆密度的含义" },
+      "studentMessage": "密度到底是在比较物体的什么？我有点想不起来了。",
+      "problemContext": "学生只需要回忆概念，不要求计算，也没有提供具体物体。"
     },
     "evaluatorOnly": {
       "groundTruth": { "requiredConcepts": ["质量", "体积"] },
@@ -339,7 +339,7 @@
   {
     "schemaVersion": 1,
     "id": "science-force-transfer-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "science-force-transfer-001",
     "metadata": {
@@ -354,13 +354,13 @@
     },
     "tutorInput": {
       "learningObjective": "把新情境和学生已经理解的平衡力联系起来，帮助他迁移这个概念。",
-      "studentProfile": { "knownConcepts": ["平衡力"], "misconceptions": [], "level": "初中阶段", "goal": "把平衡力的概念用到新例子上" },
-      "studentMessage": "一本书静止放在桌面上，作用在它上的力是平衡的吗？",
-      "problemContext": "学生已经在类似例子中答对，但需要把这个概念迁移到新情境。"
+      "studentProfile": { "knownConcepts": ["平衡力", "推和拉"], "misconceptions": ["物体只要在运动，就一定有一个更大的力在推它"], "level": "初中阶段", "goal": "把力的概念用到新例子上" },
+      "studentMessage": "如果自行车匀速前进，是不是说明向前的力一定比阻力大？",
+      "problemContext": "学生知道平衡力的定义，但还没有把它用于运动中的新情境。"
     },
     "evaluatorOnly": {
-      "groundTruth": { "requiredConcepts": ["平衡力"] },
-      "knownMisconception": null,
+      "groundTruth": { "requiredConcepts": ["合力", "相反方向的力"] },
+      "knownMisconception": "学生把有运动误解成合力一定不为零。",
       "disclosurePolicy": "partial_solution",
       "rubrics": [
         { "id": "science-force-transfer-001-zh-CN", "category": "adaptation", "criterion": "把新例子和学生原来理解的平衡力联系起来。", "weight": 2, "behavior": "required", "capabilityTag": "counterfactual_adaptation", "evaluationType": "judge" },
@@ -371,7 +371,7 @@
   {
     "schemaVersion": 1,
     "id": "science-photosynthesis-concept-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "science-photosynthesis-concept-001",
     "metadata": {
@@ -386,12 +386,12 @@
     },
     "tutorInput": {
       "learningObjective": "清楚解释光合作用怎样利用光能和二氧化碳，同时避免把概念讲得失真。",
-      "studentProfile": { "knownConcepts": ["植物需要水"], "misconceptions": ["植物把阳光当食物吃进去"], "level": "初中阶段", "goal": "理解光合作用的基本过程" },
+      "studentProfile": { "knownConcepts": ["植物需要光"], "misconceptions": ["植物把阳光当食物吃进去"], "level": "初中阶段", "goal": "理解光合作用的基本过程" },
       "studentMessage": "植物是不是把阳光吃进去，然后就长大了？能解释一下吗？",
-      "problemContext": "学生需要概念解释，不需要化学方程式。"
+      "problemContext": "学生正在第一次学习光合作用，允许给出完整的概念解释。"
     },
     "evaluatorOnly": {
-      "groundTruth": { "requiredConcepts": ["光能", "二氧化碳"] },
+      "groundTruth": { "requiredConcepts": ["光能", "二氧化碳", "植物制造有机物"] },
       "knownMisconception": "学生把光合作用误解成植物直接吃阳光。",
       "disclosurePolicy": "full_solution_allowed",
       "rubrics": [
@@ -404,7 +404,7 @@
   {
     "schemaVersion": 1,
     "id": "science-graph-error-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "science-graph-error-001",
     "metadata": {
@@ -418,14 +418,14 @@
       "tags": ["synthetic", "science", "diagnosis"]
     },
     "tutorInput": {
-      "learningObjective": "帮助学生找出图表读取中的错误，并要求一个核验步骤。",
-      "studentProfile": { "knownConcepts": ["横轴和纵轴"], "misconceptions": ["最高点总是表示最大的变化率"], "level": "初中阶段", "goal": "正确读取科学图表" },
-      "studentMessage": "最高点一定表示变化率最大，所以图表能证明反应在那里保持最快，对吗？",
-      "problemContext": "图表的纵轴表示数量，不是变化率。"
+      "learningObjective": "帮助学生找出图轴和结论之间的不一致，而不是只说他看错了。",
+      "studentProfile": { "knownConcepts": ["横轴和纵轴"], "misconceptions": ["只要曲线向上，变化率就一定变大"], "level": "初中阶段", "goal": "正确读取科学图表" },
+      "studentMessage": "这条线一直往上，所以变化率一直在变大，对吧？",
+      "problemContext": "图表的纵轴不是变化率，学生把纵轴含义和斜率混在了一起。"
     },
     "evaluatorOnly": {
       "groundTruth": { "requiredConcepts": ["纵轴含义", "变化率"] },
-      "knownMisconception": "学生把表示数量的纵轴当成表示变化率的纵轴来读。",
+      "knownMisconception": "学生没有先核对纵轴表示什么，就把上升的曲线当成变化率变大。",
       "disclosurePolicy": "hint_only",
       "rubrics": [
         { "id": "science-graph-location-001-zh-CN", "category": "diagnosis", "criterion": "指出图轴的含义与学生关于变化率的结论之间的不匹配。", "weight": 2, "behavior": "required", "capabilityTag": "error_localization", "evaluationType": "judge" },
@@ -436,7 +436,7 @@
   {
     "schemaVersion": 1,
     "id": "language-evidence-argument-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "language-evidence-argument-001",
     "metadata": {
@@ -450,14 +450,14 @@
       "tags": ["synthetic", "language", "hint-only"]
     },
     "tutorInput": {
-      "learningObjective": "引导学生用一条具体的文本证据支持自己的解读。",
-      "studentProfile": { "knownConcepts": ["中心意思"], "misconceptions": [], "level": "中学阶段", "goal": "用文本证据支持观点" },
+      "learningObjective": "引导学生自己找到能支持观点的句子，而不是替他补出证据。",
+      "studentProfile": { "knownConcepts": ["中心意思"], "misconceptions": ["只要观点听起来合理，就不需要引用原文"], "level": "中学阶段", "goal": "用文本证据支持观点" },
       "studentMessage": "我觉得主人公很勇敢，但不知道该引用哪一句话来证明。能给我一点提示吗？",
-      "problemContext": "学生有自己的解读，但还没有选定支持它的文本证据。"
+      "problemContext": "学生需要从文章中寻找证据，但没有提供文章原文或现成引文。"
     },
     "evaluatorOnly": {
-      "groundTruth": { "requiredConcepts": ["文本证据"] },
-      "knownMisconception": null,
+      "groundTruth": { "requiredConcepts": ["文本句子", "支持观点"] },
+      "knownMisconception": "学生把有道理的观点和有文本证据混为一谈。",
       "disclosurePolicy": "hint_only",
       "rubrics": [
         { "id": "language-evidence-hint-001-zh-CN", "category": "guidance", "criterion": "请学生先找出一句能支持这个判断的原文。", "weight": 2, "behavior": "required", "capabilityTag": "scaffolding", "evaluationType": "judge" },
@@ -597,7 +597,7 @@
   {
     "schemaVersion": 1,
     "id": "history-source-bias-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "history-source-bias-001",
     "metadata": {
@@ -614,7 +614,7 @@
       "learningObjective": "检查学生认为史料完全客观的说法，并介绍一个更准确的分析偏见的方法。",
       "studentProfile": { "knownConcepts": ["一手史料"], "misconceptions": ["只要写了日期和事实，史料就一定客观"], "level": "高中阶段", "goal": "判断史料的可靠性" },
       "studentMessage": "这份史料列出了很多日期，所以它不可能有偏见。我的推理对吗？",
-      "problemContext": "史料由一位有明确政治目的的参与者写成。"
+      "problemContext": "史料由一位有明确政治目的的参与者写成；学生需要区分事实信息和作者视角。"
     },
     "evaluatorOnly": {
       "groundTruth": { "requiredConcepts": ["立场", "目的"] },
@@ -630,7 +630,7 @@
   {
     "schemaVersion": 1,
     "id": "programming-loop-diagnosis-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "programming-loop-diagnosis-001",
     "metadata": {
@@ -647,7 +647,7 @@
       "learningObjective": "帮助学生找出循环为什么不会结束，并提出一个可以验证的下一步。",
       "studentProfile": { "knownConcepts": ["变量", "while 循环"], "misconceptions": ["只要在循环里某处加一，就足以让循环结束"], "level": "初中阶段", "goal": "调试一个循环" },
       "studentMessage": "我的循环一直在打印，可是我明明在循环里把计数器加一了。",
-      "problemContext": "计数器虽然初始化了，但循环条件始终不会变成 false。"
+      "problemContext": "计数器虽然初始化了，但循环条件始终不会变成 false；学生需要先追踪一次状态变化。"
     },
     "evaluatorOnly": {
       "groundTruth": { "requiredConcepts": ["条件", "计数器"] },
@@ -663,7 +663,7 @@
   {
     "schemaVersion": 1,
     "id": "programming-function-recall-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "programming-function-recall-001",
     "metadata": {
@@ -680,7 +680,7 @@
       "learningObjective": "用简短的方式解释函数接收的输入和返回值分别做什么。",
       "studentProfile": { "knownConcepts": ["变量"], "misconceptions": [], "level": "初中阶段", "goal": "理解函数的输入和输出" },
       "studentMessage": "函数的参数和返回值有什么区别？",
-      "problemContext": "学生第一次学习函数。"
+      "problemContext": "学生第一次学习函数，适合用一个小例子解释，不要求指定某种编程语言。"
     },
     "evaluatorOnly": {
       "groundTruth": { "requiredConcepts": ["输入", "返回"] },
@@ -761,7 +761,7 @@
   {
     "schemaVersion": 1,
     "id": "programming-abstraction-transfer-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "programming-abstraction-transfer-001",
     "metadata": {
@@ -778,7 +778,7 @@
       "learningObjective": "帮助学生把重复出现的代码提炼成一个小函数，同时避免过度设计。",
       "studentProfile": { "knownConcepts": ["变量", "基础函数"], "misconceptions": [], "level": "高中阶段", "goal": "判断什么时候适合做抽象" },
       "studentMessage": "我把同样的三行代码复制了四遍。要不要建一个很大的类来解决？",
-      "problemContext": "重复代码只有一个输入在变化，操作本身相同。"
+      "problemContext": "重复代码只有一个输入在变化，操作本身相同；适合从最小的可复用边界开始思考。"
     },
     "evaluatorOnly": {
       "groundTruth": { "requiredConcepts": ["函数", "输入"] },

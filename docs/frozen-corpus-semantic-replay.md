@@ -107,8 +107,9 @@ an explicitly opted-in Judge provider. It does not call a Tutor provider. A part
 corpus remains partial, and `--full` still fails when required responses are
 missing. A historical corpus already at `0.2a.1` follows the explicit
 historical-loader path and does not emit `semanticReplay` provenance. The
-current bilingual dataset is `0.2a.2`; no automatic `.2a.1 -> .2a.2` replay
-transition exists.
+current corrected bilingual dataset is `0.2a.3`. The previous bilingual
+`0.2a.2` snapshot remains explicitly loadable for historical inspection, but
+no automatic `.2a.2 -> .2a.3` replay transition exists.
 
 ## Result provenance
 
@@ -148,6 +149,7 @@ remain readable.
 The following remain rejected:
 
 - `0.2a` to any future `0.2a.x` not explicitly registered;
+- `0.2a.2` to `0.2a.3` when Tutor-visible content changed;
 - a changed `learningObjective`, `studentProfile`, conversation, student
   message, or problem context;
 - a changed case version without an exact case mapping;

@@ -5,6 +5,7 @@ import {
   BenchmarkConfigurationError,
   TUTOR_EVAL_DATASET_ID,
   TUTOR_EVAL_DATASET_VERSION,
+  TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   TUTOR_EVAL_CAPABILITY_TAGS,
   TUTOR_EVAL_EVALUATOR_VERSION,
@@ -28,7 +29,7 @@ test("the canonical 0.2A dataset loads through the runtime contract and covers a
   assert.equal(dataset.cases.length, 48);
   assert.equal(
     dataset.cases.filter((caseValue) => caseValue.version === "1.1.0").length,
-    7,
+    18,
   );
   assert.deepEqual(Object.keys(report.casesBySubject), [
     "history_or_social_studies",
@@ -100,6 +101,10 @@ test("legacy v0.1 cases remain readable while the canonical loader uses 0.2A", a
     TUTOR_EVAL_DATASET_ID,
     TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   );
+  const historicalBilingual = await loadTutorEvalDataset(
+    TUTOR_EVAL_DATASET_ID,
+    TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
+  );
   assert.equal(legacy.version, "0.1");
   assert.equal(legacy.cases.length, 7);
   assert.equal(current.version, TUTOR_EVAL_DATASET_VERSION);
@@ -107,6 +112,14 @@ test("legacy v0.1 cases remain readable while the canonical loader uses 0.2A", a
   assert.equal(historical.version, TUTOR_EVAL_PREVIOUS_DATASET_VERSION);
   assert.equal(historical.cases.length, 24);
   assert.ok(historical.cases.every((caseValue) => (caseValue.locale ?? "en") === "en"));
+  assert.equal(historicalBilingual.version, TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION);
+  assert.equal(historicalBilingual.cases.length, 48);
+  assert.ok(
+    historicalBilingual.cases.some(
+      (caseValue) => caseValue.id === "fraction-misconception-001-zh-CN" &&
+        caseValue.version === "1.0.0",
+    ),
+  );
 });
 
 test("structured taxonomy and difficulty metadata are runtime validated", async () => {

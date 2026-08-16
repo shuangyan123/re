@@ -8,6 +8,7 @@ import {
   BenchmarkConfigurationError,
   TUTOR_EVAL_DATASET_ID,
   TUTOR_EVAL_DATASET_VERSION,
+  TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   TUTOR_EVAL_EVALUATOR_VERSION,
   findTutorResponseCorpusValidationIssues,
@@ -325,6 +326,19 @@ test("unknown dataset transitions and unmapped case-version changes are rejected
   };
   assert.throws(
     () => resolveTutorResponseCorpusReplay(corpus, changedTarget),
+    incompatibleError,
+  );
+});
+
+test("corrected bilingual content does not create an implicit replay bridge", async () => {
+  const historical = await loadTutorEvalDataset(
+    TUTOR_EVAL_DATASET_ID,
+    TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
+  );
+  const current = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const corpus = makeCorpus(historical, false);
+  assert.throws(
+    () => resolveTutorResponseCorpusReplay(corpus, current),
     incompatibleError,
   );
 });

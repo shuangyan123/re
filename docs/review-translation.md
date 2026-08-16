@@ -129,7 +129,10 @@ proper names, uncertainty, and errors without summarizing, correcting, or
 adding conclusions. A translation is still an untrusted reading aid. Reviewers
 must open the original when precision matters.
 
-The known `fraction-misconception-001-zh-CN` cohort ground-truth inconsistency
-(`1/3 + 1/6` paired with `7/12`) is an existing benchmark-data follow-up. It is
-not changed by this review-translation task and does not supply translations
-for English cases.
+The cross-locale semantic audit corrected the known
+`fraction-misconception-001-zh-CN` inconsistency in the current
+`tutor-eval-v0.2a@0.2a.3` snapshot: the visible task is now `1/3 + 1/4`, the
+student's direct-addition mistake is `2/7`, and the ground truth is `7/12`.
+The immutable `0.2a.2` snapshot remains available for historical artifacts.
+This Review Translation Layer remains separate from that benchmark-data fix and
+does not supply translations for English cases.
