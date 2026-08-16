@@ -647,6 +647,106 @@ test("tutorbench collect rejects recorded_model and canonical collection preserv
   }
 });
 
+test("tutorbench collect-model resumes the same four-case corpus to full 48-case coverage", async () => {
+  let requestCount = 0;
+  const server = createServer(async (request, response) => {
+    requestCount += 1;
+    for await (const _chunk of request) {
+      // Consume the packet before returning the synthetic host response.
+    }
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({
+      output: { text: `Synthetic response ${requestCount}.` },
+      executionSupport: { maxOutputTokens: true },
+    }));
+  });
+  await new Promise<void>((resolveListen, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolveListen);
+  });
+  const address = server.address();
+  assert.ok(address !== null && typeof address !== "string");
+  const endpoint = `http://127.0.0.1:${address.port}/generate`;
+  const outputDirectory = await mkdtemp(join(tmpdir(), "tutorbench-resume-48-"));
+  const corpusPath = join(outputDirectory, "preliminary-minimax-tutor-bilingual-001.corpus.json");
+  const reportPath = join(outputDirectory, "preliminary-minimax-tutor-bilingual-001.report.json");
+  const corpusId = "preliminary-minimax-tutor-bilingual-001";
+  const smokeCases = [
+    "fraction-misconception-001",
+    "hint-only-linear-equation-001",
+    "fraction-misconception-001-zh-CN",
+    "hint-only-linear-equation-001-zh-CN",
+  ];
+
+  try {
+    const smoke = await runCli([
+      "collect-model",
+      "--http",
+      endpoint,
+      "--provider",
+      "fixture-provider",
+      "--model",
+      "fixture-model",
+      ...smokeCases.flatMap((caseId) => ["--case", caseId]),
+      "--corpus-id",
+      corpusId,
+      "--output",
+      corpusPath,
+      "--report",
+      reportPath,
+    ]);
+    assert.equal(smoke.exitCode, 0);
+    assert.match(smoke.stdout, /Responses: 4\/4/);
+    assert.match(smoke.stdout, /Coverage: partial/);
+    assert.equal(requestCount, 4);
+
+    const smokeCorpus = JSON.parse(await readFile(corpusPath, "utf8")) as {
+      readonly corpusId: string;
+      readonly coverage: string;
+      readonly responses: readonly unknown[];
+    };
+    assert.equal(smokeCorpus.corpusId, corpusId);
+    assert.equal(smokeCorpus.coverage, "partial");
+    assert.equal(smokeCorpus.responses.length, 4);
+
+    const full = await runCli([
+      "collect-model",
+      "--http",
+      endpoint,
+      "--provider",
+      "fixture-provider",
+      "--model",
+      "fixture-model",
+      "--resume",
+      corpusPath,
+      "--output",
+      corpusPath,
+      "--report",
+      reportPath,
+    ]);
+    assert.equal(full.exitCode, 0);
+    assert.match(full.stdout, /Reused responses: 4/);
+    assert.match(full.stdout, /Model calls made: 44/);
+    assert.match(full.stdout, /Responses: 48\/48/);
+    assert.match(full.stdout, /Coverage: full/);
+    assert.equal(requestCount, 48);
+
+    const fullCorpus = JSON.parse(await readFile(corpusPath, "utf8")) as {
+      readonly corpusId: string;
+      readonly coverage: string;
+      readonly responses: readonly unknown[];
+    };
+    assert.equal(fullCorpus.corpusId, corpusId);
+    assert.equal(fullCorpus.coverage, "full");
+    assert.equal(fullCorpus.responses.length, 48);
+  } finally {
+    await new Promise<void>((resolveClose, reject) => {
+      server.close((error) => (error === undefined ? resolveClose() : reject(error)));
+    });
+    await rm(outputDirectory, { recursive: true, force: true });
+  }
+});
+
 test("package bin points to the built shebang executable", async () => {
   const packageValue = JSON.parse(
     await readFile(resolve(process.cwd(), "package.json"), "utf8"),

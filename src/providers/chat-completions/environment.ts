@@ -4,6 +4,7 @@ import {
   DEFAULT_CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS,
   MAX_CHAT_COMPLETIONS_JUDGE_ATTEMPTS,
   type ChatCompletionsJudgeJsonMode,
+  type ChatCompletionsReasoningSplit,
   type ChatCompletionsMaxOutputTokensField,
 } from "./tutor-eval-judge.js";
 
@@ -16,6 +17,7 @@ export interface ChatCompletionsJudgeEnvironmentConfig {
   readonly timeoutMs: number;
   readonly maxAttempts: number;
   readonly jsonMode: ChatCompletionsJudgeJsonMode;
+  readonly reasoningSplit: ChatCompletionsReasoningSplit;
   readonly maxOutputTokensField: ChatCompletionsMaxOutputTokensField;
   readonly maxOutputTokens?: number;
   readonly temperature?: number;
@@ -66,6 +68,17 @@ function jsonMode(value: string | undefined): ChatCompletionsJudgeJsonMode {
     return "disabled";
   }
   throw new ChatCompletionsJudgeConfigurationError("json_mode_invalid");
+}
+
+function reasoningSplit(value: string | undefined): ChatCompletionsReasoningSplit {
+  const normalized = nonEmpty(value);
+  if (normalized === null || normalized === "disabled") {
+    return "disabled";
+  }
+  if (normalized === "enabled") {
+    return "enabled";
+  }
+  throw new ChatCompletionsJudgeConfigurationError("reasoning_split_invalid");
 }
 
 function maxOutputTokensField(
@@ -150,6 +163,7 @@ export function readChatCompletionsJudgeEnvironment(
       MAX_CHAT_COMPLETIONS_JUDGE_ATTEMPTS,
     ),
     jsonMode: jsonMode(environment.CHAT_COMPLETIONS_JUDGE_JSON_MODE),
+    reasoningSplit: reasoningSplit(environment.CHAT_COMPLETIONS_JUDGE_REASONING_SPLIT),
     maxOutputTokensField: maxOutputTokensField(
       environment.CHAT_COMPLETIONS_JUDGE_MAX_OUTPUT_TOKENS_FIELD,
     ),

@@ -61,6 +61,9 @@ function responseBody(content: string, finishReason = "stop") {
         message: {
           content,
           reasoning_content: "private reasoning must not persist",
+          reasoning_details: [{ text: "private reasoning details must not persist" }],
+          thinking: "private thinking must not persist",
+          analysis: "private analysis must not persist",
         },
         finish_reason: finishReason,
       }],
@@ -89,6 +92,7 @@ test("generic Chat Completions environment keeps provider settings explicit", ()
     CHAT_COMPLETIONS_JUDGE_API_KEY: "local-secret",
     CHAT_COMPLETIONS_JUDGE_MAX_OUTPUT_TOKENS_FIELD: "max_completion_tokens",
     CHAT_COMPLETIONS_JUDGE_MAX_TOKENS: "4096",
+    CHAT_COMPLETIONS_JUDGE_REASONING_SPLIT: "enabled",
     CHAT_COMPLETIONS_JUDGE_JSON_MODE: "disabled",
     CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS: "45000",
     CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS: "1",
@@ -97,6 +101,7 @@ test("generic Chat Completions environment keeps provider settings explicit", ()
   assert.equal(environment.model, "MiniMax-Text-01");
   assert.equal(environment.maxOutputTokensField, "max_completion_tokens");
   assert.equal(environment.maxOutputTokens, 4096);
+  assert.equal(environment.reasoningSplit, "enabled");
   assert.equal(environment.jsonMode, "disabled");
   assert.equal(environment.timeoutMs, 45_000);
   assert.equal(environment.maxAttempts, 1);
@@ -128,6 +133,7 @@ test("generic Chat Completions Judge sends only the strict visible request envel
   const body = JSON.parse(call.init.body) as Record<string, unknown>;
   assert.equal(body.max_completion_tokens, 4096);
   assert.equal(body.max_tokens, undefined);
+  assert.equal("reasoning_split" in body, false);
   assert.equal(body.response_format, undefined);
   assert.equal(body.stream, false);
   assert.equal((evaluation.result as { readonly caseId: string }).caseId, tutorEvalCase.id);
@@ -138,6 +144,31 @@ test("generic Chat Completions Judge sends only the strict visible request envel
     totalTokens: 18,
   });
   assert.doesNotMatch(JSON.stringify(evaluation), /judge-secret|reasoning_content|provider_payload/);
+});
+
+test("generic Chat Completions Judge sends reasoning_split only when explicitly enabled", async () => {
+  const tutorEvalCase = makeCase();
+  for (const [reasoningSplit, expected] of [
+    ["enabled", true],
+    ["disabled", false],
+  ] as const) {
+    let requestBody: Record<string, unknown> | undefined;
+    const judge = createChatCompletionsJudge({
+      ...baseOptions,
+      apiKey: "judge-secret",
+      reasoningSplit,
+      fetch: async (_url, init) => {
+        requestBody = JSON.parse(init.body) as Record<string, unknown>;
+        return responseBody(validResult(tutorEvalCase.id));
+      },
+    });
+    await judge.evaluateWithMetrics(
+      buildTutorEvalJudgeInput(tutorEvalCase, "Candidate response."),
+    );
+    assert.ok(requestBody);
+    assert.equal("reasoning_split" in requestBody, expected);
+    assert.equal(requestBody.reasoning_split, expected ? true : undefined);
+  }
 });
 
 test("generic Chat Completions Judge fails closed for missing key, malformed output, HTTP errors, and timeout", async () => {
@@ -203,4 +234,8 @@ test("generic Judge result still uses rubric ownership and preserves critical fa
   assert.equal(result.caseResults[0]?.status, "passed");
   assert.equal(result.caseResults[0]?.rubricResults[0]?.result, "PASS");
   assert.equal(result.caseResults[0]?.criticalFailures.length, 0);
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /private reasoning must not persist|private reasoning details must not persist|private thinking must not persist|private analysis must not persist/u,
+  );
 });

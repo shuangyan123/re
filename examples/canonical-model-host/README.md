@@ -36,6 +36,13 @@ Optional local configuration is `OPENAI_BASE_URL` (defaults to
 from the process environment and are never written to packets, reports,
 corpora, logs, or HTTP responses.
 
+The provider-neutral `chat-completions-server.mjs` sends
+`reasoning_split: true` only when `TUTOR_MODEL_REASONING_SPLIT=enabled`. Set
+`TUTOR_MODEL_REQUIRE_REASONING_SEPARATION=true` for a fail-closed rejection of
+unsplit `<think>...</think>` content. The host always returns only final
+`message.content`; provider reasoning fields and payload metadata do not enter
+the Tutor response or corpus.
+
 In another terminal, first perform the required dry-run, then a 1–3 case smoke
 run, and only after reviewing it consider the complete 24-case run. The exact
 sequence and ignored artifact paths are documented in

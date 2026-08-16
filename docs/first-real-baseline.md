@@ -38,6 +38,8 @@ $env:TUTOR_MODEL_BASE_URL = "https://api.deepseek.com"
 $env:TUTOR_MODEL = "<exact model id>"
 $env:TUTOR_MODEL_API_PATH = "/chat/completions"
 $env:TUTOR_MODEL_MAX_OUTPUT_TOKENS_FIELD = "max_tokens"
+$env:TUTOR_MODEL_REASONING_SPLIT = "disabled"
+$env:TUTOR_MODEL_REQUIRE_REASONING_SEPARATION = "false"
 $env:TUTOR_MODEL_TIMEOUT_MS = "60000"
 node examples/canonical-model-host/chat-completions-server.mjs
 ```
@@ -50,9 +52,19 @@ $env:TUTOR_MODEL_BASE_URL = "https://api.minimax.io/v1"
 $env:TUTOR_MODEL = "<exact model id>"
 $env:TUTOR_MODEL_API_PATH = "/chat/completions"
 $env:TUTOR_MODEL_MAX_OUTPUT_TOKENS_FIELD = "max_completion_tokens"
+$env:TUTOR_MODEL_REASONING_SPLIT = "enabled"
+$env:TUTOR_MODEL_REQUIRE_REASONING_SEPARATION = "true"
 $env:TUTOR_MODEL_TIMEOUT_MS = "60000"
 node examples/canonical-model-host/chat-completions-server.mjs
 ```
+
+For MiniMax reasoning models, `reasoning_split=true` is a safety boundary:
+the bridge records only final `message.content`, while provider thinking stays
+outside `TutorResponseCorpus`. `TUTOR_MODEL_REQUIRE_REASONING_SEPARATION=true`
+fails closed if a provider still puts a `<think>...</think>` wrapper in
+`message.content`; it never tries to extract a guessed final answer. DeepSeek
+already returns `reasoning_content` separately, so its host configuration keeps
+the optional MiniMax field disabled and still reads only `message.content`.
 
 Use the provider's current API documentation to confirm the endpoint and
 output-token field before a paid run: [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)
@@ -114,39 +126,22 @@ the response text and metadata before spending quota on all 48 cases.
 A new collection refuses to overwrite an existing corpus path. If a run is
 interrupted or has failed/missing case-runs, resume the same path explicitly:
 
-```powershell
-node dist/src/cli/tutorbench.js collect-model `
-  --http http://127.0.0.1:9001/generate `
-  --provider minimax `
-  --model $env:TUTOR_MODEL `
-  --case fraction-misconception-001 `
-  --case hint-only-linear-equation-001 `
-  --case fraction-misconception-001-zh-CN `
-  --case hint-only-linear-equation-001-zh-CN `
-  --corpus-id preliminary-minimax-tutor-bilingual-001 `
-  --resume $smokeCorpus `
-  --output $smokeCorpus `
-  --report $smokeReport
-```
-
 Resume reuses only successful responses whose dataset, case version, model,
 model version, prompt identity, generation spec, corpus identity, and run
 index still match. Missing or previously failed case-runs are attempted once
-in the new invocation. A mismatch fails closed before any host call.
-
-After the smoke is reviewed, collect the complete current dataset with one
-run per case:
+in the new invocation. A mismatch fails closed before any host call. After the
+smoke is reviewed, continue the *same* corpus path without any `--case` or
+`--limit` selection flags:
 
 ```powershell
-$fullCorpus = "artifacts/real-model/preliminary-minimax-tutor-bilingual-001.corpus.json"
-$fullReport = "$fullCorpus.report.json"
+$fullCorpus = $smokeCorpus
+$fullReport = $smokeReport
 
 node dist/src/cli/tutorbench.js collect-model `
   --http http://127.0.0.1:9001/generate `
   --provider minimax `
   --model $env:TUTOR_MODEL `
-  --corpus-id preliminary-minimax-tutor-bilingual-001 `
-  --resume $fullCorpus `
+  --resume $smokeCorpus `
   --output $fullCorpus `
   --report $fullReport
 
@@ -158,6 +153,10 @@ node dist/src/cli/tutorbench.js evaluate `
   --output artifacts/real-model/preliminary-minimax-tutor-bilingual-001.evaluation.json
 ```
 
+For a successful four-case smoke this prints `Reused responses: 4`,
+`Model calls made: 44`, and `Responses: 48/48`. The four smoke responses and
+the forty-four newly completed responses remain under one corpus ID and one
+response-identity scheme; this command does not create a second full corpus.
 Full coverage means 48 planned calls, 48 successful responses, zero
 collection failures, and `coverage: "full"`. Evaluation replays the frozen
 corpus through `RecordedTutor`; it never regenerates Tutor text.
@@ -177,7 +176,8 @@ $env:CHAT_COMPLETIONS_JUDGE_BASE_URL = "https://api.minimax.io/v1"
 $env:CHAT_COMPLETIONS_JUDGE_API_PATH = "/chat/completions"
 $env:CHAT_COMPLETIONS_JUDGE_API_KEY = "<local secret>"
 $env:CHAT_COMPLETIONS_JUDGE_MAX_OUTPUT_TOKENS_FIELD = "max_completion_tokens"
-$env:CHAT_COMPLETIONS_JUDGE_MAX_TOKENS = "8192"
+$env:CHAT_COMPLETIONS_JUDGE_MAX_TOKENS = "2048"
+$env:CHAT_COMPLETIONS_JUDGE_REASONING_SPLIT = "enabled"
 $env:CHAT_COMPLETIONS_JUDGE_JSON_MODE = "disabled"
 $env:CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS = "60000"
 $env:CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS = "2"
@@ -189,6 +189,15 @@ node dist/src/cli/tutorbench.js evaluate `
   --report-locale zh-CN `
   --output artifacts/real-model/preliminary-minimax-tutor-bilingual-001.evaluation.json
 ```
+
+The MiniMax OpenAI-compatible documentation currently lists
+`max_completion_tokens` maximums of 524288 for MiniMax-M3 and 204800 for the
+listed M2.x models. The example uses `2048` as a conservative cross-model
+Judge cap; it is not a new generic Judge limit. Confirm the exact model's
+current limit before increasing it. With reasoning models, the enabled
+`CHAT_COMPLETIONS_JUDGE_REASONING_SPLIT` setting keeps thinking out of the
+JSON parser: the Judge parses only final `message.content` and never stores
+`reasoning_content`, `reasoning_details`, or provider metadata.
 
 The Tutor provider, Judge provider, and optional Review Translation provider
 are recorded as separate descriptors. The result remains preliminary and

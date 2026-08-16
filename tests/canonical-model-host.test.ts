@@ -9,6 +9,8 @@ import {
   buildTutorExecutionPacketFile,
   type TutorExecutionPacketFile,
 } from "../src/contracts/index.js";
+import { createHttpTutorExecutionHost } from "../src/adapters/index.js";
+import { collectCanonicalTutorModel } from "../src/collection/index.js";
 import {
   buildTutorBaselineGenerationSpec,
   loadTutorBaselinePrompt,
@@ -116,7 +118,13 @@ async function startHost(baseURL: string): Promise<HostProcess> {
   };
 }
 
-async function startChatCompletionsHost(baseURL: string): Promise<HostProcess> {
+async function startChatCompletionsHost(
+  baseURL: string,
+  options: {
+    readonly reasoningSplit?: "enabled" | "disabled";
+    readonly requireReasoningSeparation?: boolean;
+  } = {},
+): Promise<HostProcess> {
   const child = spawn(
     process.execPath,
     [resolve(process.cwd(), "examples/canonical-model-host/chat-completions-server.mjs")],
@@ -129,6 +137,10 @@ async function startChatCompletionsHost(baseURL: string): Promise<HostProcess> {
         TUTOR_MODEL_BASE_URL: baseURL,
         TUTOR_MODEL_API_PATH: "/chat/completions",
         TUTOR_MODEL_MAX_OUTPUT_TOKENS_FIELD: "max_tokens",
+        TUTOR_MODEL_REASONING_SPLIT: options.reasoningSplit ?? "disabled",
+        TUTOR_MODEL_REQUIRE_REASONING_SEPARATION: options.requireReasoningSeparation === true
+          ? "true"
+          : "false",
         TUTOR_MODEL_TIMEOUT_MS: "2000",
         CANONICAL_MODEL_HOST_PORT: "0",
       },
@@ -309,6 +321,7 @@ test("generic Chat Completions canonical host forwards visible messages and stri
       message: {
         content: "A fake Chat Completions tutor response.",
         reasoning_content: "private provider reasoning",
+        reasoning_details: [{ text: "private provider reasoning details" }],
       },
       finish_reason: "stop",
     }],
@@ -343,9 +356,94 @@ test("generic Chat Completions canonical host forwards visible messages and stri
     assert.equal(request.max_tokens, 1024);
     assert.equal(request.stream, false);
     assert.equal("reasoning_content" in request, false);
+    assert.equal("reasoning_split" in request, false);
     const responseText = JSON.stringify(body);
-    assert.doesNotMatch(responseText, /provider-secret|rawProviderPayload|private provider reasoning|synthetic-test-key/u);
+    assert.doesNotMatch(
+      responseText,
+      /provider-secret|rawProviderPayload|private provider reasoning|synthetic-test-key/u,
+    );
     assert.doesNotMatch(host.stderr(), /synthetic-test-key|provider secret/u);
+
+    const dataset = await loadTutorEvalDataset("tutor-eval-v0.2a");
+    const promptAsset = await loadTutorBaselinePrompt();
+    const generationSpec = buildTutorBaselineGenerationSpec(promptAsset);
+    const collection = await collectCanonicalTutorModel({
+      host: createHttpTutorExecutionHost({ endpoint: host.endpoint }),
+      dataset,
+      selectedCases: [dataset.cases[0]!],
+      promptAsset,
+      generationSpec,
+      tutorDescriptor: {
+        provider: "fixture-provider",
+        model: "fake-model",
+        promptId: generationSpec.prompt.id,
+        promptVersion: generationSpec.prompt.version,
+      },
+      corpusId: "reasoning-isolation-fixture",
+      corpusVersion: generationSpec.specVersion,
+    });
+    assert.ok(collection.corpus);
+    assert.equal(
+      collection.corpus.responses[0]?.responseText,
+      "A fake Chat Completions tutor response.",
+    );
+    assert.doesNotMatch(
+      JSON.stringify(collection.corpus),
+      /private provider reasoning|provider-secret|rawProviderPayload/u,
+    );
+    assert.equal(provider.requests.length, 2);
+  } finally {
+    await host.close();
+    await provider.close();
+  }
+});
+
+test("generic Chat Completions canonical host sends reasoning_split only when enabled", async () => {
+  const provider = await startFakeProvider({
+    choices: [{
+      message: { content: "A fake separated tutor response." },
+      finish_reason: "stop",
+    }],
+  });
+  const host = await startChatCompletionsHost(provider.baseURL, {
+    reasoningSplit: "enabled",
+  });
+  try {
+    const response = await fetch(host.endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await packet()),
+    });
+    assert.equal(response.status, 200);
+    const request = provider.requests[0];
+    assert.ok(request);
+    assert.equal(request.reasoning_split, true);
+  } finally {
+    await host.close();
+    await provider.close();
+  }
+});
+
+test("generic Chat Completions canonical host fails closed for unsplit reasoning wrappers", async () => {
+  const provider = await startFakeProvider({
+    choices: [{
+      message: { content: "<think>private reasoning</think>visible answer" },
+      finish_reason: "stop",
+    }],
+  });
+  const host = await startChatCompletionsHost(provider.baseURL, {
+    reasoningSplit: "enabled",
+    requireReasoningSeparation: true,
+  });
+  try {
+    const response = await fetch(host.endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(await packet()),
+    });
+    assert.equal(response.status, 502);
+    assert.deepEqual(await response.json(), { error: "provider_response_invalid" });
+    assert.equal(provider.requests.length, 1);
   } finally {
     await host.close();
     await provider.close();

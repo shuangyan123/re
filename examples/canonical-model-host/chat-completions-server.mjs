@@ -86,6 +86,32 @@ function maxOutputTokensFieldEnvironment(environment) {
   return field;
 }
 
+function reasoningSplitEnvironment(environment) {
+  const mode = environment.TUTOR_MODEL_REASONING_SPLIT?.trim() || "disabled";
+  if (mode !== "enabled" && mode !== "disabled") {
+    throw new CanonicalHostConfigurationError(
+      "TUTOR_MODEL_REASONING_SPLIT must be enabled or disabled.",
+    );
+  }
+  return mode;
+}
+
+function requireReasoningSeparationEnvironment(environment) {
+  const value = environment.TUTOR_MODEL_REQUIRE_REASONING_SEPARATION?.trim();
+  if (value === undefined || value.length === 0) {
+    return false;
+  }
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  throw new CanonicalHostConfigurationError(
+    "TUTOR_MODEL_REQUIRE_REASONING_SEPARATION must be true or false.",
+  );
+}
+
 function validateBaseUrl(environment) {
   const raw = requiredEnvironment("TUTOR_MODEL_BASE_URL", environment);
   let parsed;
@@ -117,6 +143,8 @@ function readConfiguration(environment = process.env) {
     baseUrl: validateBaseUrl(environment),
     apiPath: endpointPathEnvironment(environment),
     maxOutputTokensField: maxOutputTokensFieldEnvironment(environment),
+    reasoningSplit: reasoningSplitEnvironment(environment),
+    requireReasoningSeparation: requireReasoningSeparationEnvironment(environment),
     timeoutMs: positiveIntegerEnvironment(
       "TUTOR_MODEL_TIMEOUT_MS",
       environment.TUTOR_MODEL_TIMEOUT_MS,
@@ -155,6 +183,7 @@ function requestForPacket(packet, configuration) {
     messages: packet.cases[0].messages,
     stream: false,
     [configuration.maxOutputTokensField]: spec.maxOutputTokens,
+    ...(configuration.reasoningSplit === "enabled" ? { reasoning_split: true } : {}),
     ...(spec.temperature === undefined ? {} : { temperature: spec.temperature }),
   };
 }
@@ -170,7 +199,12 @@ function executionSupportForPacket(packet) {
   };
 }
 
-function responseText(body) {
+function containsReasoningWrapper(content) {
+  const normalized = content.toLowerCase();
+  return normalized.includes("<think") || normalized.includes("</think");
+}
+
+function responseText(body, configuration) {
   const choices = Array.isArray(body?.choices) ? body.choices : [];
   const choice = choices[0];
   if (choice?.finish_reason === "length") {
@@ -178,6 +212,10 @@ function responseText(body) {
   }
   const content = choice?.message?.content;
   if (typeof content !== "string" || content.trim().length === 0) {
+    throw new CanonicalHostRequestError("provider_response_invalid");
+  }
+  // Never guess which part of an unsplit provider response is user-visible.
+  if (configuration.requireReasoningSeparation && containsReasoningWrapper(content)) {
     throw new CanonicalHostRequestError("provider_response_invalid");
   }
   const providerStatus = body?.base_resp?.status_code;
@@ -219,7 +257,7 @@ async function executePacket(packet, configuration) {
       throw new CanonicalHostRequestError(providerStatusCode(response.status));
     }
     const body = await readUpstreamJson(response);
-    const text = responseText(body);
+    const text = responseText(body, configuration);
     const tokenUsage = sanitizedTokenUsage(body?.usage);
     return {
       output: {
