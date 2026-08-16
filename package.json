@@ -50,6 +50,7 @@
     "calibration:report": "npm run build && node dist/src/cli/calibration-report.js",
     "calibration:aggregate": "npm run build && node dist/src/cli/calibration-aggregate.js",
     "calibration:critical:export": "npm run build && node dist/src/cli/calibration-critical-export.js",
+    "calibration:critical:prepare": "npm run build && node dist/src/cli/calibration-critical-prepare.js",
     "calibration:critical:validate": "npm run build && node dist/src/cli/calibration-critical-validate.js",
     "calibration:critical:report": "npm run build && node dist/src/cli/calibration-critical-report.js",
     "calibration:critical:aggregate": "npm run build && node dist/src/cli/calibration-critical-aggregate.js",

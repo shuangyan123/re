@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -10,6 +10,7 @@ import {
   TUTOR_EVAL_DATASET_VERSION,
   TUTOR_EVAL_EVALUATOR_VERSION,
   findTutorResponseCorpusValidationIssues,
+  parseCalibrationCandidateResponseFile,
   parseTutorResponseCorpus,
   type TutorEvalDataset,
   type TutorResponseCorpus,
@@ -24,6 +25,10 @@ import {
   evaluateTutorResponseCorpus,
   type BenchmarkCorpusCliOptions,
 } from "../src/cli/tutorbench-evaluate.js";
+import {
+  parseCriticalCalibrationPrepareCliOptions,
+  prepareCriticalCalibrationCandidates,
+} from "../src/cli/calibration-critical-prepare.js";
 import { runTutorResponseCorpus } from "../src/runner/index.js";
 import type { TutorEvalJudgeRunOptions } from "../src/runner/index.js";
 
@@ -409,6 +414,150 @@ test("CLI replay opt-in evaluates a temporary frozen corpus without any provider
     assert.equal(result.evaluation.datasetVersion, "0.2a.1");
   } finally {
     await rm(files.directory, { recursive: true, force: true });
+  }
+});
+
+test("critical preparation keeps current identity and emits no review artifacts", async () => {
+  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const corpus = makeCorpus(dataset, false);
+  const files = await writeCorpus(corpus);
+  const outputPath = join(files.directory, "critical-candidates.json");
+  try {
+    const options = parseCriticalCalibrationPrepareCliOptions([
+      "--corpus",
+      files.path,
+      "--output",
+      outputPath,
+    ]);
+    const result = await prepareCriticalCalibrationCandidates(options);
+    const candidates = parseCalibrationCandidateResponseFile(
+      JSON.parse(await readFile(outputPath, "utf8")) as unknown,
+    );
+    const preparedResponse = candidates.responses.find(
+      (response) => response.responseId === corpus.responses[0]?.responseId,
+    );
+    assert.equal(result.semanticReplay, undefined);
+    assert.equal(candidates.datasetVersion, TUTOR_EVAL_DATASET_VERSION);
+    assert.ok(preparedResponse);
+    assert.equal(preparedResponse.sourceCorpus?.corpusId, corpus.corpusId);
+    assert.equal(preparedResponse.semanticReplay, undefined);
+    assert.equal("targets" in candidates, false);
+    assert.equal("annotations" in candidates, false);
+  } finally {
+    await rm(files.directory, { recursive: true, force: true });
+  }
+});
+
+test("critical preparation requires explicit replay opt-in for historical corpora", async () => {
+  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const corpus = makeCorpus(dataset, true);
+  const files = await writeCorpus(corpus);
+  try {
+    const options = parseCriticalCalibrationPrepareCliOptions([
+      "--corpus",
+      files.path,
+      "--output",
+      join(files.directory, "critical-candidates.json"),
+    ]);
+    await assert.rejects(
+      () => prepareCriticalCalibrationCandidates(options),
+      (error: unknown) =>
+        error instanceof BenchmarkConfigurationError &&
+        error.code === "tutor_response_corpus_invalid",
+    );
+  } finally {
+    await rm(files.directory, { recursive: true, force: true });
+  }
+});
+
+test("critical preparation records approved replay while preserving source response identity", async () => {
+  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const corpus = makeCorpus(dataset, true);
+  const files = await writeCorpus(corpus);
+  const outputPath = join(files.directory, "critical-candidates.json");
+  try {
+    const options = parseCriticalCalibrationPrepareCliOptions([
+      "--corpus",
+      files.path,
+      "--output",
+      outputPath,
+      "--allow-compatible-replay",
+    ]);
+    const result = await prepareCriticalCalibrationCandidates(options);
+    const candidates = parseCalibrationCandidateResponseFile(
+      JSON.parse(await readFile(outputPath, "utf8")) as unknown,
+    );
+    const languageResponse = corpus.responses.find(
+      (response) => response.caseId === LANGUAGE_CASE_ID,
+    )!;
+    const preparedLanguageResponse = candidates.responses.find(
+      (response) => response.caseId === LANGUAGE_CASE_ID,
+    )!;
+    assert.equal(result.semanticReplay?.sourceDatasetVersion, "0.2a");
+    assert.equal(result.semanticReplay?.targetDatasetVersion, TUTOR_EVAL_DATASET_VERSION);
+    assert.equal(preparedLanguageResponse.responseId, languageResponse.responseId);
+    assert.equal(preparedLanguageResponse.caseVersion, "1.0.1");
+    assert.equal(preparedLanguageResponse.sourceRun?.runId, corpus.corpusId);
+    assert.equal(preparedLanguageResponse.semanticReplay?.sourceDatasetVersion, "0.2a");
+    assert.equal(preparedLanguageResponse.semanticReplay?.targetDatasetVersion, "0.2a.1");
+  } finally {
+    await rm(files.directory, { recursive: true, force: true });
+  }
+});
+
+test("critical preparation rejects invalid replay and corrupted source response identity", async () => {
+  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const historicalCorpus = makeCorpus(dataset, true);
+  const invalidReplayCorpus = parseTutorResponseCorpus({
+    ...historicalCorpus,
+    responses: historicalCorpus.responses.map((response) =>
+      response.caseId === LANGUAGE_CASE_ID
+        ? { ...response, caseVersion: "9.9.9" }
+        : response,
+    ),
+  });
+  const invalidReplayFiles = await writeCorpus(invalidReplayCorpus);
+  const currentCorpus = makeCorpus(dataset, false);
+  const corruptedCurrentCorpus = parseTutorResponseCorpus({
+    ...currentCorpus,
+    responses: currentCorpus.responses.map((response, index) =>
+      index === 0 ? { ...response, responseId: "corrupted-source-response-id" } : response,
+    ),
+  });
+  const corruptedFiles = await writeCorpus(corruptedCurrentCorpus);
+  try {
+    await assert.rejects(
+      () =>
+        prepareCriticalCalibrationCandidates(
+          parseCriticalCalibrationPrepareCliOptions([
+            "--corpus",
+            invalidReplayFiles.path,
+            "--output",
+            join(invalidReplayFiles.directory, "critical-candidates.json"),
+            "--allow-compatible-replay",
+          ]),
+        ),
+      (error: unknown) =>
+        error instanceof BenchmarkConfigurationError &&
+        error.code === "tutor_response_replay_incompatible",
+    );
+    await assert.rejects(
+      () =>
+        prepareCriticalCalibrationCandidates(
+          parseCriticalCalibrationPrepareCliOptions([
+            "--corpus",
+            corruptedFiles.path,
+            "--output",
+            join(corruptedFiles.directory, "critical-candidates.json"),
+          ]),
+        ),
+      (error: unknown) =>
+        error instanceof BenchmarkConfigurationError &&
+        error.code === "tutor_response_corpus_invalid",
+    );
+  } finally {
+    await rm(invalidReplayFiles.directory, { recursive: true, force: true });
+    await rm(corruptedFiles.directory, { recursive: true, force: true });
   }
 });
 
