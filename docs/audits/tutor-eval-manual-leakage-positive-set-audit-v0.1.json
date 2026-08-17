@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "auditId": "tutor-eval-manual-leakage-positive-set-audit",
+  "auditVersion": "0.1.0",
+  "sourceDatasetId": "tutor-eval-v0.2a",
+  "sourceDatasetVersion": "0.2a.3",
+  "sourceTutor": {
+    "provider": "minimax",
+    "model": "MiniMax-M2.7"
+  },
+  "sourceJudge": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-pro"
+  },
+  "sourceJudgePrompt": {
+    "id": "tutor-eval-pedagogy-judge-system",
+    "version": "0.3"
+  },
+  "scope": {
+    "type": "judge_positive_only"
+  },
+  "cohort": {
+    "caseCount": 48,
+    "judgeObservedPositiveCount": 12,
+    "judgeObservedPositiveRate": 0.25,
+    "humanConfirmedLowerBoundCount": 9,
+    "humanConfirmedLowerBoundRate": 0.1875
+  },
+  "auditedJudgePositiveCount": 12,
+  "humanConfirmedPositiveCount": 9,
+  "humanDisagreedCount": 3,
+  "limitations": [
+    "Judge negatives not audited",
+    "recall unknown",
+    "full leakage prevalence unknown",
+    "9/48 is only a lower bound of human-confirmed leakage in this cohort"
+  ],
+  "entries": [
+    {
+      "caseId": "science-graph-error-001",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "absent",
+        "agreement": "disagree",
+        "classification": "false_positive",
+        "confidence": "high",
+        "rationale": "The Tutor located the amount-versus-rate axis mismatch and asked the learner to reread the vertical axis. This is permitted local diagnosis and verification guidance, without supplying a final answer or completing the material task."
+      }
+    },
+    {
+      "caseId": "language-word-context-001",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "absent",
+        "agreement": "disagree",
+        "classification": "false_positive",
+        "confidence": "high",
+        "rationale": "Distinguishing reluctant from unsure and using the context clue is a concept explanation and semantic correction, not a final answer disclosure. The no_answer case has no finalAnswer or acceptedAnswers."
+      }
+    },
+    {
+      "caseId": "language-word-context-001-zh-CN",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "absent",
+        "agreement": "disagree",
+        "classification": "false_positive",
+        "confidence": "high",
+        "rationale": "Explaining that reluctant is closer to unwilling or hesitant than unsure is the same allowed semantic distinction in Chinese context. The rubric must evaluate and correct the proposed meaning rather than require support for an incorrect proposal."
+      }
+    },
+    {
+      "caseId": "paired-fraction-conceptual-001",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "present",
+        "agreement": "agree",
+        "classification": "true_positive",
+        "confidence": "high",
+        "rationale": "Under hint_only, the Tutor directly supplied the complete original result 2/3 + 1/3 = 3/3 = 1."
+      }
+    },
+    {
+      "caseId": "paired-fraction-conceptual-001-zh-CN",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "present",
+        "agreement": "agree",
+        "classification": "true_positive",
+        "confidence": "high",
+        "rationale": "Under hint_only, the Tutor directly supplied 2/3 + 1/3 = (2+1)/3 = 3/3 = 1, completing the learner's task."
+      }
+    },
+    {
+      "caseId": "paired-fraction-procedural-001",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "present",
+        "agreement": "agree",
+        "classification": "true_positive",
+        "confidence": "high",
+        "rationale": "The Tutor performed the student's remaining step by keeping the denominator, adding 2 + 1, and giving 3/3."
+      }
+    },
+    {
+      "caseId": "paired-fraction-procedural-001-zh-CN",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "present",
+        "agreement": "agree",
+        "classification": "true_positive",
+        "confidence": "high",
+        "rationale": "The Tutor directly gave the complete calculation 2/3 + 1/3 = (2+1)/3 = 3/3 = 1 under hint_only."
+      }
+    },
+    {
+      "caseId": "paired-multiplication-procedural-001",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "present",
+        "agreement": "agree",
+        "classification": "true_positive",
+        "confidence": "high",
+        "rationale": "The learning task required the student to write repeated addition from three groups of four, but the Tutor supplied 4 + 4 + 4."
+      }
+    },
+    {
+      "caseId": "paired-multiplication-procedural-001-zh-CN",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "present",
+        "agreement": "agree",
+        "classification": "true_positive",
+        "confidence": "high",
+        "rationale": "The Tutor directly supplied 4 + 4 + 4, taking over the repeated-addition operation assigned to the learner."
+      }
+    },
+    {
+      "caseId": "programming-loop-diagnosis-001",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "present",
+        "agreement": "agree",
+        "classification": "true_positive",
+        "confidence": "high",
+        "rationale": "The Tutor went beyond the permitted debugging hint and supplied a complete corrected loop, including the condition and counter increment."
+      }
+    },
+    {
+      "caseId": "programming-abstraction-transfer-001-zh-CN",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "present",
+        "agreement": "agree",
+        "classification": "true_positive",
+        "confidence": "high",
+        "rationale": "The conceptual advice was allowed, but the Tutor then supplied the extracted function implementation and call example, performing the central abstraction operation for the learner."
+      }
+    },
+    {
+      "caseId": "science-force-transfer-001-zh-CN",
+      "judgeCriticalFailure": {
+        "type": "answer_leakage",
+        "severity": "major"
+      },
+      "humanDecision": {
+        "answerLeakage": "present",
+        "agreement": "agree",
+        "classification": "true_positive",
+        "confidence": "high",
+        "rationale": "Under partial_solution, the Tutor directly named gravity downward and support upward, then concluded that the forces were balanced instead of leaving the learner to identify and judge them."
+      }
+    }
+  ]
+}

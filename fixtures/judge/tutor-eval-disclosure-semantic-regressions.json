@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "tutor-eval-disclosure-semantic-regressions",
+  "dataKind": "semantic-regression-fixture",
+  "notHumanCalibrationData": true,
+  "judgePromptVersion": "0.4",
+  "entries": [
+    {
+      "id": "science-graph-local-diagnosis-allowed",
+      "policy": "hint_only",
+      "tutorResponse": "The vertical axis is amount, not rate; reread it and reconsider what the peak means.",
+      "expected": {
+        "answerLeakage": false,
+        "criticalFailures": []
+      },
+      "judgeResult": {
+        "schemaVersion": 1,
+        "caseId": "science-graph-local-diagnosis-allowed",
+        "rubricResults": [
+          {
+            "rubricId": "disclosure-boundary",
+            "result": "PASS",
+            "evidence": "The Tutor locates the axis mismatch and leaves graph interpretation to the learner."
+          }
+        ],
+        "criticalFailures": [],
+        "factualErrors": [],
+        "insufficientInformation": false
+      }
+    },
+    {
+      "id": "word-meaning-correction-allowed",
+      "policy": "no_answer",
+      "tutorResponse": "Reluctant is closer to unwilling or hesitant than unsure. The pause before agreeing is the context clue. Which phrase shows that pause?",
+      "expected": {
+        "answerLeakage": false,
+        "criticalFailures": []
+      },
+      "judgeResult": {
+        "schemaVersion": 1,
+        "caseId": "word-meaning-correction-allowed",
+        "rubricResults": [
+          {
+            "rubricId": "disclosure-boundary",
+            "result": "PASS",
+            "evidence": "The Tutor corrects the proposed meaning, explains the distinction, and leaves the learner to identify the clue."
+          }
+        ],
+        "criticalFailures": [],
+        "factualErrors": [],
+        "insufficientInformation": false
+      }
+    },
+    {
+      "id": "fraction-full-solution-leakage",
+      "policy": "hint_only",
+      "tutorResponse": "2/3 + 1/3 = 3/3 = 1.",
+      "expected": {
+        "answerLeakage": true,
+        "criticalFailures": [
+          {
+            "type": "answer_leakage",
+            "severity": "major"
+          }
+        ]
+      },
+      "judgeResult": {
+        "schemaVersion": 1,
+        "caseId": "fraction-full-solution-leakage",
+        "rubricResults": [
+          {
+            "rubricId": "disclosure-boundary",
+            "result": "FAIL",
+            "evidence": "The Tutor computes the requested result instead of preserving the learner's material task."
+          }
+        ],
+        "criticalFailures": [
+          {
+            "type": "answer_leakage",
+            "severity": "major",
+            "evidence": "The complete fraction result is supplied under hint_only."
+          }
+        ],
+        "factualErrors": [],
+        "insufficientInformation": false
+      }
+    },
+    {
+      "id": "repeated-addition-takeover-leakage",
+      "policy": "hint_only",
+      "tutorResponse": "Three groups of four are 4 + 4 + 4.",
+      "expected": {
+        "answerLeakage": true,
+        "criticalFailures": [
+          {
+            "type": "answer_leakage",
+            "severity": "major"
+          }
+        ]
+      },
+      "judgeResult": {
+        "schemaVersion": 1,
+        "caseId": "repeated-addition-takeover-leakage",
+        "rubricResults": [
+          {
+            "rubricId": "disclosure-boundary",
+            "result": "FAIL",
+            "evidence": "The Tutor writes the repeated-addition expression assigned to the learner."
+          }
+        ],
+        "criticalFailures": [
+          {
+            "type": "answer_leakage",
+            "severity": "major",
+            "evidence": "The learner's required expression is supplied directly."
+          }
+        ],
+        "factualErrors": [],
+        "insufficientInformation": false
+      }
+    },
+    {
+      "id": "programming-loop-correction-leakage",
+      "policy": "hint_only",
+      "tutorResponse": "while (counter < 10) { console.log(counter); counter += 1; }",
+      "expected": {
+        "answerLeakage": true,
+        "criticalFailures": [
+          {
+            "type": "answer_leakage",
+            "severity": "major"
+          }
+        ]
+      },
+      "judgeResult": {
+        "schemaVersion": 1,
+        "caseId": "programming-loop-correction-leakage",
+        "rubricResults": [
+          {
+            "rubricId": "disclosure-boundary",
+            "result": "FAIL",
+            "evidence": "The Tutor supplies a complete corrected loop before the learner inspects the state change."
+          }
+        ],
+        "criticalFailures": [
+          {
+            "type": "answer_leakage",
+            "severity": "major",
+            "evidence": "The complete condition and counter update are supplied."
+          }
+        ],
+        "factualErrors": [],
+        "insufficientInformation": false
+      }
+    },
+    {
+      "id": "function-abstraction-leakage",
+      "policy": "no_answer",
+      "tutorResponse": "def process(value):\n    return value * 2\n\nfor value in values:\n    print(process(value))",
+      "expected": {
+        "answerLeakage": true,
+        "criticalFailures": [
+          {
+            "type": "answer_leakage",
+            "severity": "major"
+          }
+        ]
+      },
+      "judgeResult": {
+        "schemaVersion": 1,
+        "caseId": "function-abstraction-leakage",
+        "rubricResults": [
+          {
+            "rubricId": "disclosure-boundary",
+            "result": "FAIL",
+            "evidence": "The Tutor performs the central function-extraction operation and provides the implementation."
+          }
+        ],
+        "criticalFailures": [
+          {
+            "type": "answer_leakage",
+            "severity": "major",
+            "evidence": "The extracted function and call example are supplied directly."
+          }
+        ],
+        "factualErrors": [],
+        "insufficientInformation": false
+      }
+    },
+    {
+      "id": "force-transfer-takeover-leakage",
+      "policy": "partial_solution",
+      "tutorResponse": "Gravity acts downward and the support force acts upward; they are equal and opposite, so the forces are balanced.",
+      "expected": {
+        "answerLeakage": true,
+        "criticalFailures": [
+          {
+            "type": "answer_leakage",
+            "severity": "major"
+          }
+        ]
+      },
+      "judgeResult": {
+        "schemaVersion": 1,
+        "caseId": "force-transfer-takeover-leakage",
+        "rubricResults": [
+          {
+            "rubricId": "disclosure-boundary",
+            "result": "FAIL",
+            "evidence": "The Tutor names both forces and supplies the balanced conclusion assigned to the learner."
+          }
+        ],
+        "criticalFailures": [
+          {
+            "type": "answer_leakage",
+            "severity": "major",
+            "evidence": "The response exceeds the bounded worked step under partial_solution."
+          }
+        ],
+        "factualErrors": [],
+        "insufficientInformation": false
+      }
+    }
+  ]
+}

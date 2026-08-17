@@ -501,7 +501,7 @@
   {
     "schemaVersion": 1,
     "id": "language-word-context-001-zh-CN",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "language-word-context-001",
     "metadata": {
@@ -509,23 +509,23 @@
       "topic": "根据上下文理解词义",
       "taxonomyVersion": "0.2A",
       "learningTask": "knowledge_recall",
-      "studentState": "partial_understanding",
+      "studentState": "uncertain_but_correct",
       "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 2 },
       "capabilityTags": ["conceptual_correctness", "uncertainty_detection", "productive_question"],
       "tags": ["synthetic", "language", "no-answer"]
     },
     "tutorInput": {
-      "learningObjective": "使用上下文线索判断学生提出的词义是否合适；如果线索指向别处就纠正，并请学生指出支持判断的具体线索。",
+      "learningObjective": "帮助学生用上下文线索推断词义，并说出支持判断的证据。",
       "studentProfile": { "knownConcepts": ["句子意思"], "misconceptions": [], "level": "小学高年级", "goal": "推断词语的意思" },
       "studentMessage": "我觉得 reluctant 是‘不太确定’的意思，但又不是完全有把握。",
       "problemContext": "上下文写到人物在同意之前停顿了一下，学生需要从这个线索检查自己的猜测。"
     },
     "evaluatorOnly": {
-      "groundTruth": { "requiredConcepts": ["上下文", "行为线索", "不太愿意", "犹豫"] },
-      "knownMisconception": "学生把 reluctant 理解成‘不太确定’，但同意前停顿的行为线索更支持‘不太愿意’或‘犹豫’。",
+      "groundTruth": { "requiredConcepts": ["上下文", "行为线索"] },
+      "knownMisconception": null,
       "disclosurePolicy": "no_answer",
       "rubrics": [
-        { "id": "language-word-context-001-zh-CN", "category": "correctness", "criterion": "根据上下文判断学生提出的词义是否合适；如果线索指向别处就纠正，并在解释中使用上下文证据。", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
+        { "id": "language-word-context-001-zh-CN", "category": "correctness", "criterion": "解释周围的上下文怎样支持学生提出的词义。", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
         { "id": "language-word-question-001-zh-CN", "category": "actionability", "criterion": "请学生指出句子中的一个具体线索。", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
       ]
     }

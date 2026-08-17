@@ -1,8 +1,8 @@
 # First real bilingual Tutor baseline
 
-This procedure creates a local, preliminary, uncalibrated Tutor corpus for
-the current `tutor-eval-v0.2a@0.2a.3` dataset: 24 English cases plus 24
-`zh-CN` cases. It does not change the dataset, generation profile, evaluator,
+This procedure records the historical local, preliminary, uncalibrated Tutor
+corpus for `tutor-eval-v0.2a@0.2a.3`: 24 English cases plus 24 `zh-CN` cases.
+It does not change the dataset, generation profile, evaluator,
 Judge rubrics, scoring, response identity, or public website. Codex and CI do
 not make provider calls; the commands below are manual operator commands.
 

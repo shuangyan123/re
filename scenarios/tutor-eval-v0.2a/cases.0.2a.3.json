@@ -486,30 +486,30 @@
   {
     "schemaVersion": 1,
     "id": "language-word-context-001",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "crossLocaleGroupId": "language-word-context-001",
     "metadata": {
       "subject": "language",
       "topic": "word meaning from context",
       "taxonomyVersion": "0.2A",
       "learningTask": "knowledge_recall",
-      "studentState": "partial_understanding",
+      "studentState": "uncertain_but_correct",
       "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 2 },
       "capabilityTags": ["conceptual_correctness", "uncertainty_detection", "productive_question"],
       "tags": ["synthetic", "language", "no-answer"]
     },
     "tutorInput": {
-      "learningObjective": "Use context clues to evaluate the student's proposed meaning, correct it if the context points elsewhere, and ask the student to identify the supporting clue.",
+      "learningObjective": "Help the student use context clues to infer a word meaning and state what evidence supports it.",
       "studentProfile": { "knownConcepts": ["sentence meaning"], "misconceptions": [], "level": "upper-elementary", "goal": "infer word meaning" },
       "studentMessage": "I think 'reluctant' means unsure, but I am not completely certain.",
       "problemContext": "The surrounding sentence shows the character pauses before agreeing."
     },
     "evaluatorOnly": {
-      "groundTruth": { "requiredConcepts": ["context", "reluctant", "unwilling", "hesitant"] },
-      "knownMisconception": "The student equates reluctant with unsure even though pausing before agreeing points to being unwilling or hesitant.",
+      "groundTruth": { "requiredConcepts": ["context"] },
+      "knownMisconception": null,
       "disclosurePolicy": "no_answer",
       "rubrics": [
-        { "id": "language-word-context-001", "category": "correctness", "criterion": "Evaluate the student's proposed meaning against the context, correct it if the context points elsewhere, and use the context evidence in the explanation.", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
+        { "id": "language-word-context-001", "category": "correctness", "criterion": "Explain that the surrounding context supports the proposed meaning.", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
         { "id": "language-word-question-001", "category": "actionability", "criterion": "Ask the student to point to one clue in the sentence.", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
       ]
     }

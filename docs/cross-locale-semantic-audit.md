@@ -100,19 +100,25 @@ does not attempt to parse arbitrary natural-language mathematics.
 
 ## Versioning and compatibility
 
-The corrected canonical identity is `tutor-eval-v0.2a@0.2a.3`.
+The corrected canonical identity for this audit is `tutor-eval-v0.2a@0.2a.3`.
+
+The current dataset is `tutor-eval-v0.2a@0.2a.4`, which makes a separate
+semantic correction to the bilingual `language-word-context-001` pair. The
+`.2a.3` snapshot remains loadable for the historical real-model baseline.
 
 The following remain explicitly loadable:
 
 - `0.2a.1`, the historical English-only snapshot; and
 - `0.2a.2`, the immutable bilingual snapshot stored in
   `scenarios/tutor-eval-v0.2a/cases.zh-CN.0.2a.2.json`.
+- `0.2a.3`, the immutable corrected bilingual snapshot stored in the matching
+  versioned English and Chinese case files.
 
 The 11 changed Chinese cases have version `1.1.0`; unchanged Chinese cases
-remain `1.0.0`, and English case versions are unchanged. Historical files and
-frozen response artifacts are not rewritten. No replay rule was added for
-`0.2a.2 -> 0.2a.3`; changed Tutor-visible content remains incompatible with
-historical responses by default.
+remain `1.0.0`, and the word-context English case is now `1.1.0`. Historical
+files and frozen response artifacts are not rewritten. No replay rule was added
+for `0.2a.2 -> 0.2a.4` or `0.2a.3 -> 0.2a.4`; changed Tutor-visible content
+remains incompatible with historical responses by default.
 
 The Review Translation Layer remains separate from case locale, Tutor input,
 Judge input, scoring, fingerprints, corpus identity, and response IDs.

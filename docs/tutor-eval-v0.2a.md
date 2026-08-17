@@ -175,7 +175,8 @@ The deterministic ownership and proxy audit is recorded in
 [`docs/deterministic-verifier-audit.md`](deterministic-verifier-audit.md). The
 The historical dataset/case identity described by the audit trail remains
 `tutor-eval-v0.2a@0.2a.1`; the current bilingual snapshot is
-`tutor-eval-v0.2a@0.2a.3`. Replay results also carry the explicit evaluator
+`tutor-eval-v0.2a@0.2a.4`, while `0.2a.3` remains loadable for historical
+baseline artifacts. Replay results also carry the explicit evaluator
 semantic version so frozen response evidence is not silently compared across
 verifier revisions.
 
