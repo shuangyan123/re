@@ -18,6 +18,7 @@ export * from "./tutor-eval-result-validation.js";
 export * from "./tutor-eval-validation.js";
 export * from "./tutor-response-corpus.js";
 export * from "./tutor-response-corpus-validation.js";
+export * from "./tutor-response-corpus-evaluation-validation.js";
 export * from "./tutor-response-replay.js";
 export * from "./tutor-generation.js";
 export * from "./tutor-execution.js";

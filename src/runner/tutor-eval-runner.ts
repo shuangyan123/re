@@ -34,6 +34,7 @@ import {
   tutorEvalRubricResultHasAnswerLeak,
 } from "../evaluators/index.js";
 import { executeTutorEvalJudge } from "./tutor-eval-judge-execution.js";
+import { tutorResponseCorpusCaseRunKey } from "./tutor-response-corpus-resume.js";
 
 export interface TutorEvalJudgeRunOptions extends TutorEvalJudgeDescriptor {
   readonly evaluate?: TutorEvalJudge["evaluate"];
@@ -52,6 +53,10 @@ export interface RunTutorEvalOptions {
   readonly now?: () => Date;
   readonly scoring?: TutorEvalScoringConfig;
   readonly datasetLoader?: (datasetId: string) => Promise<TutorEvalDataset>;
+  /** Validated frozen case-runs supplied by the corpus resume path. */
+  readonly reusedCaseResults?: ReadonlyMap<string, TutorEvalCaseRunResult>;
+  /** Internal telemetry callback; it is never persisted in a result artifact. */
+  readonly onJudgeCall?: () => void;
 }
 
 export interface TutorEvalTutorOptions {
@@ -321,6 +326,7 @@ async function runCase(
   runIndex: number,
   judge: TutorEvalJudgeRunOptions | undefined,
   scoring: TutorEvalScoringConfig,
+  onJudgeCall: (() => void) | undefined,
 ): Promise<TutorEvalCaseRunResult> {
   const started = performance.now();
   let output: Awaited<ReturnType<TutorUnderTest["respond"]>>;
@@ -348,6 +354,7 @@ async function runCase(
     output.text,
     judgeRubrics,
     judge,
+    onJudgeCall,
   );
   const judgeFailure = judgeExecution.failure;
 
@@ -417,9 +424,17 @@ export async function runTutorEval(
   const caseResults: TutorEvalCaseRunResult[] = [];
   for (const tutorEvalCase of orderedCases) {
     for (let runIndex = 1; runIndex <= runsPerCase; runIndex += 1) {
-      caseResults.push(
-        await runCase(options.tutor, tutorEvalCase, runIndex, options.judge, scoring),
+      const reused = options.reusedCaseResults?.get(
+        tutorResponseCorpusCaseRunKey(tutorEvalCase.id, runIndex),
       );
+      caseResults.push(reused ?? await runCase(
+        options.tutor,
+        tutorEvalCase,
+        runIndex,
+        options.judge,
+        scoring,
+        options.onJudgeCall,
+      ));
     }
   }
   const aggregates = caseResults

@@ -203,6 +203,63 @@ The Tutor provider, Judge provider, and optional Review Translation provider
 are recorded as separate descriptors. The result remains preliminary and
 uncalibrated; it is not a leaderboard or model ranking.
 
+## Observed DeepSeek V4-Pro Judge run and strict recovery
+
+The first full bilingual Judge run used the frozen 48-response corpus,
+`deepseek-v4-pro`, the repository's
+`tutor-eval-pedagogy-judge-system@0.3` prompt, thinking enabled, high reasoning
+effort, and an 8192-token output cap:
+
+```powershell
+$env:DEEPSEEK_API_KEY = "<local secret>"
+$env:DEEPSEEK_JUDGE_MODEL = "deepseek-v4-pro"
+$env:DEEPSEEK_JUDGE_THINKING = "enabled"
+$env:DEEPSEEK_JUDGE_REASONING_EFFORT = "high"
+$env:DEEPSEEK_JUDGE_MAX_TOKENS = "8192"
+$env:DEEPSEEK_JUDGE_TIMEOUT_MS = "60000"
+$env:DEEPSEEK_JUDGE_MAX_ATTEMPTS = "2"
+
+$judgeEvaluation = "artifacts/real-model/preliminary-minimax-m27-tutor-bilingual-001.evaluation.json"
+node dist/src/cli/tutorbench.js evaluate `
+  --corpus $fullCorpus `
+  --full `
+  --judge-deepseek `
+  --report-locale zh-CN `
+  --output $judgeEvaluation
+```
+
+That observed run completed with 21 passed, 24 failed, and 3
+`judge_timeout` errors. The timeout case-runs were
+`language-word-context-001-zh-CN`, `programming-loop-diagnosis-001`, and
+`programming-loop-diagnosis-001-zh-CN`. They were recovered with a
+conservative 180-second timeout for this real V4-Pro baseline after observed
+latencies above 60 seconds; this is not a claim that DeepSeek always needs 180
+seconds:
+
+```powershell
+$env:DEEPSEEK_JUDGE_TIMEOUT_MS = "180000"
+$recoveredEvaluation = "artifacts/real-model/preliminary-minimax-m27-tutor-bilingual-001.evaluation-recovered.json"
+node dist/src/cli/tutorbench.js evaluate `
+  --corpus $fullCorpus `
+  --full `
+  --judge-deepseek `
+  --resume-evaluation $judgeEvaluation `
+  --report-locale zh-CN `
+  --output $recoveredEvaluation
+```
+
+`--resume-evaluation` validates the previous artifact and its corpus, dataset,
+Tutor, case, frozen-response, evaluator, and Judge semantic identities before
+any Judge call. Valid `passed` and `failed` case-runs are reused; `error`
+case-runs are evaluated again through `RecordedTutor`, without regenerating
+Tutor responses. The expected recovery telemetry is 45 reused evaluation
+case-runs, 3 Judge calls, and 48 final case-runs. This is operator-controlled
+recovery, not an automatic retry policy, and changing timeout or max-attempt
+execution policy does not change the Judge scoring identity.
+
+This remains a preliminary, uncalibrated result and is not eligible for a
+public leaderboard or model-ranking claim.
+
 ## Private Review Translation and Audit
 
 Review Translation is an after-evaluation reading aid. It is not part of

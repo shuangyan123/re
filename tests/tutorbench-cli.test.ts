@@ -196,6 +196,8 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
     "--limit",
     "1",
     "--judge-deepseek",
+    "--resume-evaluation",
+    "artifacts/previous-result.json",
     "--report-locale",
     "zh-CN",
     "--output",
@@ -209,6 +211,10 @@ test("tutorbench exposes collect and evaluate command parsers with explicit iden
   assert.deepEqual(evaluate.evaluate.caseIds, ["case-b", "case-a"]);
   assert.equal(evaluate.evaluate.limit, 1);
   assert.equal(evaluate.evaluate.deepSeekJudge, true);
+  assert.equal(
+    evaluate.evaluate.resumeEvaluationPath,
+    resolve(process.cwd(), "artifacts/previous-result.json"),
+  );
   assert.equal(evaluate.evaluate.reportLocale, "zh-CN");
   assert.equal(evaluate.evaluate.liveJudge, false);
   assert.equal(evaluate.evaluate.allowCompatibleReplay, false);
