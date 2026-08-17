@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -5,6 +6,7 @@ import {
   TUTOR_EVAL_DATASET_ID,
   TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   assertValidTutorResponseCorpus,
+  parseTutorResponseCorpusEvaluationResult,
   type TutorResponseCorpusEvaluationResult,
 } from "../contracts/index.js";
 import {
@@ -48,6 +50,7 @@ export interface BenchmarkCorpusCliOptions {
   readonly caseIds: readonly string[];
   readonly limit: number | null;
   readonly outputPath?: string;
+  readonly resumeEvaluationPath?: string;
   /** Report labels only; case locale and evaluation semantics are unchanged. */
   readonly reportLocale?: TutorEvalReportLocale;
   readonly help: boolean;
@@ -77,6 +80,7 @@ export function parseBenchmarkCorpusCliOptions(
   let limit: number | null = null;
   const caseIds: string[] = [];
   let outputPath: string | undefined;
+  let resumeEvaluationPath: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (argument === "--help" || argument === "-h") {
@@ -101,6 +105,11 @@ export function parseBenchmarkCorpusCliOptions(
       chatCompletionsJudge = true;
     } else if (argument === "--allow-compatible-replay") {
       allowCompatibleReplay = true;
+    } else if (argument === "--resume-evaluation") {
+      resumeEvaluationPath = resolve(
+        nextTutorbenchValue(args, index, "--resume-evaluation"),
+      );
+      index += 1;
     } else if (argument === "--report-locale") {
       reportLocale = parseReportLocale(nextTutorbenchValue(args, index, "--report-locale"));
       index += 1;
@@ -142,11 +151,19 @@ export function parseBenchmarkCorpusCliOptions(
           if (outputValue !== undefined) {
             outputPath = resolve(outputValue);
           } else {
-            const reportLocaleValue = tutorbenchOptionValue(argument ?? "", "--report-locale");
-            if (reportLocaleValue !== undefined) {
-              reportLocale = parseReportLocale(reportLocaleValue);
+            const resumeEvaluationValue = tutorbenchOptionValue(
+              argument ?? "",
+              "--resume-evaluation",
+            );
+            if (resumeEvaluationValue !== undefined) {
+              resumeEvaluationPath = resolve(resumeEvaluationValue);
             } else {
-              throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
+              const reportLocaleValue = tutorbenchOptionValue(argument ?? "", "--report-locale");
+              if (reportLocaleValue !== undefined) {
+                reportLocale = parseReportLocale(reportLocaleValue);
+              } else {
+                throw new BenchmarkConfigurationError("tutor_response_corpus_invalid");
+              }
             }
           }
         }
@@ -172,6 +189,7 @@ export function parseBenchmarkCorpusCliOptions(
     caseIds,
     limit,
     ...(outputPath === undefined ? {} : { outputPath }),
+    ...(resumeEvaluationPath === undefined ? {} : { resumeEvaluationPath }),
     ...(reportLocale === undefined ? {} : { reportLocale }),
     help: false,
   };
@@ -193,6 +211,8 @@ Options:
                         Opt in to a provider-neutral Chat Completions Judge configured by environment
   --allow-compatible-replay
                         Opt in only to repository-audited Tutor-visible-equivalent transitions
+  --resume-evaluation <path>
+                        Reuse only valid completed case-runs from a prior evaluation artifact
   --live-judge          Alias for --judge-openai
   --report-locale <id>  Report labels only: en (default) or zh-CN
   --output <path>       Write the preliminary evaluation artifact to this path
@@ -204,6 +224,21 @@ Selection semantics:
   Coverage remains the source corpus coverage; subset metadata is recorded in
   evaluationSelection. No Tutor provider is called during evaluation.
 `);
+}
+
+async function loadResumeEvaluation(
+  path: string,
+): Promise<TutorResponseCorpusEvaluationResult> {
+  try {
+    return parseTutorResponseCorpusEvaluationResult(
+      JSON.parse(await readFile(path, "utf8")) as unknown,
+    );
+  } catch (error) {
+    if (error instanceof BenchmarkConfigurationError) {
+      throw error;
+    }
+    throw new BenchmarkConfigurationError("tutor_eval_result_invalid");
+  }
 }
 
 function requestedDatasetVersionForCorpus(
@@ -357,12 +392,17 @@ export async function evaluateTutorResponseCorpus(
     caseIds: options.caseIds,
     ...(options.limit === null ? {} : { limit: options.limit }),
   });
+  const resumeEvaluation = options.resumeEvaluationPath === undefined
+    ? undefined
+    : await loadResumeEvaluation(options.resumeEvaluationPath);
   const judge = await createJudgeIfRequested(
     options.liveJudge,
     options.deepSeekJudge,
     options.chatCompletionsJudge === true,
   );
-  return runTutorResponseCorpus({
+  let reusedCaseRunCount = 0;
+  let judgeCallsMade = 0;
+  const result = await runTutorResponseCorpus({
     corpus,
     dataset,
     requireFull: options.requireFull,
@@ -370,8 +410,26 @@ export async function evaluateTutorResponseCorpus(
     ...(options.limit === null ? {} : { limit: options.limit }),
     ...(semanticReplay === undefined ? {} : { semanticReplay }),
     ...(judge === undefined ? {} : { judge }),
+    ...(resumeEvaluation === undefined
+      ? {}
+      : {
+          resumeEvaluation,
+          onResume: (telemetry) => {
+            reusedCaseRunCount = telemetry.reusedCaseRunCount;
+          },
+          onJudgeCall: () => {
+            judgeCallsMade += 1;
+          },
+        }),
     runId: `benchmark-corpus-${corpus.corpusId}`,
   });
+  if (options.resumeEvaluationPath !== undefined) {
+    console.log(`Resume evaluation: ${options.resumeEvaluationPath}`);
+    console.log(`Reused evaluation case-runs: ${reusedCaseRunCount}`);
+    console.log(`Judge calls made: ${judgeCallsMade}`);
+    console.log(`Final case-runs: ${result.evaluation.caseRunCount}`);
+  }
+  return result;
 }
 
 export function buildTutorBaselineEvaluationArtifact(

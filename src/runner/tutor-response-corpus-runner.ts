@@ -24,12 +24,19 @@ import {
   type TutorEvalJudgeRunOptions,
   type TutorEvalTutorOptions,
 } from "./tutor-eval-runner.js";
+import {
+  prepareTutorResponseCorpusResume,
+  type TutorResponseCorpusResumeTelemetry,
+} from "./tutor-response-corpus-resume.js";
 
 export interface RunTutorResponseCorpusOptions {
   readonly corpus: TutorResponseCorpus;
   readonly dataset: TutorEvalDataset;
   readonly requireFull?: boolean;
   readonly judge?: TutorEvalJudgeRunOptions;
+  readonly resumeEvaluation?: TutorResponseCorpusEvaluationResult;
+  readonly onResume?: (telemetry: TutorResponseCorpusResumeTelemetry) => void;
+  readonly onJudgeCall?: () => void;
   readonly runId?: string;
   readonly now?: () => Date;
   readonly scoring?: RunTutorEvalOptions["scoring"];
@@ -170,6 +177,20 @@ export async function runTutorResponseCorpus(
   const tutor = semanticReplay === undefined
     ? new RecordedTutor(options.corpus)
     : new SemanticReplayTutor(options.corpus, semanticReplay.caseVersionMappings);
+  const resumePlan = options.resumeEvaluation === undefined
+    ? undefined
+    : prepareTutorResponseCorpusResume({
+        previousEvaluation: options.resumeEvaluation,
+        corpus: options.corpus,
+        dataset: options.dataset,
+        selectedCases: selected.cases,
+        selection: resolvedSelection.selection,
+        ...(semanticReplay === undefined ? {} : { semanticReplay }),
+        ...(options.judge === undefined ? {} : { judge: options.judge }),
+      });
+  if (resumePlan !== undefined) {
+    options.onResume?.({ reusedCaseRunCount: resumePlan.reusedCaseRunCount });
+  }
   const runOptions: RunTutorEvalOptions = {
     dataset: selected,
     tutor,
@@ -179,6 +200,8 @@ export async function runTutorResponseCorpus(
     ...(options.now === undefined ? {} : { now: options.now }),
     ...(options.scoring === undefined ? {} : { scoring: options.scoring }),
     ...(options.judge === undefined ? {} : { judge: options.judge }),
+    ...(resumePlan === undefined ? {} : { reusedCaseResults: resumePlan.reusableCaseResults }),
+    ...(options.onJudgeCall === undefined ? {} : { onJudgeCall: options.onJudgeCall }),
   };
   const evaluation: TutorEvalRunResult = await runTutorEval(runOptions);
   return {

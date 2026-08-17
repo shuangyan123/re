@@ -183,6 +183,7 @@ export async function executeTutorEvalJudge(
         readonly evaluateWithMetrics?: TutorEvalJudge["evaluateWithMetrics"];
       }
     | undefined,
+  onJudgeCall?: () => void,
 ): Promise<TutorEvalJudgeExecution> {
   if (judgeRubrics.length === 0) {
     return {
@@ -210,6 +211,7 @@ export async function executeTutorEvalJudge(
     };
   }
 
+  onJudgeCall?.();
   let evaluation: TutorEvalJudgeEvaluation | null = null;
   try {
     const input = buildTutorEvalJudgeInput(tutorEvalCase, tutorResponse);
