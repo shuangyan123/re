@@ -9,6 +9,7 @@ import {
   TUTOR_EVAL_LEGACY_DATASET_VERSION,
   TUTOR_EVAL_DATASET_ID,
   TUTOR_EVAL_DATASET_VERSION,
+  TUTOR_EVAL_PREVIOUS_CANONICAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   type TutorEvalDataset,
@@ -29,11 +30,19 @@ export async function loadTutorEvalDataset(
             strict: true,
             requireCrossLocaleGroups: true,
           }
+        : requestedVersion === TUTOR_EVAL_PREVIOUS_CANONICAL_DATASET_VERSION
+          ? {
+              directory: "tutor-eval-v0.2a",
+              version: TUTOR_EVAL_PREVIOUS_CANONICAL_DATASET_VERSION,
+              files: ["cases.0.2a.3.json", "cases.zh-CN.0.2a.3.json"],
+              strict: true,
+              requireCrossLocaleGroups: true,
+            }
         : requestedVersion === TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION
           ? {
               directory: "tutor-eval-v0.2a",
               version: TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
-              files: ["cases.json", "cases.zh-CN.0.2a.2.json"],
+              files: ["cases.0.2a.2.json", "cases.zh-CN.0.2a.2.json"],
               strict: true,
               requireCrossLocaleGroups: true,
             }
@@ -41,7 +50,7 @@ export async function loadTutorEvalDataset(
           ? {
               directory: "tutor-eval-v0.2a",
               version: TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
-              files: ["cases.json"],
+              files: ["cases.0.2a.2.json"],
               strict: true,
               requireCrossLocaleGroups: false,
             }

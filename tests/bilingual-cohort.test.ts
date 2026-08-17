@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   TUTOR_EVAL_DATASET_ID,
+  TUTOR_EVAL_PREVIOUS_CANONICAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   resolveTutorCaseLocale,
@@ -217,6 +218,32 @@ test("the language-specific verb case is an authored counterpart, not a literal 
   assert.match(chinese.tutorInput.learningObjective, /主谓一致/);
 });
 
+test("the bilingual word-context pair evaluates and corrects the proposed meaning", async () => {
+  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const english = dataset.cases.find((caseValue) => caseValue.id === "language-word-context-001");
+  const chinese = dataset.cases.find((caseValue) => caseValue.id === "language-word-context-001-zh-CN");
+  assert.ok(english);
+  assert.ok(chinese);
+  assert.equal(english.version, "1.1.0");
+  assert.equal(chinese.version, "1.1.0");
+  assert.equal(english.metadata.studentState, "partial_understanding");
+  assert.equal(chinese.metadata.studentState, "partial_understanding");
+  assert.match(english.tutorInput.learningObjective, /evaluate the student's proposed meaning.*correct it.*supporting clue/u);
+  assert.match(chinese.tutorInput.learningObjective, /判断学生提出的词义.*纠正.*具体线索/u);
+  assert.match(english.evaluatorOnly.knownMisconception ?? "", /reluctant.*unsure/u);
+  assert.match(chinese.evaluatorOnly.knownMisconception ?? "", /reluctant.*不太确定/u);
+  assert.match(
+    english.evaluatorOnly.rubrics[0]?.criterion ?? "",
+    /Evaluate the student's proposed meaning.*correct it.*context evidence/u,
+  );
+  assert.match(
+    chinese.evaluatorOnly.rubrics[0]?.criterion ?? "",
+    /判断学生提出的词义.*纠正.*上下文证据/u,
+  );
+  assert.equal(english.evaluatorOnly.groundTruth?.finalAnswer, undefined);
+  assert.equal(chinese.evaluatorOnly.groundTruth?.finalAnswer, undefined);
+});
+
 test("the previous English-only dataset remains readable without widening replay semantics", async () => {
   const historical = await loadTutorEvalDataset(
     TUTOR_EVAL_DATASET_ID,
@@ -254,6 +281,23 @@ test("the previous bilingual snapshot remains loadable after the semantic correc
   assert.match(
     correctedFraction.tutorInput.studentMessage,
     /1\/3\s*\+\s*1\/4\s*=\s*2\/7/u,
+  );
+});
+
+test("the previous canonical bilingual snapshot preserves the pre-audit word-context pair", async () => {
+  const historical = await loadTutorEvalDataset(
+    TUTOR_EVAL_DATASET_ID,
+    TUTOR_EVAL_PREVIOUS_CANONICAL_DATASET_VERSION,
+  );
+  const english = historical.cases.find((caseValue) => caseValue.id === "language-word-context-001");
+  const chinese = historical.cases.find((caseValue) => caseValue.id === "language-word-context-001-zh-CN");
+  assert.ok(english);
+  assert.ok(chinese);
+  assert.equal(english.version, "1.0.0");
+  assert.equal(chinese.version, "1.0.0");
+  assert.match(
+    english.evaluatorOnly.rubrics[0]?.criterion ?? "",
+    /supports the proposed meaning/u,
   );
 });
 

@@ -335,13 +335,15 @@ test("canonical critical-failure mappings are limited to the audited valid set",
   );
 });
 
-test("current Judge prompt is v0.3 while the v0.2 artifact remains readable", async () => {
+test("current Judge prompt is v0.4 while the v0.2 artifact remains readable", async () => {
   const prompt = await loadTutorEvalPedagogyJudgePrompt();
-  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.3");
+  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.4");
   assert.match(prompt, /task-completing answer/);
   assert.match(prompt, /student_task_takeover/);
   assert.match(prompt, /Wrong diagnosis/);
   assert.match(prompt, /No diagnosis/);
+  assert.match(prompt, /meaning A and the context supports meaning B/);
+  assert.match(prompt, /vertical axis is amount, not rate/);
   assert.deepEqual(
     buildTutorEvalJudgeInput(
       makeCase("prompt-boundary", "no_answer", [
