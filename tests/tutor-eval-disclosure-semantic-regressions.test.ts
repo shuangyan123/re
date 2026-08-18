@@ -74,13 +74,15 @@ function makeDisclosureCase(entry: SemanticRegressionEntry) {
   });
 }
 
-test("v0.6 Judge prompt states the no_answer and hint_only semantic boundaries", async () => {
+test("v0.7 Judge prompt states the no_answer and hint_only semantic boundaries", async () => {
   const prompt = await loadTutorEvalPedagogyJudgePrompt();
-  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.6");
+  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.7");
   assert.match(prompt, /two separate evaluation layers/);
   assert.match(prompt, /mandatory policy-level critical-failure pass/);
   assert.match(prompt, /does not require a dedicated atomic disclosure rubric/);
   assert.match(prompt, /Operation ownership pass/);
+  assert.match(prompt, /Prohibited-rubric consistency check/);
+  assert.match(prompt, /A failed prohibited rubric is not automatically/);
   assert.match(prompt, /If no concrete learner-reserved operation distinct from the Tutor's/);
   assert.match(prompt, /Do not use a blanket rule that anything satisfying a required rubric is safe/);
   assert.match(prompt, /correct knowledge is not itself a prohibited answer/);
@@ -89,6 +91,8 @@ test("v0.6 Judge prompt states the no_answer and hint_only semantic boundaries",
   assert.match(prompt, /2\/3 \+ 1\/3 = 3\/3 = 1/);
   assert.match(prompt, /4 \+ 4 \+ 4/);
   assert.match(prompt, /complete corrected loop/);
+  assert.match(prompt, /complete runnable loop/);
+  assert.match(prompt, /Teaching purpose/);
   assert.match(prompt, /function extraction/);
   assert.match(prompt, /opposing forces/);
 });

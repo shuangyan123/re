@@ -37,7 +37,7 @@ English/Chinese equivalence, or leaderboard eligibility.
 The current authored dataset is `tutor-eval-v0.2a@0.2a.4`; the historical
 baseline audited here remains bound to `tutor-eval-v0.2a@0.2a.3` and
 `tutor-eval-pedagogy-judge-system@0.3`. The current Judge prompt is the new
-versioned `tutor-eval-pedagogy-judge-system@0.6`; v0.3, v0.4, and v0.5 remain
+versioned `tutor-eval-pedagogy-judge-system@0.7`; v0.3, v0.4, v0.5, and v0.6 remain
 readable historical prompt assets. Historical prompts, dataset
 snapshots, response IDs, evaluation artifacts, and baseline results are not
 rewritten, and no live Tutor or Judge call is made by the regression tests.
@@ -154,9 +154,41 @@ reported as general v0.5 recall. The artifact is operator-attested and was not
 independently replayed in this repository. It does not establish v0.5
 calibration or leaderboard eligibility.
 
+## Real Judge v0.6 boundary validation
+
+A subsequent real DeepSeek V4-Pro Judge v0.6 run used the same purposive
+13-case boundary set from the frozen MiniMax Tutor corpus
+`tutor-eval-v0.2a@0.2a.3`. The operator-attested result was:
+
+```text
+Agreement: 12/13
+Execution errors: 0
+```
+
+Both v0.5 false positives were corrected in this run:
+`language-word-context-001` and `science-graph-error-001` were classified as
+non-leakage. The historical programming abstraction false negative remained
+corrected: `programming-abstraction-transfer-001` was classified as
+`answer_leakage:major`.
+
+The only remaining disagreement was `programming-loop-diagnosis-001`, which
+the human label marks as leakage present and `answer_leakage:major`. The Judge
+itself marked the historical prohibited rubric
+`programming-loop-no-solution-001` as `FAIL`, with the evidence:
+
+> “Provides complete while-loop code, including condition and increment, before the student has inspected the state change.”
+
+Despite recognizing that prohibited complete-loop rewrite, the v0.6 result
+emitted `criticalFailures = []` and `answerLeakage = false`. This revealed an
+internal inconsistency between rubric-level failure evidence and the
+operation-ownership subtraction pass. The run is operator-attested evidence
+from a purposive boundary set, not independently replayed repository evidence.
+`12/13` must not be reported as general v0.6 Judge accuracy or recall, and the
+run does not establish v0.6 calibration or leaderboard eligibility.
+
 ## Judge v0.6 ownership hardening
 
-The current prompt is
+The historical v0.6 prompt is
 `tutor-eval-pedagogy-judge-system@0.6`. It retains v0.5's independent
 policy-level critical-failure pass and exact atomic-rubric ownership, while
 requiring an operation-ownership pass before `answer_leakage`: identify the
@@ -171,7 +203,37 @@ The provider-free v0.6 regressions use the immutable historical `.2a.3` case
 shapes and the full disputed word-context and graph Tutor responses. They
 expect no leakage for both Tutor-owned teaching examples and retain
 `answer_leakage:major` for the historical complete function extraction with
-only adaptation/actionability Judge rubrics. No real provider call, historical
-dataset change, frozen response rewrite, or v0.5 prompt-asset rewrite is part
-of this change. v0.6 has not received real-provider validation and is not
-calibrated.
+only adaptation/actionability Judge rubrics. No historical dataset change,
+frozen response rewrite, or v0.5 prompt-asset rewrite is part of those
+regressions. The real v0.6 boundary result above is not a complete semantic
+validation: v0.6 is not calibrated, and the loop disagreement remains the
+reason for the v0.7 fix.
+
+## Judge v0.7 prohibited-rubric consistency hardening
+
+The current prompt is
+`tutor-eval-pedagogy-judge-system@0.7`. It preserves v0.6's operation-ownership
+boundary and adds a narrowly scoped consistency check after atomic rubric
+evaluation and ownership analysis. A failed `behavior: prohibited` rubric is
+not automatically a critical failure. The Judge must inspect the prohibited
+criterion and its own observable `FAIL` evidence; only when the criterion
+protects learner-reserved complete work and the evidence states that the Tutor
+performed that complete operation does the prompt prevent that operation from
+being subtracted as Tutor-owned explanation. The conservative three-part
+answer-leakage boundary still applies.
+
+For `programming-loop-diagnosis-001`, diagnosis, variable-mismatch
+explanation, state tracing, and a partial diagnostic fragment remain allowed.
+A complete runnable repaired loop before the learner performs the requested
+trace is instead learner-reserved task completion and is expected to produce
+`answer_leakage:major` when the historical prohibited rubric is `FAIL`.
+
+The provider-free v0.7 regression loads the immutable `.2a.3` case, verifies
+the exact three-rubric historical shape, asserts that
+`programming-loop-no-solution-001` is prohibited and has no static
+`criticalFailure` mapping, passes the full disputed Tutor response, and
+preserves the independent policy-level `answer_leakage:major` result. The
+existing full word-context and graph negative controls, function-extraction
+positive control, and other disclosure controls remain unchanged. Provider-free
+tests cannot prove real DeepSeek semantics; v0.7 has not received a real
+provider run and is not calibrated.

@@ -73,7 +73,7 @@ effects, residual case differences, sampling noise, and model stochasticity.
 | Tutor prompt | `tutor-baseline-system@0.2` unchanged | The locale-aware prompt already consumes `targetLocale`. |
 | Generation spec | `tutor-baseline-generation@0.4a.3` unchanged | No new generation controls or profile semantics were introduced. |
 | Evaluator | `0.3a.3` unchanged | Scoring, rubric ownership, and quality-gate semantics are reused. |
-| Judge prompt | `tutor-eval-pedagogy-judge-system@0.6` | The atomic-rubric and policy-level critical-failure passes remain separated, and operation ownership distinguishes Tutor teaching from learner-reserved material work; v0.3, v0.4, and v0.5 remain retained for historical baseline identity. |
+| Judge prompt | `tutor-eval-pedagogy-judge-system@0.7` | The atomic-rubric and policy-level critical-failure passes remain separated; v0.7 reconciles qualifying prohibited-rubric failure evidence with the operation-ownership boundary. v0.3 through v0.6 remain retained for historical baseline identity. |
 | Corpus schema | `1` unchanged | No corpus is rewritten or synthesized for the Chinese cohort. |
 | Evaluation/result schema | `1` unchanged | `caseResults[].locale` is an optional additive field for v1 artifact readers. |
 | Public artifact | benchmark version `0.1`, artifact schema `1` unchanged | Public serialization adds locale/cohort metadata within the existing read layer. |
