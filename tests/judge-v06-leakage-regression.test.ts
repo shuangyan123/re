@@ -11,7 +11,6 @@ import {
   type TutorEvalJudgeResult,
 } from "../src/contracts/index.js";
 import { loadTutorEvalDataset } from "../src/datasets/index.js";
-import { TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION } from "../src/judge/index.js";
 import { runTutorEval } from "../src/runner/index.js";
 
 const HISTORICAL_LANGUAGE_WORD_RESPONSE = `You're on the right track! "Reluctant" and "unsure" are related ideas—both involve hesitation—but they don't mean exactly the same thing.
@@ -107,7 +106,7 @@ async function runProviderFreeJudge(
     judge: {
       provider: "synthetic",
       model: "provider-free-judge-fixture",
-      promptVersion: TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION,
+      promptVersion: "0.6",
       evaluate: async (input) => {
         inspectInput?.(input);
         return judgeResult;
