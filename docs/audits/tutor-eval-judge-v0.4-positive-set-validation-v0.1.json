@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "validationId": "tutor-eval-judge-v0.4-positive-set-validation",
+  "evidenceStatus": "operator_attested",
+  "status": "preliminary",
+  "calibrationStatus": "uncalibrated",
+  "source": {
+    "datasetId": "tutor-eval-v0.2a",
+    "datasetVersion": "0.2a.3",
+    "corpusId": "preliminary-minimax-m27-tutor-bilingual-001",
+    "corpusVersion": "0.4a.3",
+    "tutor": {
+      "provider": "minimax",
+      "model": "MiniMax-M2.7",
+      "promptVersion": "0.2"
+    }
+  },
+  "historicalJudge": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-pro",
+    "promptId": "tutor-eval-pedagogy-judge-system",
+    "promptVersion": "0.3",
+    "observedPositiveCount": 12
+  },
+  "validationJudge": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-pro",
+    "promptId": "tutor-eval-pedagogy-judge-system",
+    "promptVersion": "0.4",
+    "reasoningEffort": "high",
+    "thinkingMode": "enabled",
+    "maxOutputTokens": 8192,
+    "timeoutMs": 180000,
+    "maxAttempts": 1
+  },
+  "scope": {
+    "type": "historical_judge_positive_human_audited_subset",
+    "fullCorpusCaseCount": 48,
+    "selectedCaseCount": 12,
+    "judgeNegativeCasesHumanAudited": false
+  },
+  "summary": {
+    "humanConfirmedPositiveCount": 9,
+    "historicalFalsePositiveCount": 3,
+    "v04ConfirmedPositiveRetainedCount": 9,
+    "v04FalsePositiveCorrectedCount": 3,
+    "agreementCount": 12,
+    "disagreementCount": 0,
+    "observedAgreement": 1
+  },
+  "cases": [
+    {
+      "caseId": "science-graph-error-001",
+      "locale": "en",
+      "humanLeakage": false,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": false,
+      "finalStatus": "passed",
+      "agreesWithHuman": true
+    },
+    {
+      "caseId": "language-word-context-001",
+      "locale": "en",
+      "humanLeakage": false,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": false,
+      "finalStatus": "failed",
+      "agreesWithHuman": true
+    },
+    {
+      "caseId": "language-word-context-001-zh-CN",
+      "locale": "zh-CN",
+      "humanLeakage": false,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": false,
+      "finalStatus": "failed",
+      "agreesWithHuman": true
+    },
+    {
+      "caseId": "paired-fraction-conceptual-001",
+      "locale": "en",
+      "humanLeakage": true,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": true,
+      "finalStatus": "failed",
+      "agreesWithHuman": true,
+      "criticalFailureType": "answer_leakage",
+      "criticalFailureSeverity": "major"
+    },
+    {
+      "caseId": "paired-fraction-conceptual-001-zh-CN",
+      "locale": "zh-CN",
+      "humanLeakage": true,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": true,
+      "finalStatus": "failed",
+      "agreesWithHuman": true,
+      "criticalFailureType": "answer_leakage",
+      "criticalFailureSeverity": "major"
+    },
+    {
+      "caseId": "paired-fraction-procedural-001",
+      "locale": "en",
+      "humanLeakage": true,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": true,
+      "finalStatus": "failed",
+      "agreesWithHuman": true,
+      "criticalFailureType": "answer_leakage",
+      "criticalFailureSeverity": "major"
+    },
+    {
+      "caseId": "paired-fraction-procedural-001-zh-CN",
+      "locale": "zh-CN",
+      "humanLeakage": true,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": true,
+      "finalStatus": "failed",
+      "agreesWithHuman": true,
+      "criticalFailureType": "answer_leakage",
+      "criticalFailureSeverity": "major"
+    },
+    {
+      "caseId": "paired-multiplication-procedural-001",
+      "locale": "en",
+      "humanLeakage": true,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": true,
+      "finalStatus": "failed",
+      "agreesWithHuman": true,
+      "criticalFailureType": "answer_leakage",
+      "criticalFailureSeverity": "major"
+    },
+    {
+      "caseId": "paired-multiplication-procedural-001-zh-CN",
+      "locale": "zh-CN",
+      "humanLeakage": true,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": true,
+      "finalStatus": "failed",
+      "agreesWithHuman": true,
+      "criticalFailureType": "answer_leakage",
+      "criticalFailureSeverity": "major"
+    },
+    {
+      "caseId": "programming-loop-diagnosis-001",
+      "locale": "en",
+      "humanLeakage": true,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": true,
+      "finalStatus": "failed",
+      "agreesWithHuman": true,
+      "criticalFailureType": "answer_leakage",
+      "criticalFailureSeverity": "major"
+    },
+    {
+      "caseId": "programming-abstraction-transfer-001-zh-CN",
+      "locale": "zh-CN",
+      "humanLeakage": true,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": true,
+      "finalStatus": "failed",
+      "agreesWithHuman": true,
+      "criticalFailureType": "answer_leakage",
+      "criticalFailureSeverity": "major"
+    },
+    {
+      "caseId": "science-force-transfer-001-zh-CN",
+      "locale": "zh-CN",
+      "humanLeakage": true,
+      "historicalJudgeV03Leakage": true,
+      "judgeV04Leakage": true,
+      "finalStatus": "failed",
+      "agreesWithHuman": true,
+      "criticalFailureType": "answer_leakage",
+      "criticalFailureSeverity": "major"
+    }
+  ],
+  "executionNotes": {
+    "caseId": "programming-loop-diagnosis-001",
+    "initialResult": "judge_result_invalid",
+    "initialClassificationValid": false,
+    "recovery": "strict_resume",
+    "reusedCaseRuns": 8,
+    "judgeCallsMade": 1,
+    "finalCaseRuns": 9,
+    "finalClassificationValid": true
+  },
+  "limitations": [
+    "positive subset only",
+    "historical Judge-negative cases not human audited",
+    "recall unknown",
+    "false-negative rate unknown",
+    "full-corpus prevalence unknown",
+    "calibration not established",
+    "12/12 is subset agreement, not general accuracy"
+  ]
+}
