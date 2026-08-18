@@ -11,9 +11,6 @@ import {
   type TutorEvalJudgeResult,
 } from "../src/contracts/index.js";
 import { loadTutorEvalDataset } from "../src/datasets/index.js";
-import {
-  TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION,
-} from "../src/judge/index.js";
 import { runTutorEval } from "../src/runner/index.js";
 
 const HISTORICAL_PROGRAMMING_RESPONSE = `def run_task(task_name):
@@ -88,7 +85,7 @@ async function runProviderFreeJudge(
     judge: {
       provider: "synthetic",
       model: "provider-free-judge-fixture",
-      promptVersion: TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION,
+      promptVersion: "0.5",
       evaluate: async (input) => {
         inspectInput?.(input);
         return judgeResult;
