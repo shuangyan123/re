@@ -3,9 +3,9 @@ import { resolve } from "node:path";
 
 export const TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_ID =
   "tutor-eval-pedagogy-judge-system" as const;
-export const TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION = "0.4" as const;
+export const TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION = "0.5" as const;
 export const TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_ASSET =
-  "prompts/tutor-eval-pedagogy-judge-system-v0.4.md" as const;
+  "prompts/tutor-eval-pedagogy-judge-system-v0.5.md" as const;
 
 /**
  * Loads the versioned prompt asset at the adapter boundary. The core result

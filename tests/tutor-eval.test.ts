@@ -151,11 +151,13 @@ test("partitionTutorEvalRubrics gives every rubric one evaluator owner", () => {
   );
 });
 
-test("Judge prompt metadata and asset loader expose the versioned v0.4 source", async () => {
+test("Judge prompt metadata and asset loader expose the versioned v0.5 source", async () => {
   const prompt = await loadTutorEvalPedagogyJudgePrompt();
   assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_ID, "tutor-eval-pedagogy-judge-system");
-  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.4");
+  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.5");
   assert.match(prompt, /Evaluate only\s+the atomic rubrics supplied in this Judge request/);
+  assert.match(prompt, /mandatory policy-level critical-failure pass/);
+  assert.match(prompt, /critical failure does not require a dedicated atomic disclosure rubric/);
   assert.match(prompt, /untrusted evaluation data/);
   assert.match(prompt, /hidden chain-of-thought/);
   assert.match(prompt, /no_answer/);
