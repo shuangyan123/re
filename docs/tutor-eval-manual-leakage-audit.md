@@ -37,8 +37,8 @@ English/Chinese equivalence, or leaderboard eligibility.
 The current authored dataset is `tutor-eval-v0.2a@0.2a.4`; the historical
 baseline audited here remains bound to `tutor-eval-v0.2a@0.2a.3` and
 `tutor-eval-pedagogy-judge-system@0.3`. The current Judge prompt is the new
-versioned `tutor-eval-pedagogy-judge-system@0.5`; v0.4 remains a readable
-historical prompt asset. Historical prompts, dataset
+versioned `tutor-eval-pedagogy-judge-system@0.6`; v0.3, v0.4, and v0.5 remain
+readable historical prompt assets. Historical prompts, dataset
 snapshots, response IDs, evaluation artifacts, and baseline results are not
 rewritten, and no live Tutor or Judge call is made by the regression tests.
 
@@ -120,3 +120,58 @@ rewrite, corpus identity change, or historical v0.4 artifact rewrite is part
 of this change. v0.5 is not calibrated, and this work does not establish
 full-corpus v0.5 validation, 100% accuracy or recall, or a zero false-negative
 rate.
+
+## Real Judge v0.5 boundary validation
+
+The continuation also recorded a real DeepSeek V4-Pro Judge v0.5 run over a
+purposive 13-case boundary-validation subset of the frozen MiniMax corpus
+`tutor-eval-v0.2a@0.2a.3`. The local operator-attested evaluation artifact is
+`artifacts/real-model/preliminary-minimax-m27-deepseek-v4pro-boundary13-v05.evaluation.json`;
+it is ignored local evidence, not a checked-in benchmark result. The reported
+boundary result was:
+
+```text
+Agreement: 11/13
+Execution errors: 0
+Human-confirmed leakage cases detected: 10/10 in this selected set
+```
+
+The historical v0.3 false negative
+`programming-abstraction-transfer-001` was corrected by v0.5: the complete
+function extraction was recognized as `answer_leakage:major`. Two
+human-confirmed non-leakage cases were over-triggered by v0.5:
+`language-word-context-001` and `science-graph-error-001`. In the first, the
+Tutor corrected the already proposed `reluctant`/`unsure` distinction and
+explained the `pauses before agreeing` clue. In the second, it located the
+amount-versus-rate axis mismatch, explained the immediate consequence, and
+left the learner to reconsider the peak. Those operations are Tutor-owned
+teaching behavior under their historical case designs.
+
+This 13-case set was selected to probe known leakage boundaries; it is not a
+representative accuracy sample. `11/13` must not be reported as a general v0.5
+Judge accuracy metric, and the selected-set detection result must not be
+reported as general v0.5 recall. The artifact is operator-attested and was not
+independently replayed in this repository. It does not establish v0.5
+calibration or leaderboard eligibility.
+
+## Judge v0.6 ownership hardening
+
+The current prompt is
+`tutor-eval-pedagogy-judge-system@0.6`. It retains v0.5's independent
+policy-level critical-failure pass and exact atomic-rubric ownership, while
+requiring an operation-ownership pass before `answer_leakage`: identify the
+case-defined learner-reserved material operation, identify Tutor-owned
+teaching operations, subtract the latter, and emit leakage only when the
+remaining content completes the distinct learner operation and still meets
+the three-part boundary. A required diagnosis, conceptual correction, or
+local guidance rubric is not blanket immunity, but satisfying that required
+teaching operation is not itself learner-task takeover.
+
+The provider-free v0.6 regressions use the immutable historical `.2a.3` case
+shapes and the full disputed word-context and graph Tutor responses. They
+expect no leakage for both Tutor-owned teaching examples and retain
+`answer_leakage:major` for the historical complete function extraction with
+only adaptation/actionability Judge rubrics. No real provider call, historical
+dataset change, frozen response rewrite, or v0.5 prompt-asset rewrite is part
+of this change. v0.6 has not received real-provider validation and is not
+calibrated.
