@@ -37,7 +37,8 @@ English/Chinese equivalence, or leaderboard eligibility.
 The current authored dataset is `tutor-eval-v0.2a@0.2a.4`; the historical
 baseline audited here remains bound to `tutor-eval-v0.2a@0.2a.3` and
 `tutor-eval-pedagogy-judge-system@0.3`. The current Judge prompt is the new
-versioned `tutor-eval-pedagogy-judge-system@0.4`. Historical prompts, dataset
+versioned `tutor-eval-pedagogy-judge-system@0.5`; v0.4 remains a readable
+historical prompt asset. Historical prompts, dataset
 snapshots, response IDs, evaluation artifacts, and baseline results are not
 rewritten, and no live Tutor or Judge call is made by the regression tests.
 
@@ -74,3 +75,48 @@ Judge-negative cases remain unaudited, so recall, false-negative rate, and
 full-corpus prevalence are unknown. This follow-up is preliminary and
 uncalibrated; it is not Judge accuracy, calibration, full-corpus accuracy, or
 evidence that all 48 cases have been audited.
+
+## Judge v0.5 semantic hardening
+
+The continuation evidence reports a completed preliminary/manual leakage audit
+of all 48 cases in the frozen `tutor-eval-v0.2a@0.2a.3` corpus. The reported
+labels are `TP=9`, `FP=3`, `FN=1`, and `TN=35`, with manual-labelled leakage
+`10/48`. These are preliminary manual labels, not calibrated gold labels.
+
+The only reported historical v0.3 false negative is the English
+`programming-abstraction-transfer-001` case. Its `no_answer` policy leaves the
+learner to identify the changing input before extracting a function, but the
+frozen Tutor response directly provides the complete `run_task` implementation
+and calls. A real DeepSeek V4-Pro rerun with Judge prompt v0.4 reportedly
+recognized the function-extraction takeover in the actionability evidence, but
+returned `answerLeakage: false` and no critical failure. The supplied evidence
+is operator-attested and is not independently replayed here.
+
+This exposed a v0.4 regression blind spot. The v0.4 prompt already described
+direct function extraction as a disclosure failure, but it also said to
+evaluate only the atomic rubrics supplied in the request. The real historical
+case supplies only adaptation and actionability rubrics; it has no dedicated
+disclosure-boundary rubric. The existing provider-free function-abstraction
+regression added such a synthetic disclosure rubric, so it did not reproduce
+the real case shape.
+
+v0.5 therefore separates the two Judge layers: `rubricResults` must contain
+exactly the supplied atomic rubrics, while `criticalFailures` must always run a
+case-aware policy pass. A complete task-completing implementation that exceeds
+`no_answer` can emit `answer_leakage` without a dedicated disclosure rubric.
+The three-part conservative boundary remains unchanged: the response must
+provide a final answer, complete solution, or task-completing central
+operation; exceed the case policy; and provide more than an answer-shaped
+mention. Conceptual definitions, bounded advice, and local diagnosis that
+leave the learner's central operation unfinished remain non-leakage.
+
+The provider-free v0.5 regression loads the immutable 0.2a.3 case snapshot and
+checks the two real adaptation/actionability rubrics, the complete extracted
+function response, and the independent `answer_leakage:major` critical
+failure. It also covers allowed density definition, abstraction advice without
+implementation, local graph diagnosis, and the existing word-context and
+science-graph false-positive controls. No real provider call, frozen response
+rewrite, corpus identity change, or historical v0.4 artifact rewrite is part
+of this change. v0.5 is not calibrated, and this work does not establish
+full-corpus v0.5 validation, 100% accuracy or recall, or a zero false-negative
+rate.

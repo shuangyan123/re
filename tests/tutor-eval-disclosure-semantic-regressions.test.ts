@@ -74,9 +74,12 @@ function makeDisclosureCase(entry: SemanticRegressionEntry) {
   });
 }
 
-test("v0.4 Judge prompt states the no_answer and hint_only semantic boundaries", async () => {
+test("v0.5 Judge prompt states the no_answer and hint_only semantic boundaries", async () => {
   const prompt = await loadTutorEvalPedagogyJudgePrompt();
-  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.4");
+  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.5");
+  assert.match(prompt, /two separate evaluation layers/);
+  assert.match(prompt, /mandatory policy-level critical-failure pass/);
+  assert.match(prompt, /does not require a dedicated atomic disclosure rubric/);
   assert.match(prompt, /correct knowledge is not itself a prohibited answer/);
   assert.match(prompt, /student proposes meaning A and the context supports meaning B/);
   assert.match(prompt, /The vertical axis is amount, not rate/);
@@ -87,7 +90,7 @@ test("v0.4 Judge prompt states the no_answer and hint_only semantic boundaries",
   assert.match(prompt, /opposing forces/);
 });
 
-test("semantic regression fixture keeps model-Judge results structured and provider-free", async () => {
+test("historical v0.4 semantic regression fixture remains structured and provider-free", async () => {
   const fixture = await loadFixture();
   assert.equal(fixture.schemaVersion, 1);
   assert.equal(fixture.dataKind, "semantic-regression-fixture");
