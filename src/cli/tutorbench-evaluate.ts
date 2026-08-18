@@ -244,16 +244,16 @@ async function loadResumeEvaluation(
 function requestedDatasetVersionForCorpus(
   datasetId: string,
   datasetVersion: string,
-): string | undefined {
-  if (
-    datasetId === TUTOR_EVAL_DATASET_ID &&
-    (datasetVersion === "0.2a" || datasetVersion === TUTOR_EVAL_PREVIOUS_DATASET_VERSION)
-  ) {
+): string {
+  if (datasetId === TUTOR_EVAL_DATASET_ID && datasetVersion === "0.2a") {
     // Keep the audited English-only replay target readable without treating
     // the expanded bilingual dataset as a silent migration target.
     return TUTOR_EVAL_PREVIOUS_DATASET_VERSION;
   }
-  return undefined;
+  // A corpus' formal dataset version is part of its source identity. Preserve
+  // it so the loader selects the matching immutable snapshot or rejects an
+  // unsupported version instead of silently using the current dataset.
+  return datasetVersion;
 }
 
 async function createJudgeIfRequested(

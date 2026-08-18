@@ -160,6 +160,10 @@ response-identity scheme; this command does not create a second full corpus.
 Full coverage means 48 planned calls, 48 successful responses, zero
 collection failures, and `coverage: "full"`. Evaluation replays the frozen
 corpus through `RecordedTutor`; it never regenerates Tutor text.
+Because this historical corpus records `tutor-eval-v0.2a@0.2a.3`, the evaluate
+command resolves and validates it against the immutable `0.2a.3` snapshot. The
+`--allow-compatible-replay` flag is only for an explicitly audited later target
+identity, not for this same-identity historical evaluation.
 
 ## Optional preliminary Judge
 
