@@ -3,8 +3,6 @@ import { resolve } from "node:path";
 
 import {
   BenchmarkConfigurationError,
-  TUTOR_EVAL_DATASET_ID,
-  TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
   assertValidTutorResponseCorpus,
   parseTutorResponseCorpusEvaluationResult,
   type TutorResponseCorpusEvaluationResult,
@@ -14,6 +12,7 @@ import {
   resolveTutorResponseCorpusReplay,
 } from "../corpus/index.js";
 import { loadTutorEvalDataset } from "../datasets/index.js";
+import { resolveTutorResponseCorpusDatasetVersion } from "../datasets/corpus-version-resolution.js";
 import {
   loadTutorEvalPedagogyJudgePrompt,
   TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_ID,
@@ -241,21 +240,6 @@ async function loadResumeEvaluation(
   }
 }
 
-function requestedDatasetVersionForCorpus(
-  datasetId: string,
-  datasetVersion: string,
-): string {
-  if (datasetId === TUTOR_EVAL_DATASET_ID && datasetVersion === "0.2a") {
-    // Keep the audited English-only replay target readable without treating
-    // the expanded bilingual dataset as a silent migration target.
-    return TUTOR_EVAL_PREVIOUS_DATASET_VERSION;
-  }
-  // A corpus' formal dataset version is part of its source identity. Preserve
-  // it so the loader selects the matching immutable snapshot or rejects an
-  // unsupported version instead of silently using the current dataset.
-  return datasetVersion;
-}
-
 async function createJudgeIfRequested(
   liveJudge: boolean,
   deepSeekJudge: boolean,
@@ -378,7 +362,7 @@ export async function evaluateTutorResponseCorpus(
   const corpus = await loadTutorResponseCorpus(options.corpusPath);
   const dataset = await loadTutorEvalDataset(
     corpus.datasetId,
-    requestedDatasetVersionForCorpus(corpus.datasetId, corpus.datasetVersion),
+    resolveTutorResponseCorpusDatasetVersion(corpus.datasetId, corpus.datasetVersion),
   );
   const semanticReplay = options.allowCompatibleReplay
     ? resolveTutorResponseCorpusReplay(corpus, dataset)

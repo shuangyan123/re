@@ -4,7 +4,9 @@ import {
   findTutorResponseCorpusValidationIssues,
   type TutorResponseCorpusValidationIssue,
 } from "../contracts/index.js";
-import { loadCanonicalTutorEvalDataset, reportTutorCliError, writeTutorCliJson } from "./tutor-case-common.js";
+import { loadTutorEvalDataset } from "../datasets/index.js";
+import { resolveTutorResponseCorpusDatasetVersion } from "../datasets/corpus-version-resolution.js";
+import { reportTutorCliError, writeTutorCliJson } from "./tutor-case-common.js";
 import { loadTutorResponseCorpus } from "../corpus/index.js";
 
 export interface TutorCorpusValidateOptions {
@@ -74,7 +76,7 @@ Options:
 
 function buildCoverageReport(
   corpus: Awaited<ReturnType<typeof loadTutorResponseCorpus>>,
-  dataset: Awaited<ReturnType<typeof loadCanonicalTutorEvalDataset>>,
+  dataset: Awaited<ReturnType<typeof loadTutorEvalDataset>>,
 ) {
   const selectedCaseCount = new Set(corpus.responses.map((response) => response.caseId)).size;
   return {
@@ -91,10 +93,11 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     printHelp();
     return;
   }
-  const [dataset, corpus] = await Promise.all([
-    loadCanonicalTutorEvalDataset(),
-    loadTutorResponseCorpus(options.corpusPath),
-  ]);
+  const corpus = await loadTutorResponseCorpus(options.corpusPath);
+  const dataset = await loadTutorEvalDataset(
+    corpus.datasetId,
+    resolveTutorResponseCorpusDatasetVersion(corpus.datasetId, corpus.datasetVersion),
+  );
   const issues: TutorResponseCorpusValidationIssue[] = findTutorResponseCorpusValidationIssues({
     corpus,
     dataset,
