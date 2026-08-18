@@ -40,3 +40,37 @@ baseline audited here remains bound to `tutor-eval-v0.2a@0.2a.3` and
 versioned `tutor-eval-pedagogy-judge-system@0.4`. Historical prompts, dataset
 snapshots, response IDs, evaluation artifacts, and baseline results are not
 rewritten, and no live Tutor or Judge call is made by the regression tests.
+
+## Real Judge v0.4 follow-up validation
+
+The committed follow-up evidence is
+[`tutor-eval-judge-v0.4-positive-set-validation-v0.1.json`](audits/tutor-eval-judge-v0.4-positive-set-validation-v0.1.json).
+It is operator-attested evidence of a real DeepSeek V4-Pro rerun against the
+same frozen MiniMax Tutor corpus and the historical `tutor-eval-v0.2a@0.2a.3`
+snapshot. This follow-up was not independently replayed in this repository.
+It is a machine-readable, provider-free record of derived case-level classifications;
+it does not contain Tutor text, Judge evidence, raw provider payloads,
+`reasoning_content`, hidden reasoning, credentials, request IDs, or private
+translation sidecars.
+
+The v0.4 result agrees with the current human audit labels on all 12 cases in
+this previously Judge-positive, human-audited subset. The historical v0.3
+positive set contained 9 human-confirmed positives and 3 false positives; v0.4
+retained all 9 positives and corrected all 3 false positives. The two
+`language-word-context` cases still have overall `failed` status for other case
+criteria, but their v0.4 leakage classification is `false`; overall case
+status must not be treated as the leakage label.
+
+`programming-loop-diagnosis-001` first produced an invalid Judge result
+(`judge_result_invalid`). Strict `--resume-evaluation` reused 8 valid
+case-runs, made 1 Judge call for the invalid case, and produced a final valid
+classification. This is execution recovery evidence, not a semantic
+disagreement.
+
+The safe statistical statement is observed agreement `12/12` within this
+audited historical positive subset, with 3/3 previously identified false
+positives corrected and 9/9 human-confirmed positives retained. Historical
+Judge-negative cases remain unaudited, so recall, false-negative rate, and
+full-corpus prevalence are unknown. This follow-up is preliminary and
+uncalibrated; it is not Judge accuracy, calibration, full-corpus accuracy, or
+evidence that all 48 cases have been audited.
