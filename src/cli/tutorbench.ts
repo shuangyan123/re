@@ -52,6 +52,12 @@ import {
   type JudgeCandidateComparisonCliOptions,
 } from "./judge-candidate-comparison.js";
 import {
+  parseJudgeMaterialRequirementArgs,
+  printJudgeMaterialRequirementHelp,
+  runJudgeMaterialRequirementCli,
+  type JudgeMaterialRequirementCliOptions,
+} from "./judge-material-requirement-discrimination.js";
+import {
   nextTutorbenchValue,
   positiveTutorbenchInteger,
   tutorbenchOptionValue,
@@ -75,14 +81,15 @@ export interface TutorbenchRunOptions {
 }
 
 export type TutorbenchCliOptions =
-  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" }
+  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" | "judge-material-requirement-discrimination" }
   | { readonly help: false; readonly run: TutorbenchRunOptions }
   | { readonly help: false; readonly collect: TutorbenchCollectCliOptions }
   | { readonly help: false; readonly collectModel: TutorbenchCollectModelCliOptions }
   | { readonly help: false; readonly evaluate: BenchmarkCorpusCliOptions }
   | { readonly help: false; readonly reviewTranslate: ReviewTranslateCliOptions }
   | { readonly help: false; readonly judgeWordContextDiscrimination: JudgeWordContextDiscriminationCliOptions }
-  | { readonly help: false; readonly judgeCandidateComparison: JudgeCandidateComparisonCliOptions };
+  | { readonly help: false; readonly judgeCandidateComparison: JudgeCandidateComparisonCliOptions }
+  | { readonly help: false; readonly judgeMaterialRequirement: JudgeMaterialRequirementCliOptions };
 
 export function parseTutorbenchArgs(
   args: readonly string[],
@@ -125,6 +132,12 @@ export function parseTutorbenchArgs(
     return comparison.help
       ? { help: true, helpCommand: "judge-candidate-comparison" }
       : { help: false, judgeCandidateComparison: comparison };
+  }
+  if (args[0] === "judge-material-requirement-discrimination") {
+    const diagnostic = parseJudgeMaterialRequirementArgs(args.slice(1));
+    return diagnostic.help
+      ? { help: true, helpCommand: "judge-material-requirement-discrimination" }
+      : { help: false, judgeMaterialRequirement: diagnostic };
   }
   if (args[0] !== "run") {
     throw new TutorbenchCliUsageError(
@@ -275,6 +288,7 @@ Usage:
   tutorbench review-translate --evaluation <path> --output <path> [options]
   tutorbench judge-word-context-discrimination --judge-deepseek [options]
   tutorbench judge-candidate-comparison [options]
+  tutorbench judge-material-requirement-discrimination [options]
 
 Commands:
   run                   Quick local evaluation; responses are not frozen
@@ -286,6 +300,8 @@ Commands:
                          Run the fixed A/B/C word-context Judge diagnostic
   judge-candidate-comparison
                          Compare explicitly selected Judge candidates on the fixed diagnostic
+  judge-material-requirement-discrimination
+                         Run provider-free structured requirement fixtures
 
 Run options:
   --http <url>          POST TutorTurnInput JSON to this http(s) endpoint
@@ -390,6 +406,8 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       printJudgeWordContextDiscriminationHelp();
     } else if (options.helpCommand === "judge-candidate-comparison") {
       printJudgeCandidateComparisonHelp();
+    } else if (options.helpCommand === "judge-material-requirement-discrimination") {
+      printJudgeMaterialRequirementHelp();
     } else {
       printHelp();
     }
@@ -427,6 +445,12 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       return;
     }
     await runJudgeCandidateComparisonCli(options.judgeCandidateComparison);
+  } else if ("judgeMaterialRequirement" in options) {
+    if (options.judgeMaterialRequirement.help) {
+      printJudgeMaterialRequirementHelp();
+      return;
+    }
+    await runJudgeMaterialRequirementCli(options.judgeMaterialRequirement);
   } else {
     if (options.evaluate.help) {
       printBenchmarkCorpusHelp();

@@ -2,6 +2,8 @@ export * from "./errors.js";
 export * from "./locale.js";
 export * from "./judge.js";
 export * from "./judge-validation.js";
+export * from "./material-requirement-judge.js";
+export * from "./material-requirement-validation.js";
 export * from "./result.js";
 export * from "./rubric.js";
 export * from "./scenario.js";
