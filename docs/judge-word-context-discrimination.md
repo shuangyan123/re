@@ -3,7 +3,9 @@
 This is a small, provider-free fixture and an optional live probe for the
 current `language-word-context-001@1.1.1` case in
 `tutor-eval-v0.2a@0.2a.5`. It tests whether the Judge distinguishes three
-fixed Tutor responses against the current correctness limitation clause:
+fixed Tutor responses against the correctness limitation clause. The first
+real probe audited the previous current prompt `0.7`; the fixture now remains
+the regression boundary for current prompt `0.8`.
 
 > Evaluate the student's proposed meaning against the surrounding context,
 > explain what the pause-before-agreeing clue supports and what it cannot
@@ -19,6 +21,35 @@ same case so the existing frozen-corpus runner can replay them deterministically
 | A | `PASS` | `PASS` | States both what the clue supports and what it cannot establish, then asks for another clue. |
 | B | `PARTIAL` | `PASS` | Uses context and asks a useful question, but overstates the evidential force of pausing before agreeing and omits the limitation. |
 | C | `FAIL` | `PASS` | Treats the underdetermined clue as conclusive evidence while still asking the student to identify a clue. |
+
+## Operator-attested v0.7 probe evidence
+
+Before the v0.8 prompt change, a real DeepSeek V4-Pro three-call probe produced
+the following operator-attested diagnostic evidence. Raw provider payloads,
+credentials, request IDs, hidden reasoning, and local result artifacts are not
+stored in this repository.
+
+| Fixture | Expected correctness | Observed correctness | Expected actionability | Observed actionability |
+| --- | --- | --- | --- | --- |
+| A | `PASS` | `PASS` | `PASS` | `PASS` |
+| B | `PARTIAL` | `PASS` | `PASS` | `PASS` |
+| C | `FAIL` | `PARTIAL` | `PASS` | `PASS` |
+
+All three calls reported no answer leakage, no critical failure, no
+insufficient-information flag, and no execution error. The observable Judge
+evidence was diagnostically specific: A recognized that the pause could
+support hesitation without establishing unwillingness; B recognized the
+unwilling/hesitant distinction and used the clue but still received `PASS`
+without satisfying the limitation clause; C explicitly recognized the omitted
+limitation and the Tutor's `definitely` overclaim but received only `PARTIAL`.
+
+This is a three-case purposive diagnostic with developer-authored expectations,
+not human calibration gold. It is not general Judge accuracy, calibration,
+recall, or evidence of model-wide bias. It is sufficient to motivate a generic
+composite-rubric clarification because the same criterion exposes both sides
+of one semantic gap: a material limitation can be omitted while the core
+direction remains correct, or it can be explicitly contradicted by an
+overclaim. It is not sufficient to claim that the Judge is calibrated.
 
 These labels are developer-authored diagnostic expectations, not human
 calibration gold. The corpus is marked `synthetic`, has no `generationSpec`,
@@ -41,6 +72,9 @@ pass/fail or general accuracy claim.
 - separation of Tutor-visible input from evaluator-only Judge context; and
 - report handling for observed labels, Judge evidence, critical failures,
   leakage, and `insufficientInformation` without changing scoring.
+- the v0.8 material-requirement prompt contract and a provider-free generic
+  composite criterion whose synthetic `PASS`/`PARTIAL`/`FAIL` outputs pass
+  through parser, rubric ownership, runner, and scorer.
 
 No MiniMax, DeepSeek, OpenAI, or other live call is made by these tests.
 
@@ -64,22 +98,25 @@ Judge calls. It writes a derived, ignored diagnostic report and exits non-zero
 only when a Judge/evaluation error occurs; an observed `PASS`, `PARTIAL`, or
 `FAIL` is not itself treated as a command failure.
 
-The report includes expected/observed correctness and actionability, raw
-sanitized Judge rubric evidence, critical failures, answer leakage,
+The report includes expected/observed correctness and actionability, sanitized
+Judge rubric evidence, critical failures, answer leakage,
 `insufficientInformation`, factual errors, Judge prompt identity, evaluator
 version, and the actual call count. It does not include raw provider payloads
 or hidden reasoning.
 
 Interpretation is deliberately narrow:
 
-- A `PASS`, B `PARTIAL`, C `FAIL` is consistent with basic discrimination of
-  the limitation clause.
-- A `PASS`, B `PASS`, C `PASS` is evidence that the current prompt may not be
-  enforcing that limitation strongly enough; discuss any prompt change as a
-  separate follow-up rather than changing v0.7 in this task.
+- The historical v0.7 result was A `PASS`, B `PASS`, C `PARTIAL`, which is
+  evidence that the previous instructions did not consistently map material
+  omission and explicit overclaim to the intended statuses.
+- Under v0.8, A `PASS`, B `PARTIAL`, C `FAIL` is consistent with the clarified
+  material-requirement semantics. It remains diagnostic evidence only.
 - Any other pattern is diagnostic evidence to inspect, not a calibration or
   benchmark-quality conclusion.
 
-This task does not change dataset `0.2a.5`, case `1.1.1`, evaluator `0.3a.4`,
-Judge prompt `0.7`, rubric wording, thresholds, scoring semantics, adapters,
-transport, or real-model artifacts.
+This task changes only the current Judge prompt from `0.7` to `0.8` and does
+not change dataset `0.2a.5`, case `1.1.1`, evaluator `0.3a.4`, rubric wording,
+thresholds, scoring semantics, adapters, transport, result schema, or
+real-model artifacts. The v0.8 change is a generic composite-rubric grading
+clarification, not a `language-word-context` special case and not an attempt
+to force a particular live-model output.

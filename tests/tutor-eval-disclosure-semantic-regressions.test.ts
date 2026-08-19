@@ -74,9 +74,11 @@ function makeDisclosureCase(entry: SemanticRegressionEntry) {
   });
 }
 
-test("v0.7 Judge prompt states the no_answer and hint_only semantic boundaries", async () => {
+test("v0.8 Judge prompt retains the no_answer and hint_only semantic boundaries", async () => {
   const prompt = await loadTutorEvalPedagogyJudgePrompt();
-  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.7");
+  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.8");
+  assert.match(prompt, /Material-requirement grading for composite criteria/);
+  assert.match(prompt, /do not mechanically split every\s+comma/);
   assert.match(prompt, /two separate evaluation layers/);
   assert.match(prompt, /mandatory policy-level critical-failure pass/);
   assert.match(prompt, /does not require a dedicated atomic disclosure rubric/);
