@@ -154,6 +154,42 @@ test("MiniMax Judge sends the explicit model, prompt v0.9, and reasoning separat
   );
 });
 
+test("MiniMax Judge honors enabled and disabled JSON mode environment values", async () => {
+  const tutorEvalCase = makeCase();
+
+  for (const [jsonMode, expectedResponseFormat] of [
+    ["enabled", { type: "json_object" }],
+    ["disabled", undefined],
+  ] as const) {
+    const environment = {
+      MINIMAX_JUDGE_JSON_MODE: jsonMode,
+    };
+    assert.equal(readMiniMaxJudgeEnvironment(environment).jsonMode, jsonMode);
+
+    let request: Record<string, unknown> | undefined;
+    const judge = createMiniMaxJudge({
+      ...promptOptions,
+      apiKey: "test-key",
+      environment,
+      fetch: async (_url, init) => {
+        request = JSON.parse(init.body) as Record<string, unknown>;
+        return responseBody(validResult(tutorEvalCase.id));
+      },
+    });
+
+    await judge.evaluateWithMetrics(
+      buildTutorEvalJudgeInput(tutorEvalCase, "Response."),
+    );
+    assert.deepEqual(request?.response_format, expectedResponseFormat);
+  }
+
+  assert.throws(
+    () => readMiniMaxJudgeEnvironment({ MINIMAX_JUDGE_JSON_MODE: "invalid" }),
+    (error: unknown) =>
+      error instanceof MiniMaxJudgeConfigurationError && error.code === "json_mode_invalid",
+  );
+});
+
 test("MiniMax Judge fails closed for unsplit thinking, malformed JSON, and missing key", async () => {
   const tutorEvalCase = makeCase();
   let missingKeyCalls = 0;
