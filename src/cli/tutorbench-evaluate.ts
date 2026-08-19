@@ -240,7 +240,7 @@ async function loadResumeEvaluation(
   }
 }
 
-async function createJudgeIfRequested(
+export async function createJudgeIfRequested(
   liveJudge: boolean,
   deepSeekJudge: boolean,
   chatCompletionsJudge: boolean,

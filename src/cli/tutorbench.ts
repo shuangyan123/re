@@ -40,6 +40,12 @@ import {
   type ReviewTranslateCliOptions,
 } from "./review-translate.js";
 import {
+  parseJudgeWordContextDiscriminationArgs,
+  printJudgeWordContextDiscriminationHelp,
+  runJudgeWordContextDiscrimination,
+  type JudgeWordContextDiscriminationCliOptions,
+} from "./judge-word-context-discrimination.js";
+import {
   nextTutorbenchValue,
   positiveTutorbenchInteger,
   tutorbenchOptionValue,
@@ -63,12 +69,13 @@ export interface TutorbenchRunOptions {
 }
 
 export type TutorbenchCliOptions =
-  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" }
+  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" }
   | { readonly help: false; readonly run: TutorbenchRunOptions }
   | { readonly help: false; readonly collect: TutorbenchCollectCliOptions }
   | { readonly help: false; readonly collectModel: TutorbenchCollectModelCliOptions }
   | { readonly help: false; readonly evaluate: BenchmarkCorpusCliOptions }
-  | { readonly help: false; readonly reviewTranslate: ReviewTranslateCliOptions };
+  | { readonly help: false; readonly reviewTranslate: ReviewTranslateCliOptions }
+  | { readonly help: false; readonly judgeWordContextDiscrimination: JudgeWordContextDiscriminationCliOptions };
 
 export function parseTutorbenchArgs(
   args: readonly string[],
@@ -99,6 +106,12 @@ export function parseTutorbenchArgs(
     return reviewTranslate.help
       ? { help: true, helpCommand: "review-translate" }
       : { help: false, reviewTranslate };
+  }
+  if (args[0] === "judge-word-context-discrimination") {
+    const diagnostic = parseJudgeWordContextDiscriminationArgs(args.slice(1));
+    return diagnostic.help
+      ? { help: true, helpCommand: "judge-word-context-discrimination" }
+      : { help: false, judgeWordContextDiscrimination: diagnostic };
   }
   if (args[0] !== "run") {
     throw new TutorbenchCliUsageError(
@@ -247,6 +260,7 @@ Usage:
   tutorbench collect-model --http <url> --provider <id> --model <id> [options]
   tutorbench evaluate --corpus <path> [options]
   tutorbench review-translate --evaluation <path> --output <path> [options]
+  tutorbench judge-word-context-discrimination --judge-deepseek [options]
 
 Commands:
   run                   Quick local evaluation; responses are not frozen
@@ -254,6 +268,8 @@ Commands:
   collect-model         Freeze canonical model responses from ExecutionPacket
   evaluate              Offline corpus replay and preliminary evaluation
   review-translate      Build an isolated, review-only translation sidecar
+  judge-word-context-discrimination
+                        Run the fixed A/B/C word-context Judge diagnostic
 
 Run options:
   --http <url>          POST TutorTurnInput JSON to this http(s) endpoint
@@ -354,6 +370,8 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       printBenchmarkCorpusHelp();
     } else if (options.helpCommand === "review-translate") {
       printReviewTranslateHelp();
+    } else if (options.helpCommand === "judge-word-context-discrimination") {
+      printJudgeWordContextDiscriminationHelp();
     } else {
       printHelp();
     }
@@ -379,6 +397,12 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       return;
     }
     await runReviewTranslate(options.reviewTranslate);
+  } else if ("judgeWordContextDiscrimination" in options) {
+    if (options.judgeWordContextDiscrimination.help) {
+      printJudgeWordContextDiscriminationHelp();
+      return;
+    }
+    await runJudgeWordContextDiscrimination(options.judgeWordContextDiscrimination);
   } else {
     if (options.evaluate.help) {
       printBenchmarkCorpusHelp();
