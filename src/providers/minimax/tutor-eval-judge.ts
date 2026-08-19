@@ -153,10 +153,10 @@ function parseReasoningSplit(value: string | undefined): ChatCompletionsReasonin
 
 function parseJsonMode(value: string | undefined): ChatCompletionsJudgeJsonMode {
   const normalized = nonEmpty(value);
-  if (normalized === null || normalized === "enabled") {
+  if (normalized === null) {
     return DEFAULT_MINIMAX_JUDGE_JSON_MODE;
   }
-  if (normalized === "disabled") {
+  if (normalized === "enabled" || normalized === "disabled") {
     return normalized;
   }
   throw new MiniMaxJudgeConfigurationError("json_mode_invalid");
