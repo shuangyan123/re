@@ -144,6 +144,11 @@ The nested evaluation result records target dataset `0.2a.1`, evaluator
 Non-replay results omit the optional field. Existing v1 artifacts without it
 remain readable.
 
+The replay example above is historical and retains evaluator `0.3a.3` as its
+target identity. New evaluations use `0.3a.4`; replay or comparison must keep
+that evaluator identity explicit rather than treating the scoring semantics as
+interchangeable.
+
 ## Rejected transitions and recollection boundary
 
 The following remain rejected:

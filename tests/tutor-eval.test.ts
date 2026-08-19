@@ -8,8 +8,11 @@ import {
   parseTutorEvalCase,
   parseTutorEvalJudgeResult,
   TUTOR_EVAL_CRITICAL_FAILURE_TYPES,
+  type TutorEvalCategory,
   type TutorEvalCase,
   type TutorEvalRubric,
+  type TutorEvalRubricBehavior,
+  type TutorEvalRubricResult,
 } from "../src/contracts/index.js";
 import { evaluateTutorEvalRubric } from "../src/evaluators/index.js";
 import {
@@ -41,6 +44,7 @@ function makeCase(
       evaluationType,
       ...(evaluatorId === undefined ? {} : { evaluatorId }),
       ...(override.config === undefined ? {} : { config: override.config }),
+      ...(override.behavior === undefined ? {} : { behavior: override.behavior }),
       ...(override.critical === undefined ? {} : { critical: override.critical }),
       ...(override.criticalFailure === undefined
         ? {}
@@ -77,6 +81,30 @@ function makeCase(
       rubrics,
     },
   });
+}
+
+function scoringRubric(
+  id: string,
+  category: TutorEvalCategory,
+  behavior: TutorEvalRubricBehavior = "required",
+  weight = 1,
+) {
+  return { id, category, behavior, weight } as const;
+}
+
+function scoringResult(
+  rubric: ReturnType<typeof scoringRubric>,
+  result: "PASS" | "PARTIAL" | "FAIL",
+): TutorEvalRubricResult {
+  return {
+    rubricId: rubric.id,
+    category: rubric.category,
+    result,
+    score: DEFAULT_TUTOR_EVAL_SCORING_CONFIG.criterionScores[result],
+    weight: rubric.weight,
+    critical: false,
+    diagnostics: [],
+  };
 }
 
 function makeJudgeResult(
@@ -596,6 +624,130 @@ test("weighted PASS/PARTIAL/FAIL rubric scores are aggregated in code", () => {
     },
   );
   assert.equal(customScoring.categoryScores.correctness, 0.6);
+});
+
+test("desirable PASS contributes to quality while required PASS establishes eligibility", () => {
+  const required = scoringRubric("required", "correctness");
+  const desirable = scoringRubric("desirable", "actionability", "desirable");
+  const aggregate = aggregateTutorEvalRubrics(
+    [required, desirable],
+    [scoringResult(required, "PASS"), scoringResult(desirable, "PASS")],
+    [],
+  );
+  assert.equal(aggregate.overallScore, 1);
+  assert.equal(aggregate.passed, true);
+});
+
+test("desirable FAIL lowers overall quality without blocking required pass eligibility", () => {
+  const required = scoringRubric("required", "correctness");
+  const desirable = scoringRubric("desirable", "actionability", "desirable");
+  const aggregate = aggregateTutorEvalRubrics(
+    [required, desirable],
+    [scoringResult(required, "PASS"), scoringResult(desirable, "FAIL")],
+    [],
+  );
+  assert.equal(aggregate.categoryScores.correctness, 1);
+  assert.equal(aggregate.categoryScores.actionability, 0);
+  assert.equal(aggregate.overallScore, 0.5);
+  assert.equal(aggregate.qualityGate, "PASS");
+  assert.equal(aggregate.passed, true);
+});
+
+test("required FAIL blocks eligibility even when desirable behavior passes", () => {
+  const required = scoringRubric("required", "correctness");
+  const desirable = scoringRubric("desirable", "actionability", "desirable");
+  const aggregate = aggregateTutorEvalRubrics(
+    [required, desirable],
+    [scoringResult(required, "FAIL"), scoringResult(desirable, "PASS")],
+    [],
+  );
+  assert.equal(aggregate.overallScore, 0.5);
+  assert.equal(aggregate.passed, false);
+});
+
+test("required PARTIAL uses the case threshold while desirable remains nonessential", () => {
+  const required = scoringRubric("required", "correctness");
+  const partial = aggregateTutorEvalRubrics(
+    [required],
+    [scoringResult(required, "PARTIAL")],
+    [],
+  );
+  assert.equal(partial.overallScore, 0.5);
+  assert.equal(partial.passed, false);
+
+  const secondRequired = scoringRubric("second-required", "correctness");
+  const boundary = aggregateTutorEvalRubrics(
+    [required, secondRequired],
+    [scoringResult(required, "PASS"), scoringResult(secondRequired, "PARTIAL")],
+    [],
+  );
+  assert.equal(boundary.overallScore, 0.75);
+  assert.equal(boundary.passed, true);
+});
+
+test("critical failures still block a high-quality score with desirable failure", () => {
+  const required = scoringRubric("required", "correctness");
+  const desirable = scoringRubric("desirable", "actionability", "desirable");
+  const aggregate = aggregateTutorEvalRubrics(
+    [required, desirable],
+    [scoringResult(required, "PASS"), scoringResult(desirable, "FAIL")],
+    [{
+      type: "answer_leakage",
+      severity: "major",
+      evidence: "Synthetic gated failure.",
+    }],
+  );
+  assert.equal(aggregate.overallScore, 0.5);
+  assert.equal(aggregate.qualityGate, "FAIL");
+  assert.equal(aggregate.passed, false);
+});
+
+test("required eligibility preserves category weighting across multiple categories", () => {
+  const correctness = scoringRubric("correctness", "correctness");
+  const guidance = scoringRubric("guidance", "guidance");
+  const desirable = scoringRubric("desirable", "actionability", "desirable");
+  const aggregate = aggregateTutorEvalRubrics(
+    [correctness, guidance, desirable],
+    [
+      scoringResult(correctness, "PASS"),
+      scoringResult(guidance, "PARTIAL"),
+      scoringResult(desirable, "FAIL"),
+    ],
+    [],
+    {
+      ...DEFAULT_TUTOR_EVAL_SCORING_CONFIG,
+      categoryWeights: {
+        ...DEFAULT_TUTOR_EVAL_SCORING_CONFIG.categoryWeights,
+        correctness: 2,
+        actionability: 3,
+      },
+    },
+  );
+  assert.equal(aggregate.categoryScores.correctness, 1);
+  assert.equal(aggregate.categoryScores.guidance, 0.5);
+  assert.equal(aggregate.categoryScores.actionability, 0);
+  assert.equal(aggregate.overallScore, 0.4167);
+  assert.equal(aggregate.passed, true);
+});
+
+test("prohibited FAIL blocks eligibility without inventing a critical failure", () => {
+  const required = scoringRubric("required", "correctness");
+  const prohibited = scoringRubric("prohibited", "guidance", "prohibited");
+  const allowed = aggregateTutorEvalRubrics(
+    [required, prohibited],
+    [scoringResult(required, "PASS"), scoringResult(prohibited, "PASS")],
+    [],
+  );
+  assert.equal(allowed.passed, true);
+
+  const violation = aggregateTutorEvalRubrics(
+    [required, prohibited],
+    [scoringResult(required, "PASS"), scoringResult(prohibited, "FAIL")],
+    [],
+  );
+  assert.equal(violation.overallScore, 0.5);
+  assert.equal(violation.qualityGate, "PASS");
+  assert.equal(violation.passed, false);
 });
 
 test("a configured severe factual failure forces the quality gate to FAIL", () => {

@@ -349,8 +349,9 @@ seconds. Replaying those same two frozen responses with a 60000ms timeout
 produced 0 errors, 2 failures, and 34084ms observed Judge latency. That
 diagnostic supports the default but does not guarantee that every future
 request will finish within it. That historical profile evidence used evaluator
-version `0.3a.2`; new runs use `0.3a.3` after the separate disclosure/diagnosis
-semantic audit. The execution configuration itself is unchanged by this PR.
+version `0.3a.2`; the disclosure/diagnosis audit later used `0.3a.3`, while
+current runs use `0.3a.4` for the separate case pass-eligibility semantics.
+The execution configuration itself is unchanged by this PR.
 
 ```powershell
 node dist/src/cli/tutorbench.js evaluate `

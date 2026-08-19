@@ -325,8 +325,8 @@ CALIBRATION_REPORT_SCHEMA_VERSION = 1
 ```
 
 The critical-failure extension has independent v1 constants for its schema,
-packet, reference set, and report. Dataset `0.2a.1`, evaluator `0.3a.3`, and
-Judge prompt `0.3` are unchanged.
+packet, reference set, and report. Its calibration contract and Judge prompt
+remain unchanged; current runs use dataset `0.2a.1` and evaluator `0.3a.4`.
 
 ## 20. Commands
 

@@ -148,7 +148,7 @@ test("the five disclosure policies have canonical definitions and coverage", asy
     );
   }
   assert.equal(dataset.version, TUTOR_EVAL_DATASET_VERSION);
-  assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.3");
+  assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.4");
   assert.deepEqual(
     dataset.cases
       .filter(
