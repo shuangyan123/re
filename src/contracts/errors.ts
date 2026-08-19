@@ -8,6 +8,7 @@ export type BenchmarkErrorCode =
   | "tutor_eval_result_invalid"
   | "judge_input_invalid"
   | "judge_result_invalid"
+  | "material_requirement_judge_invalid"
   | "calibration_candidate_invalid"
   | "calibration_annotation_invalid"
   | "calibration_adjudication_invalid"
@@ -38,6 +39,8 @@ const stableMessages: Record<BenchmarkErrorCode, string> = {
   tutor_eval_result_invalid: "TutorEval result is invalid.",
   judge_input_invalid: "AI Tutor Judge input is invalid.",
   judge_result_invalid: "AI Tutor Judge result is invalid.",
+  material_requirement_judge_invalid:
+    "Material Requirement Judge input or result is invalid.",
   calibration_candidate_invalid: "Calibration candidate response is invalid.",
   calibration_annotation_invalid: "Calibration annotation is invalid.",
   calibration_adjudication_invalid: "Calibration adjudication is invalid.",
@@ -77,6 +80,7 @@ export class BenchmarkConfigurationError extends Error {
     | "tutor_eval_result_invalid"
     | "judge_input_invalid"
     | "judge_result_invalid"
+    | "material_requirement_judge_invalid"
     | "calibration_candidate_invalid"
     | "calibration_annotation_invalid"
     | "calibration_adjudication_invalid"
@@ -105,6 +109,7 @@ export class BenchmarkConfigurationError extends Error {
       | "tutor_eval_result_invalid"
       | "judge_input_invalid"
       | "judge_result_invalid"
+      | "material_requirement_judge_invalid"
       | "calibration_candidate_invalid"
       | "calibration_annotation_invalid"
       | "calibration_adjudication_invalid"
