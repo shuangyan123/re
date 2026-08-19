@@ -59,7 +59,7 @@ This task does not change:
 | diagnostic fixture | `judge-word-context-discrimination@0.1.0` |
 | case | `language-word-context-001@1.1.1` |
 | evaluator | `0.3a.4` |
-| comparison artifact | independent `schemaVersion: 1` |
+| comparison artifact | independent `schemaVersion: 1`, `comparisonVersion: 0.1.1` |
 
 The existing `judge-word-context-discrimination` command remains compatible.
 It still performs its original three-call DeepSeek diagnostic. The new
@@ -196,7 +196,10 @@ Each candidate records:
 - prompt ID/version and the observable generation profile;
 - effective timeout and bounded transport-attempt profile;
 - every repetition's A/B/C observed correctness label;
-- expected-label agreement by fixture and overall;
+- planned expected-label agreement by fixture and overall, retaining all
+  planned observations in the denominator for artifact compatibility;
+- observed-label expected agreement and semantic-label availability, both by
+  fixture and overall;
 - exact expected A/B/C run agreement;
 - PASS/PARTIAL/FAIL label counts and unavailable counts;
 - per-fixture modal label, modal-label share among observed labels, and
@@ -207,8 +210,32 @@ Each candidate records:
   modal signature;
 - `insufficientInformation` counts and execution errors by stable code;
 - per-call latency, mean, median, and unavailable latency counts; and
-- input/output/total token measurements, with unavailable fields left
-  unavailable rather than estimated.
+- strict complete input/output/total token measurements plus known totals and
+  coverage counts, with unavailable fields left unavailable rather than
+  estimated.
+
+Availability and semantic agreement are separate diagnostics. For example,
+suppose nine fixture observations are planned, two end in transport errors,
+seven produce labels, and two of those labels match their diagnostic
+expectations. The report records all three facts:
+
+```text
+expected-label agreement (planned): 2/9
+expected-label agreement (observed): 2/7
+label availability: 7/9
+```
+
+The retained planned agreement includes unavailable/error observations in its
+denominator. It is therefore not the semantic agreement rate among successful
+labels. An execution failure is an availability signal; it is not an observed
+rubric label and must not be interpreted as Judge semantic disagreement. None
+of these diagnostic ratios is calibration accuracy.
+
+Token coverage follows the same separation. If seven of nine observations
+report `totalTokens`, their known values are summed and reported with coverage
+`7/9`. The strict complete total remains unavailable because the other two
+values are unknown. Missing provider usage is never estimated or treated as
+zero, while known usage remains visible for cost observability.
 
 `criticalFailureDisagreementCount` is a stability diagnostic: for each fixture,
 it counts known observations that differ from that fixture's modal

@@ -12,7 +12,7 @@ import {
 } from "../runner/index.js";
 
 export const JUDGE_CANDIDATE_COMPARISON_ID = "judge-candidate-comparison" as const;
-export const JUDGE_CANDIDATE_COMPARISON_VERSION = "0.1.0" as const;
+export const JUDGE_CANDIDATE_COMPARISON_VERSION = "0.1.1" as const;
 
 export type JudgeCandidateComparisonJsonValue = string | number | boolean | null;
 export type JudgeCandidateComparisonGenerationProfile = Readonly<
@@ -86,6 +86,12 @@ export interface JudgeCandidateComparisonLabelAgreement {
   readonly share: number;
 }
 
+export interface JudgeCandidateComparisonAvailability {
+  readonly observedCount: number;
+  readonly plannedCount: number;
+  readonly share: number;
+}
+
 export interface JudgeCandidateComparisonLabelDistribution {
   readonly counts: Readonly<Record<string, number>>;
   readonly unavailableCount: number;
@@ -128,11 +134,32 @@ export interface JudgeCandidateComparisonTokenUsage {
   readonly totalUnavailableCount: number;
 }
 
+export interface JudgeCandidateComparisonTokenCoverage {
+  readonly completeTotal: number | null;
+  readonly knownTotal: number;
+  readonly knownCount: number;
+  readonly plannedCount: number;
+  readonly unavailableCount: number;
+  readonly coverageShare: number;
+}
+
 export interface JudgeCandidateComparisonMetrics {
   readonly expectedLabelAgreement: {
     readonly overall: JudgeCandidateComparisonLabelAgreement;
     readonly byFixture: Readonly<
       Record<string, JudgeCandidateComparisonLabelAgreement>
+    >;
+  };
+  readonly expectedLabelAgreementObserved: {
+    readonly overall: JudgeCandidateComparisonLabelAgreement;
+    readonly byFixture: Readonly<
+      Record<string, JudgeCandidateComparisonLabelAgreement>
+    >;
+  };
+  readonly semanticLabelAvailability: {
+    readonly overall: JudgeCandidateComparisonAvailability;
+    readonly byFixture: Readonly<
+      Record<string, JudgeCandidateComparisonAvailability>
     >;
   };
   readonly exactExpectedRunAgreement: JudgeCandidateComparisonLabelAgreement;
@@ -171,6 +198,11 @@ export interface JudgeCandidateComparisonMetrics {
     readonly unavailableCount: number;
   };
   readonly tokenUsage: JudgeCandidateComparisonTokenUsage;
+  readonly tokenUsageCoverage: {
+    readonly inputTokens: JudgeCandidateComparisonTokenCoverage;
+    readonly outputTokens: JudgeCandidateComparisonTokenCoverage;
+    readonly totalTokens: JudgeCandidateComparisonTokenCoverage;
+  };
   readonly unanimousFixtureCount: number;
   readonly fixtureCount: number;
   readonly callCount: number;
@@ -193,6 +225,8 @@ export interface JudgeCandidateComparisonCandidateReport {
 export interface JudgeCandidateComparisonPairwiseSummary {
   readonly candidateId: string;
   readonly diagnosticAgreement: JudgeCandidateComparisonLabelAgreement;
+  readonly diagnosticAgreementObserved: JudgeCandidateComparisonLabelAgreement;
+  readonly semanticLabelAvailability: JudgeCandidateComparisonAvailability;
   readonly exactExpectedRuns: JudgeCandidateComparisonLabelAgreement;
   readonly unanimousFixtures: {
     readonly count: number;
@@ -201,6 +235,8 @@ export interface JudgeCandidateComparisonPairwiseSummary {
   readonly criticalFailureDisagreementCount: number;
   readonly meanLatencyMs: number | null;
   readonly totalTokens: number | null;
+  readonly knownTotalTokens: number;
+  readonly totalTokenCoverage: JudgeCandidateComparisonAvailability;
 }
 
 export interface JudgeCandidateComparisonReport {
@@ -251,6 +287,13 @@ function agreement(
   totalCount: number,
 ): JudgeCandidateComparisonLabelAgreement {
   return { agreedCount, totalCount, share: ratio(agreedCount, totalCount) };
+}
+
+function availability(
+  observedCount: number,
+  plannedCount: number,
+): JudgeCandidateComparisonAvailability {
+  return { observedCount, plannedCount, share: ratio(observedCount, plannedCount) };
 }
 
 function increment(counts: Record<string, number>, key: string): void {
@@ -333,17 +376,44 @@ function buildLabelAgreement(
   );
 }
 
+function buildObservedLabelAgreement(
+  observations: readonly JudgeCandidateComparisonFixtureObservation[],
+): JudgeCandidateComparisonLabelAgreement {
+  const observed = observations.filter(
+    (observation) => observation.observedLabel !== null,
+  );
+  return agreement(
+    observed.filter(
+      (observation) => observation.observedLabel === observation.expectedLabel,
+    ).length,
+    observed.length,
+  );
+}
+
+function buildLabelAvailability(
+  observations: readonly JudgeCandidateComparisonFixtureObservation[],
+): JudgeCandidateComparisonAvailability {
+  return availability(
+    observations.filter((observation) => observation.observedLabel !== null).length,
+    observations.length,
+  );
+}
+
 function buildTokenAggregate(
   observations: readonly JudgeCandidateComparisonFixtureObservation[],
   field: "inputTokens" | "outputTokens" | "totalTokens",
-): { readonly value: number | null; readonly unavailableCount: number } {
+): JudgeCandidateComparisonTokenCoverage {
   const values = observations.map((observation) => observation.tokenUsage?.[field] ?? null);
   const unavailableCount = values.filter((value) => value === null).length;
+  const knownValues = values.filter((value): value is number => value !== null);
+  const knownTotal = knownValues.reduce((sum, value) => sum + value, 0);
   return {
-    value: unavailableCount === 0
-      ? values.reduce<number>((sum, value) => sum + (value ?? 0), 0)
-      : null,
+    completeTotal: unavailableCount === 0 ? knownTotal : null,
+    knownTotal,
+    knownCount: knownValues.length,
+    plannedCount: values.length,
     unavailableCount,
+    coverageShare: ratio(knownValues.length, values.length),
   };
 }
 
@@ -453,6 +523,14 @@ function buildCandidateMetrics(
     string,
     JudgeCandidateComparisonLabelAgreement
   > = {};
+  const expectedLabelAgreementObservedByFixture: Record<
+    string,
+    JudgeCandidateComparisonLabelAgreement
+  > = {};
+  const semanticLabelAvailabilityByFixture: Record<
+    string,
+    JudgeCandidateComparisonAvailability
+  > = {};
   const labelDistribution: Record<
     string,
     JudgeCandidateComparisonLabelDistribution
@@ -475,6 +553,10 @@ function buildCandidateMetrics(
   for (const fixtureId of fixture.expectedFixtureIds) {
     const fixtureObservations = observationsForFixture(observations, fixtureId);
     expectedLabelAgreementByFixture[fixtureId] = buildLabelAgreement(fixtureObservations);
+    expectedLabelAgreementObservedByFixture[fixtureId] =
+      buildObservedLabelAgreement(fixtureObservations);
+    semanticLabelAvailabilityByFixture[fixtureId] =
+      buildLabelAvailability(fixtureObservations);
     const labelMode = mode(
       fixtureObservations.map((observation) => observation.observedLabel),
     );
@@ -537,6 +619,8 @@ function buildCandidateMetrics(
   }
 
   const expectedLabelAgreementOverall = buildLabelAgreement(observations);
+  const expectedLabelAgreementObservedOverall = buildObservedLabelAgreement(observations);
+  const semanticLabelAvailabilityOverall = buildLabelAvailability(observations);
   const exactExpectedRunCount = repetitions.filter((repetition) =>
     repetition.observations.every(
       (observation) => observation.observedLabel === observation.expectedLabel,
@@ -571,6 +655,14 @@ function buildCandidateMetrics(
       overall: expectedLabelAgreementOverall,
       byFixture: expectedLabelAgreementByFixture,
     },
+    expectedLabelAgreementObserved: {
+      overall: expectedLabelAgreementObservedOverall,
+      byFixture: expectedLabelAgreementObservedByFixture,
+    },
+    semanticLabelAvailability: {
+      overall: semanticLabelAvailabilityOverall,
+      byFixture: semanticLabelAvailabilityByFixture,
+    },
     exactExpectedRunAgreement: agreement(exactExpectedRunCount, repetitions.length),
     labelDistribution,
     answerLeakageDistribution,
@@ -599,13 +691,14 @@ function buildCandidateMetrics(
       unavailableCount: perCallMs.length - knownLatency.length,
     },
     tokenUsage: {
-      inputTokens: inputTokens.value,
-      outputTokens: outputTokens.value,
-      totalTokens: totalTokens.value,
+      inputTokens: inputTokens.completeTotal,
+      outputTokens: outputTokens.completeTotal,
+      totalTokens: totalTokens.completeTotal,
       inputUnavailableCount: inputTokens.unavailableCount,
       outputUnavailableCount: outputTokens.unavailableCount,
       totalUnavailableCount: totalTokens.unavailableCount,
     },
+    tokenUsageCoverage: { inputTokens, outputTokens, totalTokens },
     unanimousFixtureCount,
     fixtureCount: fixture.expectedFixtureIds.length,
     callCount: repetitions.reduce((sum, repetition) => sum + repetition.judgeCallCount, 0),
@@ -647,6 +740,8 @@ function pairwiseSummary(
   return {
     candidateId: report.candidateId,
     diagnosticAgreement: report.metrics.expectedLabelAgreement.overall,
+    diagnosticAgreementObserved: report.metrics.expectedLabelAgreementObserved.overall,
+    semanticLabelAvailability: report.metrics.semanticLabelAvailability.overall,
     exactExpectedRuns: report.metrics.exactExpectedRunAgreement,
     unanimousFixtures: {
       count: report.metrics.unanimousFixtureCount,
@@ -655,6 +750,11 @@ function pairwiseSummary(
     criticalFailureDisagreementCount: report.metrics.criticalFailureDisagreementCount,
     meanLatencyMs: report.metrics.latency.meanMs,
     totalTokens: report.metrics.tokenUsage.totalTokens,
+    knownTotalTokens: report.metrics.tokenUsageCoverage.totalTokens.knownTotal,
+    totalTokenCoverage: availability(
+      report.metrics.tokenUsageCoverage.totalTokens.knownCount,
+      report.metrics.tokenUsageCoverage.totalTokens.plannedCount,
+    ),
   };
 }
 
@@ -759,6 +859,7 @@ export async function runJudgeCandidateComparison(options: {
     limitations: [
       "Developer-authored diagnostic expectations are not human calibration gold.",
       "Expected-label agreement is descriptive agreement with this fixed probe, not Judge accuracy or calibration.",
+      "Execution failure is an availability signal, not an observed rubric label or semantic disagreement.",
       "Run-to-run stability and critical-failure distributions are measured only for the selected fixture and repetition count.",
       "A same-provider Tutor and Judge can share correlated bias; higher agreement does not establish independent reliability.",
       "Token and latency fields are provider-reported or observed measurements; unavailable fields are not estimated.",
@@ -804,12 +905,15 @@ export function formatJudgeCandidateComparisonReport(
       );
     }
     lines.push(
-      `  expected-label agreement: ${candidate.metrics.expectedLabelAgreement.overall.agreedCount}/${candidate.metrics.expectedLabelAgreement.overall.totalCount}`,
+      `  expected-label agreement (planned): ${candidate.metrics.expectedLabelAgreement.overall.agreedCount}/${candidate.metrics.expectedLabelAgreement.overall.totalCount}`,
+      `  expected-label agreement (observed): ${candidate.metrics.expectedLabelAgreementObserved.overall.agreedCount}/${candidate.metrics.expectedLabelAgreementObserved.overall.totalCount}`,
+      `  label availability: ${candidate.metrics.semanticLabelAvailability.overall.observedCount}/${candidate.metrics.semanticLabelAvailability.overall.plannedCount}`,
       `  exact expected runs: ${candidate.metrics.exactExpectedRunAgreement.agreedCount}/${candidate.metrics.exactExpectedRunAgreement.totalCount}`,
       `  unanimous fixtures: ${candidate.metrics.unanimousFixtureCount}/${candidate.metrics.fixtureCount}`,
       `  critical-failure disagreement count: ${candidate.metrics.criticalFailureDisagreementCount}`,
       `  mean/median latency: ${candidate.metrics.latency.meanMs ?? "unavailable"}/${candidate.metrics.latency.medianMs ?? "unavailable"} ms`,
-      `  total tokens: ${candidate.metrics.tokenUsage.totalTokens ?? "unavailable"}`,
+      `  known total tokens: ${candidate.metrics.tokenUsageCoverage.totalTokens.knownTotal} (${candidate.metrics.tokenUsageCoverage.totalTokens.knownCount}/${candidate.metrics.tokenUsageCoverage.totalTokens.plannedCount} observations)`,
+      `  complete total tokens: ${candidate.metrics.tokenUsage.totalTokens ?? "unavailable"}`,
       `  execution errors: ${candidate.metrics.executionErrors.count}`,
       "",
     );
@@ -817,7 +921,7 @@ export function formatJudgeCandidateComparisonReport(
   lines.push(
     "Pairwise summary:",
     ...report.pairwiseSummary.map((summary) =>
-      `  ${summary.candidateId}: diagnostic agreement ${summary.diagnosticAgreement.agreedCount}/${summary.diagnosticAgreement.totalCount}; exact expected runs ${summary.exactExpectedRuns.agreedCount}/${summary.exactExpectedRuns.totalCount}; unanimous fixtures ${summary.unanimousFixtures.count}/${summary.unanimousFixtures.total}; critical-failure disagreements ${summary.criticalFailureDisagreementCount}; mean latency ${summary.meanLatencyMs ?? "unavailable"} ms; total tokens ${summary.totalTokens ?? "unavailable"}`,
+      `  ${summary.candidateId}: diagnostic agreement (planned) ${summary.diagnosticAgreement.agreedCount}/${summary.diagnosticAgreement.totalCount}; diagnostic agreement (observed labels) ${summary.diagnosticAgreementObserved.agreedCount}/${summary.diagnosticAgreementObserved.totalCount}; label availability ${summary.semanticLabelAvailability.observedCount}/${summary.semanticLabelAvailability.plannedCount}; exact expected runs ${summary.exactExpectedRuns.agreedCount}/${summary.exactExpectedRuns.totalCount}; unanimous fixtures ${summary.unanimousFixtures.count}/${summary.unanimousFixtures.total}; critical-failure disagreements ${summary.criticalFailureDisagreementCount}; mean latency ${summary.meanLatencyMs ?? "unavailable"} ms; known total tokens ${summary.knownTotalTokens} (coverage ${summary.totalTokenCoverage.observedCount}/${summary.totalTokenCoverage.plannedCount}); complete total tokens ${summary.totalTokens ?? "unavailable"}`,
     ),
     report.selectionStatement,
   );
