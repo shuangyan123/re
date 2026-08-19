@@ -218,6 +218,10 @@ the rubric was incomplete. The version identities are therefore:
 | Judge result schema | `1` | unchanged | No result field or enum was added. |
 | Calibration contract | unchanged | unchanged | 0.2B still annotates only `PASS`/`PARTIAL`/`FAIL`/`UNSURE` at rubric level. |
 
+This table records the historical `0.3a.3` transition. Current evaluator
+`0.3a.4` separately corrects case-pass eligibility without rewriting the audit
+or historical result artifacts.
+
 ## 8. Compatibility impact
 
 The public provider-independent contracts remain structurally compatible. The
@@ -240,8 +244,9 @@ their recorded dataset, case, evaluator, and prompt identities. They are:
 - not human gold evidence;
 - not retroactively rewritten by this PR;
 - useful as exploratory disagreement and ambiguity evidence;
-- not directly comparable with new results under evaluator `0.3a.3` and prompt
-  `0.3` as though the semantics were identical.
+- not directly comparable with new results under historical evaluator `0.3a.3`
+  or current evaluator `0.3a.4` and prompt `0.3` as though the semantics were
+  identical.
 
 The supplied observations that `history-source-context-001` could be judged
 as leakage in one run and not in another, that

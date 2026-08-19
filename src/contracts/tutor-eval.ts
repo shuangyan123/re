@@ -30,7 +30,7 @@ export const TUTOR_EVAL_PREVIOUS_CURRENT_DATASET_VERSION = "0.2a.4" as const;
  * immutable Tutor response corpora can be replayed under an explicitly named
  * verifier revision.
  */
-export const TUTOR_EVAL_EVALUATOR_VERSION = "0.3a.3" as const;
+export const TUTOR_EVAL_EVALUATOR_VERSION = "0.3a.4" as const;
 export const TUTOR_EVAL_LEGACY_DATASET_ID = "tutor-eval-v0.1" as const;
 export const TUTOR_EVAL_LEGACY_DATASET_VERSION = "0.1" as const;
 export const TUTOR_EVAL_CASE_SCHEMA_VERSION = 1 as const;

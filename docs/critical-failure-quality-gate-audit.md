@@ -68,12 +68,18 @@ contributes to `answerLeakageRate` whether or not it gates the case.
 
 The quality-gate policy in this document was previously recorded as evaluator
 version `0.3a.2` instead of `0.3a.1`. The later disclosure/diagnosis semantics
-audit changes the canonical language mapping and the Judge interpretation, so
-new runs use evaluator version `0.3a.3`, dataset version `0.2a.1`, language case
-version `1.0.1`, and Judge prompt version `0.3`. Existing v1 result artifacts
+audit changed the canonical language mapping and the Judge interpretation; that
+historical transition used evaluator version `0.3a.3`, dataset version
+`0.2a.1`, language case version `1.0.1`, and Judge prompt version `0.3`.
+Existing v1 result artifacts
 remain readable because `evaluatorVersion` is optional and no result-schema
 field was removed; they retain their historical semantics and are not silently
 rewritten.
+
+This audit's recorded policy transition remains historical at `0.3a.3`.
+Current runs use evaluator `0.3a.4`, which changes only case-pass eligibility:
+the quality gate remains independent and unchanged, while required/prohibited
+behavior is separated from desirable score contribution.
 
 ## Offline regression evidence
 

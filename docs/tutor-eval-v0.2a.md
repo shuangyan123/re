@@ -112,6 +112,15 @@ The policy audit and rationale are recorded in the
 [`disclosure and critical-failure semantics audit`](tutor-eval-disclosure-critical-semantics-audit.md)
 and the [`critical-failure quality-gate audit`](critical-failure-quality-gate-audit.md).
 
+The ordinary score and case-pass eligibility are separate in current evaluator
+`0.3a.4`. All valid score-bearing rubrics, including `desirable`, remain in
+category and overall scores. Eligibility applies the configured category
+weights and pass threshold to required-only rubric scores, rejects an explicit
+`prohibited` `FAIL`, and still requires the quality gate to pass. A required
+`PARTIAL` contributes its configured score and can pass only when the
+required-only score reaches the threshold; a desirable failure lowers quality
+scores without being sufficient alone to fail the case.
+
 For example, answer disclosure in a `hint_only` case can be one prohibited
 Guidance rubric with an `answer_leakage` critical-failure flag. Do not also
 deduct the same event as separate `student_agency`, `hint_calibration`, and

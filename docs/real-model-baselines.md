@@ -307,8 +307,9 @@ node dist/src/cli/tutorbench.js evaluate `
 
 The bridge is documented in
 [`frozen-corpus-semantic-replay.md`](frozen-corpus-semantic-replay.md). It
-preserves source corpus identity and response IDs, evaluates the target
-`0.2a.1`/`0.3a.3` semantics, and records both identities in `semanticReplay`.
+preserves source corpus identity and response IDs, evaluates the historical
+target `0.2a.1`/`0.3a.3` semantics, and records both identities in
+`semanticReplay`.
 Without the flag, the same source/target mismatch remains fail-closed.
 
 ## Generic Chat Completions Judge and report locale

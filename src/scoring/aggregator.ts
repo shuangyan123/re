@@ -9,6 +9,7 @@ import type {
   TutorEvalRubricResult,
   TutorEvalCriticalFailure,
 } from "../contracts/result.js";
+import type { TutorEvalRubricBehavior } from "../contracts/rubric.js";
 import { TUTOR_EVAL_CATEGORIES } from "../contracts/tutor-eval.js";
 
 export { TUTOR_EVAL_CATEGORIES } from "../contracts/tutor-eval.js";
@@ -93,6 +94,145 @@ function scoreForRubricResult(
     : config.criterionScores[result.result];
 }
 
+type ScoringRubric = {
+  readonly id: string;
+  readonly category: TutorEvalCategory;
+  readonly weight: number;
+  readonly behavior?: TutorEvalRubricBehavior;
+};
+
+type ScoredRubric = {
+  readonly rubric: ScoringRubric;
+  readonly score: number;
+};
+
+function rubricBehavior(rubric: ScoringRubric): TutorEvalRubricBehavior {
+  return rubric.behavior ?? "required";
+}
+
+function scoredRubrics(
+  rubrics: readonly ScoringRubric[],
+  results: readonly TutorEvalRubricResult[],
+  config: TutorEvalScoringConfig,
+): ScoredRubric[] {
+  return rubrics.flatMap((rubric) => {
+    const result = results.find((candidate) => candidate.rubricId === rubric.id);
+    const score = result === undefined ? null : scoreForRubricResult(result, config);
+    return result === undefined || score === null
+      ? []
+      : [{ rubric, score }];
+  });
+}
+
+function categoryScoresForRubrics(
+  rubrics: readonly ScoringRubric[],
+  results: readonly TutorEvalRubricResult[],
+  config: TutorEvalScoringConfig,
+): TutorEvalCategoryScores {
+  const categoryScores: Record<TutorEvalCategory, number | null> = {
+    correctness: null,
+    diagnosis: null,
+    guidance: null,
+    adaptation: null,
+    actionability: null,
+  };
+  const scored = scoredRubrics(rubrics, results, config);
+  for (const category of TUTOR_EVAL_CATEGORIES) {
+    const applicable = scored.filter((entry) => entry.rubric.category === category);
+    if (applicable.length === 0) {
+      continue;
+    }
+    const totalWeight = applicable.reduce(
+      (sum, entry) => sum + entry.rubric.weight,
+      0,
+    );
+    if (totalWeight > 0) {
+      categoryScores[category] = round(
+        applicable.reduce(
+          (sum, entry) => sum + entry.score * entry.rubric.weight,
+          0,
+        ) / totalWeight,
+      );
+    }
+  }
+  return categoryScores;
+}
+
+function weightedCategoryScore(
+  categoryScores: TutorEvalCategoryScores,
+  config: TutorEvalScoringConfig,
+): number | null {
+  const weightedCategories = TUTOR_EVAL_CATEGORIES.filter(
+    (category) => categoryScores[category] !== null,
+  );
+  const categoryWeight = weightedCategories.reduce(
+    (sum, category) => sum + config.categoryWeights[category],
+    0,
+  );
+  return categoryWeight === 0
+    ? null
+    : round(
+        weightedCategories.reduce(
+          (sum, category) =>
+            sum +
+            (categoryScores[category] ?? 0) * config.categoryWeights[category],
+          0,
+        ) / categoryWeight,
+      );
+}
+
+function hasCompleteRubricResults(
+  rubrics: readonly ScoringRubric[],
+  results: readonly TutorEvalRubricResult[],
+  config: TutorEvalScoringConfig,
+): boolean {
+  return rubrics.every((rubric) => {
+    const result = results.find((candidate) => candidate.rubricId === rubric.id);
+    return result !== undefined && scoreForRubricResult(result, config) !== null;
+  });
+}
+
+function hasNoProhibitedFailure(
+  rubrics: readonly ScoringRubric[],
+  results: readonly TutorEvalRubricResult[],
+  config: TutorEvalScoringConfig,
+): boolean {
+  // A prohibited FAIL is an eligibility failure, but critical-failure mapping
+  // stays an independent Judge/quality-gate decision.
+  return rubrics
+    .filter((rubric) => rubricBehavior(rubric) === "prohibited")
+    .every((rubric) => {
+      const result = results.find((candidate) => candidate.rubricId === rubric.id);
+      return (
+        result !== undefined &&
+        scoreForRubricResult(result, config) !== null &&
+        result.result !== "FAIL"
+      );
+    });
+}
+
+function essentialPassEligibility(
+  rubrics: readonly ScoringRubric[],
+  results: readonly TutorEvalRubricResult[],
+  config: TutorEvalScoringConfig,
+): boolean {
+  // Required PARTIAL results remain score-bearing; the configured threshold,
+  // rather than an all-PASS rule, decides the required-only eligibility score.
+  const requiredRubrics = rubrics.filter(
+    (rubric) => rubricBehavior(rubric) === "required",
+  );
+  const requiredScore = weightedCategoryScore(
+    categoryScoresForRubrics(requiredRubrics, results, config),
+    config,
+  );
+  const requiredPass =
+    requiredRubrics.length === 0 ||
+    (hasCompleteRubricResults(requiredRubrics, results, config) &&
+      requiredScore !== null &&
+      requiredScore >= config.casePassThreshold);
+  return requiredPass && hasNoProhibitedFailure(rubrics, results, config);
+}
+
 export function createEmptyTutorEvalCategoryScores(): TutorEvalCategoryScores {
   return {
     correctness: null,
@@ -104,76 +244,13 @@ export function createEmptyTutorEvalCategoryScores(): TutorEvalCategoryScores {
 }
 
 export function aggregateTutorEvalRubrics(
-  rubrics: readonly {
-    readonly id: string;
-    readonly category: TutorEvalCategory;
-    readonly weight: number;
-  }[],
+  rubrics: readonly ScoringRubric[],
   results: readonly TutorEvalRubricResult[],
   criticalFailures: readonly TutorEvalCriticalFailure[],
   config: TutorEvalScoringConfig = DEFAULT_TUTOR_EVAL_SCORING_CONFIG,
 ): TutorEvalAggregate {
-  const categoryScores: Record<TutorEvalCategory, number | null> = {
-    correctness: null,
-    diagnosis: null,
-    guidance: null,
-    adaptation: null,
-    actionability: null,
-  };
-  for (const category of TUTOR_EVAL_CATEGORIES) {
-    const applicable = rubrics
-      .map((rubric) => ({
-        rubric,
-        result: results.find((result) => result.rubricId === rubric.id),
-      }))
-      .filter(
-        (entry): entry is {
-          rubric: (typeof rubrics)[number];
-          result: TutorEvalRubricResult;
-        } =>
-          entry.rubric.category === category &&
-          entry.result !== undefined &&
-          scoreForRubricResult(entry.result, config) !== null,
-      );
-    if (applicable.length === 0) {
-      continue;
-    }
-    const totalWeight = applicable.reduce(
-      (sum, entry) => sum + entry.rubric.weight,
-      0,
-    );
-    if (totalWeight > 0) {
-      categoryScores[category] = round(
-        applicable.reduce(
-          (sum, entry) =>
-            sum +
-            (scoreForRubricResult(entry.result, config) ?? 0) *
-              entry.rubric.weight,
-          0,
-        ) / totalWeight,
-      );
-    }
-  }
-
-  const weightedCategories = TUTOR_EVAL_CATEGORIES.filter(
-    (category) => categoryScores[category] !== null,
-  );
-  const categoryWeight = weightedCategories.reduce(
-    (sum, category) => sum + config.categoryWeights[category],
-    0,
-  );
-  const overallScore =
-    categoryWeight === 0
-      ? null
-      : round(
-          weightedCategories.reduce(
-            (sum, category) =>
-              sum +
-              (categoryScores[category] ?? 0) *
-                config.categoryWeights[category],
-            0,
-          ) / categoryWeight,
-        );
+  const categoryScores = categoryScoresForRubrics(rubrics, results, config);
+  const overallScore = weightedCategoryScore(categoryScores, config);
   const qualityGate: TutorEvalQualityGate = hasGatedFailure(
     criticalFailures,
     config,
@@ -187,7 +264,7 @@ export function aggregateTutorEvalRubrics(
     qualityGate,
     passed:
       overallScore !== null &&
-      overallScore >= config.casePassThreshold &&
+      essentialPassEligibility(rubrics, results, config) &&
       qualityGate === "PASS",
   };
 }

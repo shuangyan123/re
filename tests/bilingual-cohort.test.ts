@@ -321,6 +321,55 @@ test("the context-bounded word rubric reaches the Judge and passes a cautious pr
   }
 });
 
+test("word-context desirable actionability failure remains a passed case while lowering quality", async () => {
+  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const tutorEvalCase = dataset.cases.find(
+    (caseValue) => caseValue.id === "language-word-context-001",
+  );
+  assert.ok(tutorEvalCase);
+  const result = await runTutorEval({
+    dataset: { ...dataset, cases: [tutorEvalCase] },
+    tutor: {
+      id: "word-context-required-only-tutor",
+      respond: async () => ({
+        text: "The context should be checked carefully before deciding what reluctant means.",
+      }),
+    },
+    tutorDescriptor: {
+      provider: "synthetic",
+      model: "word-context-required-only-tutor",
+      promptVersion: "test",
+    },
+    judge: {
+      provider: "synthetic",
+      model: "provider-free-judge",
+      promptVersion: "test",
+      evaluate: async (input) => ({
+        schemaVersion: 1,
+        caseId: input.caseId,
+        rubricResults: input.rubrics.map((rubric) => ({
+          rubricId: rubric.id,
+          result: rubric.category === "correctness" ? "PASS" as const : "FAIL" as const,
+          evidence: "Synthetic rubric-specific result.",
+        })),
+        criticalFailures: [],
+        factualErrors: [],
+        insufficientInformation: false,
+      }),
+    },
+  });
+  const caseResult = result.caseResults[0];
+  assert.ok(caseResult);
+  assert.equal(caseResult.rubricResults.find((rubric) => rubric.category === "correctness")?.score, 1);
+  assert.equal(caseResult.rubricResults.find((rubric) => rubric.category === "actionability")?.score, 0);
+  assert.equal(caseResult.categoryScores.correctness, 1);
+  assert.equal(caseResult.categoryScores.actionability, 0);
+  assert.equal(caseResult.overallScore, 0.5);
+  assert.equal(caseResult.qualityGate, "PASS");
+  assert.equal(caseResult.passed, true);
+  assert.equal(caseResult.status, "passed");
+});
+
 test("the previous English-only dataset remains readable without widening replay semantics", async () => {
   const historical = await loadTutorEvalDataset(
     TUTOR_EVAL_DATASET_ID,
