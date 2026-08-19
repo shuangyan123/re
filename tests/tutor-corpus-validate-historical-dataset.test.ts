@@ -7,6 +7,7 @@ import { test } from "node:test";
 
 import {
   TUTOR_EVAL_DATASET_ID,
+  TUTOR_EVAL_DATASET_VERSION,
   parseTutorResponseCorpus,
   type TutorEvalDataset,
   type TutorResponseCorpus,
@@ -156,10 +157,10 @@ test("tutor-corpus-validate binds a full historical .2a.3 corpus to its immutabl
   }
 });
 
-test("tutor-corpus-validate accepts historical .2a.2 and current .2a.4 full corpora", async () => {
+test("tutor-corpus-validate accepts historical .2a.2/.2a.4 and current .2a.5 full corpora", async () => {
   const directory = await mkdtemp(join(tmpdir(), "tutor-corpus-validate-"));
   try {
-    for (const version of ["0.2a.2", "0.2a.4"] as const) {
+    for (const version of ["0.2a.2", "0.2a.4", TUTOR_EVAL_DATASET_VERSION] as const) {
       const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID, version);
       const { result, report } = await validateCorpus(
         directory,

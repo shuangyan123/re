@@ -5,6 +5,7 @@ import {
   BenchmarkConfigurationError,
   TUTOR_EVAL_DATASET_ID,
   TUTOR_EVAL_DATASET_VERSION,
+  TUTOR_EVAL_PREVIOUS_CURRENT_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_CANONICAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
@@ -30,7 +31,11 @@ test("the canonical 0.2A dataset loads through the runtime contract and covers a
   assert.equal(dataset.cases.length, 48);
   assert.equal(
     dataset.cases.filter((caseValue) => caseValue.version === "1.1.0").length,
-    20,
+    18,
+  );
+  assert.equal(
+    dataset.cases.filter((caseValue) => caseValue.version === "1.1.1").length,
+    2,
   );
   assert.deepEqual(Object.keys(report.casesBySubject), [
     "history_or_social_studies",
@@ -110,6 +115,10 @@ test("legacy v0.1 cases remain readable while the canonical loader uses 0.2A", a
     TUTOR_EVAL_DATASET_ID,
     TUTOR_EVAL_PREVIOUS_CANONICAL_DATASET_VERSION,
   );
+  const historicalCurrent = await loadTutorEvalDataset(
+    TUTOR_EVAL_DATASET_ID,
+    TUTOR_EVAL_PREVIOUS_CURRENT_DATASET_VERSION,
+  );
   assert.equal(legacy.version, "0.1");
   assert.equal(legacy.cases.length, 7);
   assert.equal(current.version, TUTOR_EVAL_DATASET_VERSION);
@@ -131,6 +140,14 @@ test("legacy v0.1 cases remain readable while the canonical loader uses 0.2A", a
     historicalCanonical.cases.some(
       (caseValue) => caseValue.id === "language-word-context-001" &&
         caseValue.version === "1.0.0",
+    ),
+  );
+  assert.equal(historicalCurrent.version, TUTOR_EVAL_PREVIOUS_CURRENT_DATASET_VERSION);
+  assert.equal(historicalCurrent.cases.length, 48);
+  assert.ok(
+    historicalCurrent.cases.some(
+      (caseValue) => caseValue.id === "language-word-context-001" &&
+        caseValue.version === "1.1.0",
     ),
   );
 });

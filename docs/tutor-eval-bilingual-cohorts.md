@@ -3,7 +3,7 @@
 The current canonical dataset is an authored bilingual development cohort:
 
 ```text
-tutor-eval-v0.2a@0.2a.4
+tutor-eval-v0.2a@0.2a.5
   24 English cases
   24 zh-CN cases
   24 cross-locale cohort groups
@@ -63,13 +63,14 @@ effects, residual case differences, sampling noise, and model stochasticity.
 
 | Identity | Current decision | Reason |
 | --- | --- | --- |
-| Dataset | `tutor-eval-v0.2a@0.2a.4` | Corrected Tutor-visible and evaluator-semantic bilingual content, including the word-context proposal boundary. |
+| Dataset | `tutor-eval-v0.2a@0.2a.5` | Refined the bilingual word-context rubric so context evidence is evaluated without presupposing the student's proposed meaning. |
+| Historical dataset | `tutor-eval-v0.2a@0.2a.4` | Previous canonical snapshot retained with the first word-context correction. |
 | Historical dataset | `tutor-eval-v0.2a@0.2a.3` | Previous corrected bilingual snapshot retained for historical baselines. |
 | Historical dataset | `tutor-eval-v0.2a@0.2a.2` | Explicit immutable bilingual snapshot retained for historical artifacts. |
 | Historical dataset | `tutor-eval-v0.2a@0.2a.1` | Explicit loader path for the previous English-only snapshot. |
-| English case versions | Unchanged except `language-word-context-001@1.1.0`; `language-verb-check-001@1.0.1` remains | Changed evaluator semantics are versioned explicitly; other English case identities remain intact. |
-| Chinese case versions | `1.1.0` for corrected cases; otherwise `1.0.0` | Changed Tutor-visible or evaluator-semantic content is versioned explicitly. |
-| Word-context pair | English and Chinese `1.1.0` | The rubric evaluates and corrects the proposed meaning instead of requiring support for an incorrect proposal. |
+| English case versions | `language-word-context-001@1.1.1`; `language-verb-check-001@1.0.1` remains | The evaluator-only rubric refinement is versioned as a case patch; other English case identities remain intact. |
+| Chinese case versions | `1.1.1` for the word-context pair, `1.1.0` for other corrected cases, otherwise `1.0.0` | Changed evaluator semantics are versioned explicitly. |
+| Word-context pair | English and Chinese `1.1.1` | The rubric requires context-based checking, including what the pause clue supports and cannot establish, without assuming the proposal is correct or incorrect. |
 | Tutor prompt | `tutor-baseline-system@0.2` unchanged | The locale-aware prompt already consumes `targetLocale`. |
 | Generation spec | `tutor-baseline-generation@0.4a.3` unchanged | No new generation controls or profile semantics were introduced. |
 | Evaluator | `0.3a.3` unchanged | Scoring, rubric ownership, and quality-gate semantics are reused. |
@@ -94,10 +95,14 @@ const historicalCanonical = await loadTutorEvalDataset(
   "tutor-eval-v0.2a",
   "0.2a.3",
 );
+const historicalCurrent = await loadTutorEvalDataset(
+  "tutor-eval-v0.2a",
+  "0.2a.4",
+);
 ```
 
 The loader does not infer a semantic migration from any historical snapshot to
-`0.2a.4`.
+`0.2a.5`.
 
 ## Reporting and auditability
 

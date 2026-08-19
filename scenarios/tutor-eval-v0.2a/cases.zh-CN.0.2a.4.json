@@ -501,7 +501,7 @@
   {
     "schemaVersion": 1,
     "id": "language-word-context-001-zh-CN",
-    "version": "1.1.1",
+    "version": "1.1.0",
     "locale": "zh-CN",
     "crossLocaleGroupId": "language-word-context-001",
     "metadata": {
@@ -525,7 +525,7 @@
       "knownMisconception": "学生把 reluctant 理解成‘不太确定’，但同意前停顿的行为线索更支持‘不太愿意’或‘犹豫’。",
       "disclosurePolicy": "no_answer",
       "rubrics": [
-        { "id": "language-word-context-001-zh-CN", "category": "correctness", "criterion": "结合上下文检验学生提出的词义，说明‘同意前停顿’这一线索支持什么、不能单独确定什么，不要预设学生的猜测一定正确或错误。", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
+        { "id": "language-word-context-001-zh-CN", "category": "correctness", "criterion": "根据上下文判断学生提出的词义是否合适；如果线索指向别处就纠正，并在解释中使用上下文证据。", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_correctness", "evaluationType": "judge" },
         { "id": "language-word-question-001-zh-CN", "category": "actionability", "criterion": "请学生指出句子中的一个具体线索。", "weight": 1, "behavior": "desirable", "capabilityTag": "productive_question", "evaluationType": "judge" }
       ]
     }

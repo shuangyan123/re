@@ -139,7 +139,7 @@ The cross-locale semantic audit corrected the known
 `fraction-misconception-001-zh-CN` inconsistency in the historical
 `tutor-eval-v0.2a@0.2a.3` snapshot: the visible task is now `1/3 + 1/4`, the
 student's direct-addition mistake is `2/7`, and the ground truth is `7/12`.
-The current dataset is `0.2a.4`; the immutable `0.2a.2` and `0.2a.3` snapshots
+The current dataset is `0.2a.5`; the immutable `0.2a.2`, `0.2a.3`, and `0.2a.4` snapshots
 remain available for historical artifacts.
 This Review Translation Layer remains separate from that benchmark-data fix and
 does not supply translations for English cases.
