@@ -11,6 +11,7 @@ import {
   WORD_CONTEXT_DISCRIMINATION_CORRECTNESS_RUBRIC_ID,
 } from "../src/judge/index.js";
 import {
+  formatJudgeCandidateComparisonReport,
   runJudgeCandidateComparison,
   type JudgeCandidateComparisonCandidate,
 } from "../src/judge/candidate-comparison.js";
@@ -28,6 +29,12 @@ interface FakeCandidateOptions {
   readonly latencyMs?: number;
   readonly omitTotalTokens?: boolean;
   readonly failOnCall?: number;
+  readonly failOnCalls?: readonly number[];
+  readonly tokenUsageByCall?: readonly ({
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+    readonly totalTokens: number;
+  } | null)[];
 }
 
 function fakeCandidate(options: FakeCandidateOptions): JudgeCandidateComparisonCandidate {
@@ -40,7 +47,10 @@ function fakeCandidate(options: FakeCandidateOptions): JudgeCandidateComparisonC
     evaluateWithMetrics: async (input) => {
       const currentCall = callCount;
       callCount += 1;
-      if (options.failOnCall === currentCall) {
+      if (
+        options.failOnCall === currentCall ||
+        options.failOnCalls?.includes(currentCall) === true
+      ) {
         throw new TutorEvalJudgeExecutionError("judge_transport_error");
       }
       const repetition = Math.floor(currentCall / 3);
@@ -66,11 +76,14 @@ function fakeCandidate(options: FakeCandidateOptions): JudgeCandidateComparisonC
         },
         metrics: {
           latencyMs: options.latencyMs ?? currentCall + 10,
-          tokenUsage: {
-            inputTokens: 10,
-            outputTokens: 5,
-            ...(options.omitTotalTokens ? {} : { totalTokens: 15 }),
-          },
+          tokenUsage: options.tokenUsageByCall?.[currentCall] ??
+            (options.tokenUsageByCall === undefined
+              ? {
+                  inputTokens: 10,
+                  outputTokens: 5,
+                  ...(options.omitTotalTokens ? {} : { totalTokens: 15 }),
+                }
+              : null),
           cost: null,
           attempts: 1,
         },
@@ -134,6 +147,7 @@ test("candidate comparison runs multiple candidates and repetitions with stable 
   });
 
   assert.equal(report.schemaVersion, 1);
+  assert.equal(report.comparisonVersion, "0.1.1");
   assert.equal(report.fixture.version, "0.1.0");
   assert.equal(report.datasetVersion, "0.2a.5");
   assert.equal(report.evaluatorVersion, "0.3a.4");
@@ -175,6 +189,14 @@ test("candidate comparison runs multiple candidates and repetitions with stable 
     outputUnavailableCount: 0,
     totalUnavailableCount: 0,
   });
+  assert.deepEqual(deepSeek.metrics.tokenUsageCoverage.totalTokens, {
+    completeTotal: 135,
+    knownTotal: 135,
+    knownCount: 9,
+    plannedCount: 9,
+    unavailableCount: 0,
+    coverageShare: 1,
+  });
 
   assert.equal(miniMax.metrics.expectedLabelAgreement.overall.agreedCount, 3);
   assert.equal(miniMax.metrics.exactExpectedRunAgreement.agreedCount, 0);
@@ -205,8 +227,135 @@ test("candidate comparison runs multiple candidates and repetitions with stable 
   assert.equal(miniMax.metrics.criticalFailureDisagreementCount, 1);
   assert.equal(miniMax.metrics.tokenUsage.totalTokens, null);
   assert.equal(miniMax.metrics.tokenUsage.totalUnavailableCount, 9);
+  assert.deepEqual(miniMax.metrics.tokenUsageCoverage.totalTokens, {
+    completeTotal: null,
+    knownTotal: 0,
+    knownCount: 0,
+    plannedCount: 9,
+    unavailableCount: 9,
+    coverageShare: 0,
+  });
   assert.equal(report.pairwiseSummary[0]?.totalTokens, 135);
   assert.equal(report.pairwiseSummary[1]?.totalTokens, null);
+});
+
+test("candidate comparison separates planned agreement from observed-label agreement and availability", async () => {
+  const report = await runJudgeCandidateComparison({
+    fixture: fixture(),
+    runsPerCandidate: 3,
+    candidates: [fakeCandidate({
+      id: "deepseek/deepseek-v4-flash",
+      provider: "deepseek",
+      model: "deepseek-v4-flash",
+      labelsByRepetition: [
+        ["PASS", "PARTIAL", "PARTIAL"],
+        ["PASS", "PASS", "PARTIAL"],
+        ["PASS", "PASS", "PARTIAL"],
+      ],
+      failOnCalls: [0, 1],
+    })],
+  });
+  const candidate = report.candidates[0];
+  assert.ok(candidate);
+
+  assert.deepEqual(candidate.metrics.expectedLabelAgreement.overall, {
+    agreedCount: 2,
+    totalCount: 9,
+    share: 2 / 9,
+  });
+  assert.deepEqual(candidate.metrics.expectedLabelAgreementObserved.overall, {
+    agreedCount: 2,
+    totalCount: 7,
+    share: 2 / 7,
+  });
+  assert.deepEqual(candidate.metrics.semanticLabelAvailability.overall, {
+    observedCount: 7,
+    plannedCount: 9,
+    share: 7 / 9,
+  });
+
+  assert.deepEqual(candidate.metrics.semanticLabelAvailability.byFixture, {
+    A: { observedCount: 2, plannedCount: 3, share: 2 / 3 },
+    B: { observedCount: 2, plannedCount: 3, share: 2 / 3 },
+    C: { observedCount: 3, plannedCount: 3, share: 1 },
+  });
+  assert.deepEqual(candidate.metrics.expectedLabelAgreementObserved.byFixture, {
+    A: { agreedCount: 2, totalCount: 2, share: 1 },
+    B: { agreedCount: 0, totalCount: 2, share: 0 },
+    C: { agreedCount: 0, totalCount: 3, share: 0 },
+  });
+  assert.deepEqual(report.pairwiseSummary[0]?.diagnosticAgreementObserved, {
+    agreedCount: 2,
+    totalCount: 7,
+    share: 2 / 7,
+  });
+  assert.deepEqual(report.pairwiseSummary[0]?.semanticLabelAvailability, {
+    observedCount: 7,
+    plannedCount: 9,
+    share: 7 / 9,
+  });
+
+  const formatted = formatJudgeCandidateComparisonReport(report);
+  assert.match(formatted, /expected-label agreement \(planned\): 2\/9/u);
+  assert.match(formatted, /expected-label agreement \(observed\): 2\/7/u);
+  assert.match(formatted, /label availability: 7\/9/u);
+  assert.match(formatted, /diagnostic agreement \(observed labels\) 2\/7/u);
+  assert.match(formatted, /No winner is inferred automatically\./u);
+});
+
+test("candidate comparison reports known token totals without estimating missing usage", async () => {
+  const report = await runJudgeCandidateComparison({
+    fixture: fixture(),
+    candidates: [fakeCandidate({
+      id: "synthetic/token-coverage",
+      provider: "synthetic",
+      model: "token-coverage",
+      labelsByRepetition: [["PASS", "PARTIAL", "FAIL"]],
+      tokenUsageByCall: [
+        { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+        null,
+        { inputTokens: 200, outputTokens: 30, totalTokens: 230 },
+      ],
+    })],
+  });
+  const candidate = report.candidates[0];
+  assert.ok(candidate);
+
+  assert.deepEqual(candidate.metrics.tokenUsageCoverage.inputTokens, {
+    completeTotal: null,
+    knownTotal: 300,
+    knownCount: 2,
+    plannedCount: 3,
+    unavailableCount: 1,
+    coverageShare: 2 / 3,
+  });
+  assert.deepEqual(candidate.metrics.tokenUsageCoverage.outputTokens, {
+    completeTotal: null,
+    knownTotal: 50,
+    knownCount: 2,
+    plannedCount: 3,
+    unavailableCount: 1,
+    coverageShare: 2 / 3,
+  });
+  assert.deepEqual(candidate.metrics.tokenUsageCoverage.totalTokens, {
+    completeTotal: null,
+    knownTotal: 350,
+    knownCount: 2,
+    plannedCount: 3,
+    unavailableCount: 1,
+    coverageShare: 2 / 3,
+  });
+  assert.equal(candidate.metrics.tokenUsage.totalTokens, null);
+  assert.equal(report.pairwiseSummary[0]?.knownTotalTokens, 350);
+  assert.deepEqual(report.pairwiseSummary[0]?.totalTokenCoverage, {
+    observedCount: 2,
+    plannedCount: 3,
+    share: 2 / 3,
+  });
+
+  const formatted = formatJudgeCandidateComparisonReport(report);
+  assert.match(formatted, /known total tokens: 350 \(2\/3 observations\)/u);
+  assert.match(formatted, /complete total tokens: unavailable/u);
 });
 
 test("candidate comparison reports execution errors and unavailable measurements without estimating them", async () => {
