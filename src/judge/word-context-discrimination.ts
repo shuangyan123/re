@@ -5,12 +5,14 @@ import {
   TUTOR_EVAL_EVALUATOR_VERSION,
   type TutorEvalCaseRunResult,
   type TutorEvalCriticalFailure,
+  type TutorEvalDataset,
   type TutorEvalJudgeDescriptor,
   type TutorEvalJudgeResult,
   type TutorResponseCorpus,
   type TutorResponseCorpusEvaluationResult,
 } from "../contracts/index.js";
 import { deriveTutorResponseId } from "../corpus/identity.js";
+import type { JudgeCandidateComparisonFixture, JudgeCandidateComparisonFixtureObservation } from "./candidate-comparison.js";
 import {
   TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_ID,
   TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION,
@@ -147,6 +149,63 @@ export interface WordContextDiscriminationReport {
 
 export interface BuildWordContextDiscriminationReportOptions {
   readonly judgeCallCount?: number;
+}
+
+export function observeWordContextDiscriminationEvaluation(
+  result: TutorResponseCorpusEvaluationResult,
+): readonly JudgeCandidateComparisonFixtureObservation[] {
+  const report = buildWordContextDiscriminationReport(result);
+  return report.cases.map((fixtureCase) => {
+    const caseResult = result.evaluation.caseResults.find(
+      (candidate) => candidate.runIndex === fixtureCase.runIndex,
+    );
+    if (caseResult === undefined) {
+      throw new Error("Word-context discrimination comparison result is missing a fixture run.");
+    }
+    return {
+      fixtureCaseId: fixtureCase.fixtureCaseId,
+      runIndex: fixtureCase.runIndex,
+      expectedLabel: fixtureCase.expected.correctness,
+      observedLabel: fixtureCase.observed.correctness,
+      status: caseResult.status,
+      answerLeakage: caseResult.status === "error" ? null : caseResult.answerLeakage,
+      insufficientInformation:
+        caseResult.status === "error"
+          ? null
+          : caseResult.rawJudgeResult?.insufficientInformation ?? null,
+      criticalFailures:
+        caseResult.status === "error"
+          ? []
+          : caseResult.criticalFailures.map((failure) => ({
+              type: failure.type,
+              severity: failure.severity,
+            })),
+      executionErrorCode:
+        caseResult.status === "error"
+          ? caseResult.diagnostics[0]?.code ?? "evaluation_error"
+          : null,
+      latencyMs: caseResult.judgeMetrics?.latencyMs ?? null,
+      tokenUsage: caseResult.judgeMetrics?.tokenUsage ?? null,
+    };
+  });
+}
+
+export function createWordContextDiscriminationComparisonFixture(
+  loadDataset: () => Promise<TutorEvalDataset>,
+): JudgeCandidateComparisonFixture {
+  return {
+    fixtureId: WORD_CONTEXT_DISCRIMINATION_FIXTURE_ID,
+    fixtureVersion: WORD_CONTEXT_DISCRIMINATION_FIXTURE_VERSION,
+    fixtureProvenance: WORD_CONTEXT_DISCRIMINATION_FIXTURE_PROVENANCE,
+    expectedFixtureIds: WORD_CONTEXT_DISCRIMINATION_FIXTURES.map((fixtureCase) => fixtureCase.id),
+    caseIdentity: {
+      caseId: WORD_CONTEXT_DISCRIMINATION_CASE_ID,
+      caseVersion: WORD_CONTEXT_DISCRIMINATION_CASE_VERSION,
+    },
+    buildCorpus: buildWordContextDiscriminationCorpus,
+    loadDataset,
+    observeEvaluation: observeWordContextDiscriminationEvaluation,
+  };
 }
 
 export function getWordContextDiscriminationFixtureCase(

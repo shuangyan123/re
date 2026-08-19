@@ -262,6 +262,11 @@ Judge output always passes through the existing runtime parser and
 rubric-ownership validation. The generic Chat Completions path supports
 provider-configured DeepSeek/MiniMax-compatible endpoints without requiring
 OpenAI quota.
+For fixed diagnostic work, `judge-candidate-comparison` compares explicitly
+configured DeepSeek V4-Flash and MiniMax candidates across repeated runs,
+reports stability and sanitized token/latency measurements, and never infers
+an automatic winner. See
+[`docs/judge-candidate-comparison.md`](docs/judge-candidate-comparison.md).
 The repository keeps `openai@7.4.0` as a development dependency and exposes it
 as an optional peer so stable package-root and HTTP usage do not install or
 load OpenAI. Consumers explicitly using the OpenAI provider must install that
