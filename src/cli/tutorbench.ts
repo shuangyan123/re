@@ -46,6 +46,12 @@ import {
   type JudgeWordContextDiscriminationCliOptions,
 } from "./judge-word-context-discrimination.js";
 import {
+  parseJudgeCandidateComparisonArgs,
+  printJudgeCandidateComparisonHelp,
+  runJudgeCandidateComparisonCli,
+  type JudgeCandidateComparisonCliOptions,
+} from "./judge-candidate-comparison.js";
+import {
   nextTutorbenchValue,
   positiveTutorbenchInteger,
   tutorbenchOptionValue,
@@ -69,13 +75,14 @@ export interface TutorbenchRunOptions {
 }
 
 export type TutorbenchCliOptions =
-  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" }
+  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" }
   | { readonly help: false; readonly run: TutorbenchRunOptions }
   | { readonly help: false; readonly collect: TutorbenchCollectCliOptions }
   | { readonly help: false; readonly collectModel: TutorbenchCollectModelCliOptions }
   | { readonly help: false; readonly evaluate: BenchmarkCorpusCliOptions }
   | { readonly help: false; readonly reviewTranslate: ReviewTranslateCliOptions }
-  | { readonly help: false; readonly judgeWordContextDiscrimination: JudgeWordContextDiscriminationCliOptions };
+  | { readonly help: false; readonly judgeWordContextDiscrimination: JudgeWordContextDiscriminationCliOptions }
+  | { readonly help: false; readonly judgeCandidateComparison: JudgeCandidateComparisonCliOptions };
 
 export function parseTutorbenchArgs(
   args: readonly string[],
@@ -112,6 +119,12 @@ export function parseTutorbenchArgs(
     return diagnostic.help
       ? { help: true, helpCommand: "judge-word-context-discrimination" }
       : { help: false, judgeWordContextDiscrimination: diagnostic };
+  }
+  if (args[0] === "judge-candidate-comparison") {
+    const comparison = parseJudgeCandidateComparisonArgs(args.slice(1));
+    return comparison.help
+      ? { help: true, helpCommand: "judge-candidate-comparison" }
+      : { help: false, judgeCandidateComparison: comparison };
   }
   if (args[0] !== "run") {
     throw new TutorbenchCliUsageError(
@@ -261,6 +274,7 @@ Usage:
   tutorbench evaluate --corpus <path> [options]
   tutorbench review-translate --evaluation <path> --output <path> [options]
   tutorbench judge-word-context-discrimination --judge-deepseek [options]
+  tutorbench judge-candidate-comparison [options]
 
 Commands:
   run                   Quick local evaluation; responses are not frozen
@@ -269,7 +283,9 @@ Commands:
   evaluate              Offline corpus replay and preliminary evaluation
   review-translate      Build an isolated, review-only translation sidecar
   judge-word-context-discrimination
-                        Run the fixed A/B/C word-context Judge diagnostic
+                         Run the fixed A/B/C word-context Judge diagnostic
+  judge-candidate-comparison
+                         Compare explicitly selected Judge candidates on the fixed diagnostic
 
 Run options:
   --http <url>          POST TutorTurnInput JSON to this http(s) endpoint
@@ -372,6 +388,8 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       printReviewTranslateHelp();
     } else if (options.helpCommand === "judge-word-context-discrimination") {
       printJudgeWordContextDiscriminationHelp();
+    } else if (options.helpCommand === "judge-candidate-comparison") {
+      printJudgeCandidateComparisonHelp();
     } else {
       printHelp();
     }
@@ -403,6 +421,12 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       return;
     }
     await runJudgeWordContextDiscrimination(options.judgeWordContextDiscrimination);
+  } else if ("judgeCandidateComparison" in options) {
+    if (options.judgeCandidateComparison.help) {
+      printJudgeCandidateComparisonHelp();
+      return;
+    }
+    await runJudgeCandidateComparisonCli(options.judgeCandidateComparison);
   } else {
     if (options.evaluate.help) {
       printBenchmarkCorpusHelp();
@@ -423,6 +447,7 @@ async function runAsExecutable(): Promise<void> {
         error.name === "HttpTutorConfigurationError" ||
         error.name === "HttpTutorExecutionHostConfigurationError" ||
         error.name === "DeepSeekJudgeConfigurationError" ||
+        error.name === "MiniMaxJudgeConfigurationError" ||
         error.name === "ChatCompletionsJudgeConfigurationError" ||
         error.name === "ReviewTranslationArtifactError" ||
         error.name === "ReviewTranslationConfigurationError"

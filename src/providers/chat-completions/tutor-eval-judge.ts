@@ -131,6 +131,8 @@ export interface ChatCompletionsJudgeOptions
   readonly maxAttempts?: number;
   /** Defaults to /chat/completions; the base URL remains credential-free. */
   readonly endpointPath?: string;
+  /** Reject final content that still contains an unsplit reasoning wrapper. */
+  readonly requireReasoningSeparation?: boolean;
 }
 
 export interface ChatCompletionsJudge extends TutorEvalJudge {
@@ -409,6 +411,11 @@ function extractResponseContent(value: unknown): {
   };
 }
 
+function containsReasoningWrapper(content: string): boolean {
+  const normalized = content.toLowerCase();
+  return normalized.includes("<think") || normalized.includes("</think");
+}
+
 function parseProviderResult(
   content: string,
   metrics: TutorEvalJudgeMetrics,
@@ -455,6 +462,7 @@ export function createChatCompletionsJudge(
   const fetcher: ChatCompletionsFetch = options.fetch ?? ((url, init) =>
     fetch(url, init));
   const endpoint = endpointFor(options.baseUrl, options.endpointPath);
+  const requireReasoningSeparation = options.requireReasoningSeparation ?? false;
   const descriptor: TutorEvalJudgeDescriptor = {
     provider: options.provider,
     model: options.model,
@@ -581,6 +589,10 @@ export function createChatCompletionsJudge(
           throw new TutorEvalJudgeExecutionError("judge_output_truncated", metrics);
         }
         if (extracted.content === null) {
+          throw new TutorEvalJudgeExecutionError("judge_result_invalid", metrics);
+        }
+        if (requireReasoningSeparation && containsReasoningWrapper(extracted.content)) {
+          // Never guess which part of an unsplit provider response is the final answer.
           throw new TutorEvalJudgeExecutionError("judge_result_invalid", metrics);
         }
         return {
