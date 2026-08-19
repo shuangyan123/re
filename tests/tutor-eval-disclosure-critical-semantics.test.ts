@@ -335,10 +335,12 @@ test("canonical critical-failure mappings are limited to the audited valid set",
   );
 });
 
-test("current Judge prompt is v0.7 while the v0.2 artifact remains readable", async () => {
+test("current Judge prompt is v0.8 while the v0.2 artifact remains readable", async () => {
   const prompt = await loadTutorEvalPedagogyJudgePrompt();
-  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.7");
+  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.8");
   assert.match(prompt, /two separate evaluation layers/);
+  assert.match(prompt, /Material-requirement grading for composite criteria/);
+  assert.match(prompt, /explicit conflict/);
   assert.match(prompt, /mandatory policy-level critical-failure pass/);
   assert.match(prompt, /does not require a dedicated atomic disclosure rubric/);
   assert.match(prompt, /Operation ownership pass/);

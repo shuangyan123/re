@@ -37,7 +37,7 @@ English/Chinese equivalence, or leaderboard eligibility.
 The current authored dataset is `tutor-eval-v0.2a@0.2a.5`; the historical
 baseline audited here remains bound to `tutor-eval-v0.2a@0.2a.3` and
 `tutor-eval-pedagogy-judge-system@0.3`. The current Judge prompt is the new
-versioned `tutor-eval-pedagogy-judge-system@0.7`; v0.3, v0.4, v0.5, and v0.6 remain
+versioned `tutor-eval-pedagogy-judge-system@0.8`; v0.3 through v0.7 remain
 readable historical prompt assets. Historical prompts, dataset
 snapshots, response IDs, evaluation artifacts, and baseline results are not
 rewritten, and no live Tutor or Judge call is made by the regression tests.
@@ -235,5 +235,51 @@ the exact three-rubric historical shape, asserts that
 preserves the independent policy-level `answer_leakage:major` result. The
 existing full word-context and graph negative controls, function-extraction
 positive control, and other disclosure controls remain unchanged. Provider-free
-tests cannot prove real DeepSeek semantics; v0.7 has not received a real
-provider run and is not calibrated.
+tests cannot prove real DeepSeek semantics; the supplied real v0.7 probe is
+operator-attested diagnostic evidence and is not calibrated.
+
+## Judge v0.8 composite-rubric grading clarification
+
+The real DeepSeek V4-Pro three-call probe supplied for the v0.7 prompt exposed
+a separate calibration boundary in the composite correctness criterion for
+`language-word-context-001@1.1.1`. Its developer-authored expectations and
+operator-attested observations were:
+
+| Fixture | Expected correctness | Observed correctness | Expected actionability | Observed actionability |
+| --- | --- | --- | --- | --- |
+| A | `PASS` | `PASS` | `PASS` | `PASS` |
+| B | `PARTIAL` | `PASS` | `PASS` | `PASS` |
+| C | `FAIL` | `PARTIAL` | `PASS` | `PASS` |
+
+There was no answer leakage, critical failure, insufficient-information flag,
+or execution error in the three calls. The v0.7 Judge evidence itself
+recognized the relevant semantic distinctions: B corrected `unsure` toward
+unwilling/hesitant and used the pause clue but omitted the limitation; C
+recognized the omitted limitation and the `definitely` overclaim but returned
+only `PARTIAL`.
+
+This is a three-case purposive diagnostic with developer-authored expectations,
+not human calibration gold. It is not general Judge accuracy, calibration,
+recall, or evidence of model-wide bias. It supports a generic composite-rubric
+grading clarification because one criterion revealed both a material omission
+and an explicit contradiction of a material limitation. It does not establish
+that the Judge is calibrated.
+
+Prompt v0.8 now requires the Judge to identify each criterion's substantive
+material requirements before assigning a status. `PASS` requires all material
+requirements to be substantially satisfied with no explicit conflict;
+`PARTIAL` covers a basically correct response that omits, ambiguously executes,
+or incompletely satisfies at least one material requirement; and `FAIL` covers
+an explicit violation, reversal, denial, or material conflict, with an explicit
+overclaim against a required limitation treated as stronger than a simple
+omission. The instruction is semantic, not a mechanical comma-splitting rule.
+Ordinary rubric `FAIL` remains separate from the policy-level critical-failure
+pass, so this clarification does not turn a composite-rubric failure into a
+critical failure automatically.
+
+The immutable v0.7 prompt asset and all earlier prompt assets remain readable.
+The provider-free regressions retain the historical leakage/critical-failure
+controls and add a generic composite criterion whose synthetic `PASS`,
+`PARTIAL`, and `FAIL` results are validated and propagated through rubric
+ownership, the runner, and the existing scorer. No live provider call is made
+by those tests.
