@@ -165,7 +165,7 @@ The v0.1 seven-case dataset remains runtime-readable. The v0.2A dataset keeps
 its existing case and rubric IDs and now executes its mixed rubric sets
 according to `evaluationType`. The language diagnosis mapping was removed as a
 semantic correction; that case is `1.0.1` and the historical English-only
-dataset snapshot is `0.2a.1`. The current bilingual cohort is `0.2a.3` and
+dataset snapshot is `0.2a.1`. The current bilingual cohort is `0.2a.5` and
 reuses these evaluator semantics; see
 [`TutorEval bilingual cohorts`](tutor-eval-bilingual-cohorts.md). The
 calibration identity chain is unchanged:

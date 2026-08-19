@@ -5,13 +5,13 @@ v0.1 execution contract. It measures observed tutoring behavior. It does not
 prove that a real student learned, retained, transferred, or can solve a new
 problem independently.
 
-The canonical dataset is `tutor-eval-v0.2a`. The current `0.2a.3` snapshot
+The canonical dataset is `tutor-eval-v0.2a`. The current `0.2a.5` snapshot
 keeps the 24 English cases in `scenarios/tutor-eval-v0.2a/cases.json` and
 loads 24 authored Simplified Chinese counterparts from
 `scenarios/tutor-eval-v0.2a/cases.zh-CN.json`. The seven v0.1 cases remain
 available through the legacy `tutor-eval-v0.1` loader, and the previous
-English-only `0.2a.1` plus bilingual `0.2a.2` snapshots can be loaded
-explicitly for historical artifacts.
+English-only `0.2a.1` plus bilingual `0.2a.2`, `0.2a.3`, and `0.2a.4`
+snapshots can be loaded explicitly for historical artifacts.
 
 The cross-locale cohort design, language-specific boundary, and compatibility
 rules are documented in
@@ -175,8 +175,8 @@ The deterministic ownership and proxy audit is recorded in
 [`docs/deterministic-verifier-audit.md`](deterministic-verifier-audit.md). The
 The historical dataset/case identity described by the audit trail remains
 `tutor-eval-v0.2a@0.2a.1`; the current bilingual snapshot is
-`tutor-eval-v0.2a@0.2a.4`, while `0.2a.3` remains loadable for historical
-baseline artifacts. Replay results also carry the explicit evaluator
+`tutor-eval-v0.2a@0.2a.5`, while `0.2a.3` and `0.2a.4` remain loadable for
+historical baseline artifacts. Replay results also carry the explicit evaluator
 semantic version so frozen response evidence is not silently compared across
 verifier revisions.
 

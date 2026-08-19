@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  buildTutorEvalJudgeInput,
   TUTOR_EVAL_DATASET_ID,
+  TUTOR_EVAL_PREVIOUS_CURRENT_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_CANONICAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
@@ -15,6 +17,7 @@ import {
   findTutorEvalDatasetIntegrityIssues,
   loadTutorEvalDataset,
 } from "../src/datasets/index.js";
+import { runTutorEval } from "../src/runner/index.js";
 
 function baseCaseId(id: string): string {
   return id.endsWith("-zh-CN") ? id.slice(0, -"-zh-CN".length) : id;
@@ -218,14 +221,14 @@ test("the language-specific verb case is an authored counterpart, not a literal 
   assert.match(chinese.tutorInput.learningObjective, /主谓一致/);
 });
 
-test("the bilingual word-context pair evaluates and corrects the proposed meaning", async () => {
+test("the bilingual word-context pair checks context evidence without presupposing the proposed meaning", async () => {
   const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
   const english = dataset.cases.find((caseValue) => caseValue.id === "language-word-context-001");
   const chinese = dataset.cases.find((caseValue) => caseValue.id === "language-word-context-001-zh-CN");
   assert.ok(english);
   assert.ok(chinese);
-  assert.equal(english.version, "1.1.0");
-  assert.equal(chinese.version, "1.1.0");
+  assert.equal(english.version, "1.1.1");
+  assert.equal(chinese.version, "1.1.1");
   assert.equal(english.metadata.studentState, "partial_understanding");
   assert.equal(chinese.metadata.studentState, "partial_understanding");
   assert.match(english.tutorInput.learningObjective, /evaluate the student's proposed meaning.*correct it.*supporting clue/u);
@@ -234,14 +237,88 @@ test("the bilingual word-context pair evaluates and corrects the proposed meanin
   assert.match(chinese.evaluatorOnly.knownMisconception ?? "", /reluctant.*不太确定/u);
   assert.match(
     english.evaluatorOnly.rubrics[0]?.criterion ?? "",
-    /Evaluate the student's proposed meaning.*correct it.*context evidence/u,
+    /Evaluate the student's proposed meaning.*surrounding context.*pause-before-agreeing.*supports.*cannot establish.*automatically correct or incorrect/u,
   );
   assert.match(
     chinese.evaluatorOnly.rubrics[0]?.criterion ?? "",
-    /判断学生提出的词义.*纠正.*上下文证据/u,
+    /结合上下文.*同意前停顿.*支持什么.*不能单独确定什么.*正确或错误/u,
   );
+  assert.equal(english.evaluatorOnly.rubrics[1]?.behavior, "desirable");
+  assert.equal(chinese.evaluatorOnly.rubrics[1]?.behavior, "desirable");
+  assert.equal(english.evaluatorOnly.rubrics[1]?.criterion, "Ask the student to point to one clue in the sentence.");
+  assert.equal(chinese.evaluatorOnly.rubrics[1]?.criterion, "请学生指出句子中的一个具体线索。");
   assert.equal(english.evaluatorOnly.groundTruth?.finalAnswer, undefined);
   assert.equal(chinese.evaluatorOnly.groundTruth?.finalAnswer, undefined);
+});
+
+test("the context-bounded word rubric reaches the Judge and passes a cautious provider-free response", async () => {
+  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const cases = dataset.cases.filter((caseValue) =>
+    caseValue.id === "language-word-context-001" ||
+    caseValue.id === "language-word-context-001-zh-CN",
+  );
+  const responses = new Map([
+    [
+      "language-word-context-001",
+      "The pause before agreeing can suggest hesitation or reluctance, but that clue alone cannot establish that reluctant simply means unsure. We should check for another clue. Which phrase or action is one clue?",
+    ],
+    [
+      "language-word-context-001-zh-CN",
+      "‘同意前停顿’可以提示人物有些犹豫或不太愿意，但这个线索本身不能单独确定 reluctant 就是‘不太确定’。我们还需要看看其他线索。请指出一个具体线索。",
+    ],
+  ]);
+  const result = await runTutorEval({
+    dataset: { ...dataset, cases },
+    tutor: {
+      id: "cautious-word-context-tutor",
+      respond: async (input) => {
+        assert.ok(input.caseId);
+        return { text: responses.get(input.caseId)! };
+      },
+    },
+    tutorDescriptor: {
+      provider: "synthetic",
+      model: "cautious-word-context-tutor",
+      promptVersion: "test",
+    },
+    judge: {
+      provider: "synthetic",
+      model: "provider-free-judge",
+      promptVersion: "test",
+      evaluate: async (input) => {
+        const correctness = input.rubrics.find((rubric) => rubric.category === "correctness");
+        assert.ok(correctness);
+        assert.match(correctness.criterion, /cannot establish|不能单独确定/u);
+        assert.match(input.tutorResponse, /cannot establish|不能单独确定/u);
+        return {
+          schemaVersion: 1,
+          caseId: input.caseId,
+          rubricResults: input.rubrics.map((rubric) => ({
+            rubricId: rubric.id,
+            result: "PASS" as const,
+            evidence: "The response uses the context-bound criterion and asks for a clue.",
+          })),
+          criticalFailures: [],
+          factualErrors: [],
+          insufficientInformation: false,
+        };
+      },
+    },
+  });
+
+  assert.equal(result.datasetVersion, "0.2a.5");
+  assert.equal(result.caseCount, 2);
+  assert.equal(result.failedCount, 0);
+  assert.equal(result.errorCount, 0);
+  assert.ok(result.caseResults.every((caseResult) => caseResult.status === "passed"));
+  for (const tutorEvalCase of cases) {
+    const judgeInput = buildTutorEvalJudgeInput(
+      tutorEvalCase,
+      responses.get(tutorEvalCase.id)!,
+    );
+    assert.equal(judgeInput.disclosurePolicy, "no_answer");
+    assert.doesNotMatch(JSON.stringify(judgeInput.groundTruth), /finalAnswer/u);
+  }
 });
 
 test("the previous English-only dataset remains readable without widening replay semantics", async () => {
@@ -298,6 +375,28 @@ test("the previous canonical bilingual snapshot preserves the pre-audit word-con
   assert.match(
     english.evaluatorOnly.rubrics[0]?.criterion ?? "",
     /supports the proposed meaning/u,
+  );
+});
+
+test("the previous current .2a.4 snapshot remains loadable and preserves its case identity", async () => {
+  const historical = await loadTutorEvalDataset(
+    TUTOR_EVAL_DATASET_ID,
+    TUTOR_EVAL_PREVIOUS_CURRENT_DATASET_VERSION,
+  );
+  const english = historical.cases.find((caseValue) => caseValue.id === "language-word-context-001");
+  const chinese = historical.cases.find((caseValue) => caseValue.id === "language-word-context-001-zh-CN");
+  assert.ok(english);
+  assert.ok(chinese);
+  assert.equal(historical.version, "0.2a.4");
+  assert.equal(english.version, "1.1.0");
+  assert.equal(chinese.version, "1.1.0");
+  assert.match(
+    english.evaluatorOnly.rubrics[0]?.criterion ?? "",
+    /correct it if the context points elsewhere/u,
+  );
+  assert.match(
+    chinese.evaluatorOnly.rubrics[0]?.criterion ?? "",
+    /如果线索指向别处就纠正/u,
   );
 });
 
