@@ -93,10 +93,10 @@ function makeJudgeResult(
   });
 }
 
-test("v0.8 prompt defines substantive composite-rubric grading without clause splitting", async () => {
+test("v0.9 prompt defines substantive composite-rubric grading without clause splitting", async () => {
   const prompt = await loadTutorEvalPedagogyJudgePrompt();
 
-  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.8");
+  assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.9");
   assert.match(prompt, /Material-requirement grading for composite criteria/);
   assert.match(prompt, /first identify its material requirements/);
   assert.match(
@@ -105,16 +105,17 @@ test("v0.8 prompt defines substantive composite-rubric grading without clause sp
   );
   assert.match(
     prompt,
-    /`PARTIAL` is preferred when the core direction is basically correct/,
+    /`PARTIAL` is the normal status when the core direction is basically correct/,
   );
   assert.match(
     prompt,
     /`FAIL` applies when the response explicitly violates, reverses, denies, or\s+materially conflicts/,
   );
   assert.match(prompt, /do not mechanically split every\s+comma/);
-  assert.match(prompt, /`definitely`\s+proves/);
+  assert.match(prompt, /EXPLICIT_MATERIAL_CONFLICT/);
+  assert.match(prompt, /not an optional preference/);
   assert.match(prompt, /ordinary rubric\s+failure/);
-  assert.match(prompt, /critical-failure pass and its existing case-aware boundaries/);
+  assert.match(prompt, /critical-failure pass and its existing\s+case-aware boundaries/);
 });
 
 test("generic composite rubric statuses pass through parser, ownership, runner, and scorer", async () => {

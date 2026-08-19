@@ -37,7 +37,7 @@ English/Chinese equivalence, or leaderboard eligibility.
 The current authored dataset is `tutor-eval-v0.2a@0.2a.5`; the historical
 baseline audited here remains bound to `tutor-eval-v0.2a@0.2a.3` and
 `tutor-eval-pedagogy-judge-system@0.3`. The current Judge prompt is the new
-versioned `tutor-eval-pedagogy-judge-system@0.8`; v0.3 through v0.7 remain
+versioned `tutor-eval-pedagogy-judge-system@0.9`; v0.3 through v0.8 remain
 readable historical prompt assets. Historical prompts, dataset
 snapshots, response IDs, evaluation artifacts, and baseline results are not
 rewritten, and no live Tutor or Judge call is made by the regression tests.
@@ -211,7 +211,7 @@ reason for the v0.7 fix.
 
 ## Judge v0.7 prohibited-rubric consistency hardening
 
-The current prompt is
+The historical prompt is
 `tutor-eval-pedagogy-judge-system@0.7`. It preserves v0.6's operation-ownership
 boundary and adds a narrowly scoped consistency check after atomic rubric
 evaluation and ownership analysis. A failed `behavior: prohibited` rubric is
@@ -283,3 +283,47 @@ controls and add a generic composite criterion whose synthetic `PASS`,
 `PARTIAL`, and `FAIL` results are validated and propagated through rubric
 ownership, the runner, and the existing scorer. No live provider call is made
 by those tests.
+
+## Judge v0.9 explicit material-conflict clarification
+
+The supplied real DeepSeek V4-Pro three-call probe for prompt v0.8 reported
+the following operator-attested diagnostic evidence for the same fixed
+three-case fixture:
+
+| Fixture | Expected correctness | Observed correctness | Expected actionability | Observed actionability |
+| --- | --- | --- | --- | --- |
+| A | `PASS` | `PASS` | `PASS` | `PASS` |
+| B | `PARTIAL` | `PARTIAL` | `PASS` | `PASS` |
+| C | `FAIL` | `PARTIAL` | `PASS` | `PASS` |
+
+This evidence shows that v0.8 corrected the material-omission boundary: B no
+longer received `PASS` from an overall impression of correctness. It did not
+stably classify C's affirmative overclaim as an explicit material conflict;
+the Judge still treated it as incomplete satisfaction. The evidence is a
+three-case purposive diagnostic with developer-authored expectations, not
+human calibration gold, general Judge accuracy, or evidence of model-wide
+bias. Raw provider payloads, credentials, request IDs, hidden reasoning, and
+local real-evaluation artifacts remain excluded.
+
+Prompt v0.9 makes the remaining distinction explicit and generic:
+
+- An omitted, ambiguous, weakly executed, or otherwise incomplete material
+  requirement is normally `PARTIAL` when the core direction is basically
+  correct and the Tutor has not asserted incompatible content.
+- A Tutor assertion, recommendation, conclusion, instruction, or performed
+  behavior is an explicit material conflict when its positive content, if
+  accepted as true, makes the material requirement impossible to satisfy at
+  the same time. A substantive conflict normally receives `FAIL`; satisfying
+  other clauses or asking a useful question does not raise it back to
+  `PARTIAL`.
+- This is ordinary rubric grading, not critical-failure escalation. The
+  policy-level critical-failure pass, leakage semantics, operation ownership,
+  prohibited-rubric handling, factual errors, insufficient-information, and
+  result schema remain independent.
+
+The v0.8 prompt asset remains immutable and all earlier assets remain
+readable. Provider-free regressions add a cross-domain measurement/trend
+criterion with synthetic omission and explicit-conflict responses. The
+expected `PASS`/`PARTIAL`/`FAIL` statuses pass through parser, rubric
+ownership, runner, and scorer with `criticalFailures: []` and no answer
+leakage for the ordinary rubric conflict.
