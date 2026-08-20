@@ -13,7 +13,9 @@ import {
   createSyntheticMaterialRequirementFixtureJudge,
   formatMaterialRequirementDiagnosticReport,
   loadMaterialRequirementDiagnosticFixtures,
+  MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION,
   MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION,
+  MATERIAL_REQUIREMENT_FIXTURE_VERSION,
   MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION,
   JUDGE_CANDIDATE_COMPARISON_VERSION,
   runMaterialRequirementDiagnostic,
@@ -118,6 +120,43 @@ test("the same architecture derives PASS/PARTIAL/FAIL for measurement trend", as
   assert.match(measurementInput.knownMisconception, /proves an increasing trend/i);
 });
 
+test("generic atomic-boundary fixture separates omission, conflict, and satisfaction", async () => {
+  const fixtures = await loadMaterialRequirementDiagnosticFixtures();
+  const fixture = fixtures.find((candidate) => candidate.id === "atomic-boundaries");
+  assert.ok(fixture);
+  const report = await runMaterialRequirementDiagnostic(
+    createSyntheticMaterialRequirementFixtureJudge([fixture]),
+    [fixture],
+  );
+
+  assert.equal(fixture.version, "0.1.0");
+  assert.deepEqual(
+    report.fixtures[0]?.cases.map(
+      (fixtureCase) => fixtureCase.rubrics[0]?.requirements[0]?.observedStatus,
+    ),
+    ["OMITTED_OR_INCOMPLETE", "EXPLICIT_CONFLICT", "SATISFIED"],
+  );
+  assert.deepEqual(derivedLabels(report, "atomic-boundaries"), ["FAIL", "FAIL", "PASS"]);
+  assert.equal(report.plannedCalls, 3);
+  for (const fixtureCase of fixture.cases) {
+    assert.deepEqual(fixtureCase.input.rubrics[0]?.requirements, [
+      {
+        id: "M-LIMIT",
+        description: "State that two observations alone are insufficient to establish a trend.",
+      },
+    ]);
+    assert.deepEqual(Object.keys(fixtureCase.input.rubrics[0]!).sort(), [
+      "criterion",
+      "id",
+      "requirements",
+    ]);
+    assert.doesNotMatch(
+      JSON.stringify(fixtureCase.input),
+      /expectedStatus|expectedDerivedLabel|fixture expectation/i,
+    );
+  }
+});
+
 test("report distinguishes atomic agreement from derived agreement without accuracy claims", async () => {
   const fixtures = await loadMaterialRequirementDiagnosticFixtures();
   const report = await runMaterialRequirementDiagnostic(
@@ -164,6 +203,16 @@ test("tutorbench exposes the opt-in provider-free structured diagnostic", () => 
   if (!liveParsed.help && "judgeMaterialRequirement" in liveParsed) {
     assert.equal(liveParsed.judgeMaterialRequirement.judgeDeepSeek, true);
   }
+  const atomicParsed = parseTutorbenchArgs([
+    "judge-material-requirement-discrimination",
+    "--fixture",
+    "atomic-boundaries",
+  ]);
+  assert.equal(atomicParsed.help, false);
+  if (!atomicParsed.help && "judgeMaterialRequirement" in atomicParsed) {
+    assert.equal(atomicParsed.judgeMaterialRequirement.fixture, "atomic-boundaries");
+    assert.equal(atomicParsed.judgeMaterialRequirement.judgeDeepSeek, false);
+  }
   assert.throws(
     () => parseTutorbenchArgs([
       "judge-material-requirement-discrimination",
@@ -180,6 +229,8 @@ test("experimental identities do not bump production or comparison versions", ()
   assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.4");
   assert.equal(WORD_CONTEXT_DISCRIMINATION_CASE_VERSION, "1.1.1");
   assert.equal(JUDGE_CANDIDATE_COMPARISON_VERSION, "0.1.1");
-  assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.2");
+  assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.3");
   assert.equal(MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION, "0.2.0");
+  assert.equal(MATERIAL_REQUIREMENT_FIXTURE_VERSION, "0.1.1");
+  assert.equal(MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION, "0.1.0");
 });

@@ -252,12 +252,12 @@ test("deterministic aggregation implements the public severity rules independent
   assert.throws(() => aggregateMaterialRequirementAssessments([]), /At least one/);
 });
 
-test("experimental v0.2 prompt and schema keep atomic output separate from production labels", async () => {
+test("experimental v0.3 prompt and schema keep atomic output separate from production labels", async () => {
   assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_ID, "tutor-eval-material-requirement-judge-system");
-  assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.2");
+  assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.3");
   assert.equal(
     MATERIAL_REQUIREMENT_JUDGE_PROMPT_ASSET,
-    "prompts/tutor-eval-material-requirement-judge-system-v0.2.md",
+    "prompts/tutor-eval-material-requirement-judge-system-v0.3.md",
   );
   const prompt = await loadMaterialRequirementJudgePrompt();
   assert.match(prompt, /Return exactly one JSON object with this shape/i);
@@ -292,6 +292,14 @@ test("experimental v0.2 prompt and schema keep atomic output separate from produ
   assert.match(prompt, /Markdown code fence/i);
   assert.match(prompt, /explanatory\s+prose outside the single JSON object/i);
   assert.match(prompt, /does\s+not contain developer-expected atomic statuses/i);
+  assert.match(prompt, /explicitly or express a clear semantic equivalent/i);
+  assert.match(prompt, /Do not infer a missing\s+material limitation/i);
+  assert.match(prompt, /entire visible Tutor response/i);
+  assert.match(prompt, /any substantive affirmative claim anywhere\s+in the response/i);
+  assert.match(prompt, /Conflict takes precedence over\s+omission/i);
+  assert.doesNotMatch(prompt, /reluctant/i);
+  assert.doesNotMatch(prompt, /pause-before-agreeing/i);
+  assert.doesNotMatch(prompt, /unwilling/i);
 
   const schema = buildMaterialRequirementJudgeResultJsonSchema();
   const schemaProperties = asRecord(schema.properties);
@@ -329,15 +337,24 @@ test("experimental v0.2 prompt and schema keep atomic output separate from produ
   assert.doesNotMatch(JSON.stringify(schema), /criticalFailures|factualErrors|insufficientInformation/);
 });
 
-test("historical v0.1 material prompt remains readable and content-immutable", async () => {
-  const historicalPrompt = await readFile(
-    resolve(process.cwd(), "prompts/tutor-eval-material-requirement-judge-system-v0.1.md"),
-    "utf8",
-  );
-  assert.equal(
-    createHash("sha256")
-      .update(historicalPrompt.replace(/\r\n?/gu, "\n"), "utf8")
-      .digest("hex"),
-    "2f89fdf56f50c7dc16b7586b06f319f9ccf0151e463e8dadce4ed6bfda02fa8a",
-  );
+test("historical v0.1 and v0.2 material prompts remain readable and content-immutable", async () => {
+  const historicalPrompts = [
+    {
+      asset: "prompts/tutor-eval-material-requirement-judge-system-v0.1.md",
+      sha256: "2f89fdf56f50c7dc16b7586b06f319f9ccf0151e463e8dadce4ed6bfda02fa8a",
+    },
+    {
+      asset: "prompts/tutor-eval-material-requirement-judge-system-v0.2.md",
+      sha256: "7c1576731e8de7b314ebeb8a930c68b0bad841c77a4cba5be1b63a949bc6c929",
+    },
+  ] as const;
+  for (const historical of historicalPrompts) {
+    const prompt = await readFile(resolve(process.cwd(), historical.asset), "utf8");
+    assert.equal(
+      createHash("sha256")
+        .update(prompt.replace(/\r\n?/gu, "\n"), "utf8")
+        .digest("hex"),
+      historical.sha256,
+    );
+  }
 });

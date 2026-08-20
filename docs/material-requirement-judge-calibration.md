@@ -76,6 +76,40 @@ not a change intended to move a model toward developer-expected atomic labels.
 The runtime strict parser, deterministic aggregator, result schema, fixtures,
 and expected statuses remain unchanged.
 
+## First structured probe and v0.3 atomic boundary
+
+The first structured Material Requirement probe used DeepSeek V4-Flash with
+thinking disabled and temperature `0`. All six planned calls produced semantic
+results, there were zero execution errors, and token usage was available for
+all six calls with 7,633 total tokens. Against the developer-authored diagnostic
+expectations, atomic agreement was 19/21 and derived-label agreement was 5/6:
+
+| Fixture | Derived-label agreement |
+| --- | --- |
+| `word-context@0.1.1` | 2/3 |
+| `measurement-trend@0.1.1` | 3/3 |
+
+The two atomic disagreements exposed different generic classification errors:
+
+- B-R3 was an inferred-satisfaction false positive. The Judge treated nearby
+  comparison and conditional language as implying that the clue alone could
+  not establish the exact meaning, although the Tutor response did not state
+  that epistemic limitation or a clear semantic equivalent.
+- C-R3 was a missed explicit conflict. The Tutor affirmatively claimed that the
+  clue established unwillingness and "definitely" fixed the meaning, which
+  cannot simultaneously be true with the required limitation. The Judge looked
+  only for positive limitation wording and downgraded the contradiction to an
+  omission.
+
+Prompt v0.3 addresses only these two generic atomic boundaries. `SATISFIED`
+requires explicit wording or a clear semantic equivalent and forbids supplying
+a missing limitation from nearby comparisons, conditionals, hedging, requests,
+or related cautions. Each requirement must be assessed against the entire
+visible Tutor response; an affirmative conflict anywhere in that response is
+`EXPLICIT_CONFLICT` even when the required positive wording is absent, and
+conflict takes precedence over omission. No word-context lexical special case
+is present.
+
 ## Contract and deterministic policy
 
 `MaterialRequirement` has a stable, non-empty `id` and a non-empty
@@ -133,6 +167,20 @@ pattern outside language learning:
 - limitation omitted -> `PARTIAL`
 - claim that two observations prove a trend -> `FAIL`
 
+The separate `atomic-boundaries@0.1.0` fixture isolates the v0.3 classification
+boundary with one generic `M-LIMIT` requirement:
+
+- a comparison plus conditional request for another check, without the
+  insufficiency relation -> `OMITTED_OR_INCOMPLETE`
+- an affirmative claim elsewhere that two observations prove a trend, followed
+  by a request for another measurement -> `EXPLICIT_CONFLICT`
+- an explicit statement that two observations are not enough to establish a
+  trend -> `SATISFIED`
+
+The synthetic Judge still returns only atomic statuses. Derived labels are
+reported as secondary deterministic diagnostics, not supplied by the fixture
+Judge or leaked in live Judge input.
+
 Reports show each expected and observed atomic status, atomic agreement or
 disagreement, and the separately derived expected and observed rubric labels.
 These are developer-authored `synthetic-fixture` expectations with
@@ -162,7 +210,7 @@ $env:DEEPSEEK_JUDGE_MODEL = "deepseek-v4-flash"
 $env:DEEPSEEK_JUDGE_THINKING = "disabled"
 $env:DEEPSEEK_JUDGE_TEMPERATURE = "0"
 $env:DEEPSEEK_JUDGE_MAX_TOKENS = "4096"
-node dist/src/cli/tutorbench.js judge-material-requirement-discrimination --fixture all --judge-deepseek --output artifacts/material-requirement-deepseek-flash-r1.json
+node dist/src/cli/tutorbench.js judge-material-requirement-discrimination --fixture word-context --judge-deepseek --output artifacts/material-requirement-deepseek-flash-v0.3-word-context.json
 ```
 
 Without that flag the command constructs no provider adapter and makes zero
@@ -177,8 +225,8 @@ Live reports retain `dataKind: synthetic-fixture` and
 semantic availability, execution-error counts by code, per-case latency and
 sanitized token usage, plus known/complete token totals. Missing token usage is
 unknown rather than zero, and a complete total is emitted only when every
-planned call reports that field. Neither a 6/6 agreement nor any live result
-creates a calibration, accuracy, or winner claim.
+planned call reports that field. Neither complete availability nor any live
+result creates a calibration, accuracy, or winner claim.
 
 ## Preserved production boundaries
 
@@ -199,26 +247,35 @@ In particular, an ordinary rubric-level material conflict derives rubric
 The new experimental identities are:
 
 - Material Requirement Judge result schema: `1`
-- prompt: `tutor-eval-material-requirement-judge-system@0.2`
+- prompt: `tutor-eval-material-requirement-judge-system@0.3`
 - diagnostic report: `0.2.0`
-- both synthetic fixtures: `0.1.1`
+- existing `word-context` and `measurement-trend` fixtures: `0.1.1`
+- new `atomic-boundaries` fixture: `0.1.0`
 
-## Operator first probe
+## Historical probe and next live strategy
 
-The recommended first live probe is exactly six calls over the fixed A/B/C and
-measurement PASS/PARTIAL/FAIL cases:
+The historical v0.2 structured probe made exactly six calls over the fixed
+word-context A/B/C and measurement PASS/PARTIAL/FAIL cases. At that time,
+`--fixture all` selected those six cases. Prompt v0.3 adds
+`atomic-boundaries@0.1.0`, so `--fixture all` now plans nine calls and must not be
+used accidentally as though it still represented the historical six-call
+probe.
+
+The minimum next live probe is three calls over only the word-context fixture:
 
 ```powershell
 $env:DEEPSEEK_JUDGE_MODEL = "deepseek-v4-flash"
 $env:DEEPSEEK_JUDGE_THINKING = "disabled"
 $env:DEEPSEEK_JUDGE_TEMPERATURE = "0"
 $env:DEEPSEEK_JUDGE_MAX_TOKENS = "4096"
-node dist/src/cli/tutorbench.js judge-material-requirement-discrimination --fixture all --judge-deepseek --output artifacts/material-requirement-deepseek-flash-r1.json
+node dist/src/cli/tutorbench.js judge-material-requirement-discrimination --fixture word-context --judge-deepseek --output artifacts/material-requirement-deepseek-flash-v0.3-word-context.json
 ```
 
-The profile is an operator diagnostic recommendation, not a benchmark-wide
-model or generation mandate. Run this six-call probe first; do not substitute
-the full 48-case benchmark. Record only validated atomic statuses, short
-visible-response evidence, sanitized telemetry, and locally derived labels.
-Transport failures remain separate from semantic results. Any repetition or
-broader evaluation requires a separately scoped decision after the first probe.
+If the next decision explicitly needs direct generic-boundary evidence, run
+`--fixture atomic-boundaries` as a separate three-call targeted probe, for six
+calls total across the two targeted commands. Do not automatically rerun all
+nine cases or the full 48-case benchmark. This PR performs no live provider
+call. The profile remains an operator diagnostic recommendation, not a
+benchmark-wide model or generation mandate. Record only validated atomic
+statuses, short visible-response evidence, sanitized telemetry, and locally
+derived labels; transport failures remain separate from semantic results.

@@ -160,17 +160,17 @@ test("Material DeepSeek adapter serializes complete context and preserves atomic
     provider: "deepseek",
     model: judge.descriptor.model,
   });
-  assert.equal(calls.length, 6);
-  assert.equal(report.plannedCalls, 6);
-  assert.equal(report.completedCalls, 6);
+  assert.equal(calls.length, 9);
+  assert.equal(report.plannedCalls, 9);
+  assert.equal(report.completedCalls, 9);
   assert.deepEqual(report.semanticAvailability, {
-    observedCases: 6,
-    plannedCases: 6,
+    observedCases: 9,
+    plannedCases: 9,
     share: 1,
   });
   assert.equal(report.executionErrors.count, 0);
-  assert.equal(report.tokenUsageCoverage.totalTokens.completeTotal, 840);
-  assert.equal(report.tokenUsageCoverage.totalTokens.knownTotal, 840);
+  assert.equal(report.tokenUsageCoverage.totalTokens.completeTotal, 1_260);
+  assert.equal(report.tokenUsageCoverage.totalTokens.knownTotal, 1_260);
   assert.equal(report.fixtures[0]!.cases[0]!.attempts, 1);
   assert.equal(report.fixtures[0]!.cases[0]!.cost, null);
   assert.match(JSON.stringify(report), /synthetic-fixture/);

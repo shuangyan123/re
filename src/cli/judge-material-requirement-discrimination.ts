@@ -33,11 +33,16 @@ export interface JudgeMaterialRequirementCliOptions {
 }
 
 function parseFixture(value: string): JudgeMaterialRequirementCliOptions["fixture"] {
-  if (value === "all" || value === "word-context" || value === "measurement-trend") {
+  if (
+    value === "all" ||
+    value === "word-context" ||
+    value === "measurement-trend" ||
+    value === "atomic-boundaries"
+  ) {
     return value;
   }
   throw new TutorbenchCliUsageError(
-    "--fixture must be all, word-context, or measurement-trend.",
+    "--fixture must be all, word-context, measurement-trend, or atomic-boundaries.",
   );
 }
 
@@ -95,7 +100,8 @@ export function printJudgeMaterialRequirementHelp(): void {
   code derives PASS/PARTIAL/FAIL deterministically.
 
 Options:
-  --fixture <id>        all (default), word-context, or measurement-trend
+  --fixture <id>        all (default), word-context, measurement-trend,
+                        or atomic-boundaries
   --judge-deepseek      Use the explicitly configured live DeepSeek Judge
   --output <path>       Write the experimental report JSON
   --help                Show this help

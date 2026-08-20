@@ -33,12 +33,18 @@ export const MATERIAL_REQUIREMENT_DIAGNOSTIC_ID =
   "judge-material-requirement-discrimination" as const;
 export const MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION = "0.2.0" as const;
 export const MATERIAL_REQUIREMENT_FIXTURE_VERSION = "0.1.1" as const;
+export const MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION = "0.1.0" as const;
 export const MATERIAL_REQUIREMENT_FIXTURE_PROVENANCE =
   "developer-authored-diagnostic-expectation" as const;
 
 export type MaterialRequirementDiagnosticFixtureId =
   | "word-context"
-  | "measurement-trend";
+  | "measurement-trend"
+  | "atomic-boundaries";
+
+export type MaterialRequirementDiagnosticFixtureVersion =
+  | typeof MATERIAL_REQUIREMENT_FIXTURE_VERSION
+  | typeof MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION;
 
 export interface MaterialRequirementDiagnosticCase {
   readonly id: string;
@@ -48,7 +54,7 @@ export interface MaterialRequirementDiagnosticCase {
 
 export interface MaterialRequirementDiagnosticFixture {
   readonly id: MaterialRequirementDiagnosticFixtureId;
-  readonly version: typeof MATERIAL_REQUIREMENT_FIXTURE_VERSION;
+  readonly version: MaterialRequirementDiagnosticFixtureVersion;
   readonly cases: readonly MaterialRequirementDiagnosticCase[];
 }
 
@@ -262,6 +268,68 @@ export const MATERIAL_REQUIREMENT_MEASUREMENT_TREND_FIXTURE: MaterialRequirement
     ]),
   });
 
+const atomicBoundaryCriterion =
+  "State that two observations alone are insufficient to establish a trend.";
+const atomicBoundaryRequirements = Object.freeze([
+  Object.freeze({
+    id: "M-LIMIT",
+    description: "State that two observations alone are insufficient to establish a trend.",
+  }),
+] as const);
+
+export const MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE: MaterialRequirementDiagnosticFixture =
+  Object.freeze({
+    id: "atomic-boundaries",
+    version: MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION,
+    cases: Object.freeze([
+      diagnosticCase(
+        "material-atomic-boundary-related-statement",
+        "atomic-boundaries-001",
+        atomicBoundaryCriterion,
+        atomicBoundaryRequirements,
+        measurementContext,
+        "The second measurement is higher than the first. If the measurements were equal, we might need another check.",
+        [
+          assessment(
+            "M-LIMIT",
+            "OMITTED_OR_INCOMPLETE",
+            "The conditional request for another check does not state that two observations are insufficient to establish a trend.",
+          ),
+        ],
+      ),
+      diagnosticCase(
+        "material-atomic-boundary-conflict-elsewhere",
+        "atomic-boundaries-001",
+        atomicBoundaryCriterion,
+        atomicBoundaryRequirements,
+        measurementContext,
+        "The second measurement is higher than the first, so these two observations prove an increasing trend. Let's collect one more measurement.",
+        [
+          assessment(
+            "M-LIMIT",
+            "EXPLICIT_CONFLICT",
+            "The affirmative claim that two observations prove a trend directly contradicts the required limitation.",
+          ),
+        ],
+      ),
+      diagnosticCase(
+        "material-atomic-boundary-clear-satisfaction",
+        "atomic-boundaries-001",
+        atomicBoundaryCriterion,
+        atomicBoundaryRequirements,
+        measurementContext,
+        "The second measurement is higher than the first, but two observations alone are not enough to establish a trend.",
+        [
+          assessment(
+            "M-LIMIT",
+            "SATISFIED",
+            "The response explicitly states that two observations are not enough to establish a trend.",
+          ),
+        ],
+      ),
+    ]),
+  });
+
 export async function loadMaterialRequirementDiagnosticFixtures(): Promise<
   readonly MaterialRequirementDiagnosticFixture[]
 > {
@@ -278,6 +346,7 @@ export async function loadMaterialRequirementDiagnosticFixtures(): Promise<
   return Object.freeze([
     createWordContextFixture(wordContextCase),
     MATERIAL_REQUIREMENT_MEASUREMENT_TREND_FIXTURE,
+    MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE,
   ]);
 }
 
@@ -329,7 +398,7 @@ export interface MaterialRequirementTokenCoverage {
 
 export interface MaterialRequirementDiagnosticFixtureReport {
   readonly fixtureId: MaterialRequirementDiagnosticFixtureId;
-  readonly fixtureVersion: typeof MATERIAL_REQUIREMENT_FIXTURE_VERSION;
+  readonly fixtureVersion: MaterialRequirementDiagnosticFixtureVersion;
   readonly cases: readonly MaterialRequirementDiagnosticCaseReport[];
 }
 
