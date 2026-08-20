@@ -15,6 +15,7 @@ export type BenchmarkErrorCode =
   | "calibration_data_invalid"
   | "calibration_packet_invalid"
   | "calibration_reference_invalid"
+  | "human_reference_calibration_invalid"
   | "calibration_critical_failure_target_invalid"
   | "calibration_critical_failure_annotation_invalid"
   | "calibration_critical_failure_adjudication_invalid"
@@ -47,6 +48,8 @@ const stableMessages: Record<BenchmarkErrorCode, string> = {
   calibration_data_invalid: "Calibration data is invalid.",
   calibration_packet_invalid: "Calibration packet is invalid.",
   calibration_reference_invalid: "Calibration reference set is invalid.",
+  human_reference_calibration_invalid:
+    "Human reference calibration data is invalid.",
   calibration_critical_failure_target_invalid:
     "Critical-failure calibration target registry is invalid.",
   calibration_critical_failure_annotation_invalid:
@@ -87,6 +90,7 @@ export class BenchmarkConfigurationError extends Error {
     | "calibration_data_invalid"
     | "calibration_packet_invalid"
     | "calibration_reference_invalid"
+    | "human_reference_calibration_invalid"
     | "calibration_critical_failure_target_invalid"
     | "calibration_critical_failure_annotation_invalid"
     | "calibration_critical_failure_adjudication_invalid"
@@ -116,6 +120,7 @@ export class BenchmarkConfigurationError extends Error {
       | "calibration_data_invalid"
       | "calibration_packet_invalid"
       | "calibration_reference_invalid"
+      | "human_reference_calibration_invalid"
       | "calibration_critical_failure_target_invalid"
       | "calibration_critical_failure_annotation_invalid"
       | "calibration_critical_failure_adjudication_invalid"

@@ -14,6 +14,8 @@ export * from "./tutor-eval-taxonomy.js";
 export * from "./tutor-eval-judge.js";
 export * from "./calibration.js";
 export * from "./calibration-validation.js";
+export * from "./human-reference-calibration.js";
+export * from "./human-reference-calibration-validation.js";
 export * from "./critical-failure-calibration.js";
 export * from "./critical-failure-calibration-validation.js";
 export * from "./tutor-eval-result-validation.js";

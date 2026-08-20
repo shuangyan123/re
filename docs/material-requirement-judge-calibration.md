@@ -175,6 +175,29 @@ establishes, determines, or guarantees a conclusion before assigning
 `EXPLICIT_CONFLICT`. The examples are semantic guidance rather than a keyword
 list, and context can still make apparently weaker wording express certainty.
 
+## v0.4 stability evidence and calibration freeze
+
+With the fixed DeepSeek V4-Flash non-thinking, temperature-zero profile and
+`tutor-eval-material-requirement-judge-system@0.4`, three independent runs of
+`word-context@0.2.0` produced the same diagnostic labels:
+
+| Run | A | B | C | Planned/completed | Execution errors |
+| --- | --- | --- | --- | --- | --- |
+| r1 | `PASS` | `PARTIAL` | `FAIL` | 3/3 | 0 |
+| r2 | `PASS` | `PARTIAL` | `FAIL` | 3/3 | 0 |
+| r3 | `PASS` | `PARTIAL` | `FAIL` | 3/3 | 0 |
+
+Each run had atomic diagnostic agreement of 4/4 for A, B, and C. The
+aggregate had 9/9 planned calls completed, semantic availability 9/9, zero
+execution errors, 36/36 atomic diagnostic agreement, and 9/9 derived-label
+diagnostic agreement. Reported token totals were `6486 + 6501 + 6508 = 19495`.
+
+These are diagnostic agreements with developer-authored synthetic expectations.
+They are not accuracy, human agreement, calibrated performance, or validation
+against human reference. The Material Requirement Judge v0.4 prompt is now
+frozen for human-reference calibration work; no v0.5 is created, and further
+synthetic-fixture-driven prompt tuning is paused.
+
 ## Contract and deterministic policy
 
 `MaterialRequirement` has a stable, non-empty `id` and a non-empty
@@ -339,8 +362,9 @@ The new experimental identities are:
 - `measurement-trend` fixture: `0.1.1`
 - `atomic-boundaries` fixture: `0.1.0`
 - `epistemic-strength` fixture: `0.1.0`
+- human-reference calibration protocol: `human-reference-material-calibration@0.1.0`
 
-## Historical probe and next live strategy
+## Historical probe and next calibration phase
 
 The historical v0.2 structured probe made exactly six calls over the fixed
 word-context A/B/C and measurement PASS/PARTIAL/FAIL cases. At that time,
@@ -350,24 +374,10 @@ v0.4 adds `epistemic-strength@0.1.0`, so the current `--fixture all` plans
 twelve calls. These counts are historical/current fixture composition, not a
 recommendation to spend quota on an all-fixture probe.
 
-The minimum next live probe is three calls over only the word-context fixture:
-
-```powershell
-$env:DEEPSEEK_JUDGE_MODEL = "deepseek-v4-flash"
-$env:DEEPSEEK_JUDGE_THINKING = "disabled"
-$env:DEEPSEEK_JUDGE_TEMPERATURE = "0"
-$env:DEEPSEEK_JUDGE_MAX_TOKENS = "4096"
-node dist/src/cli/tutorbench.js judge-material-requirement-discrimination --fixture word-context --judge-deepseek --output artifacts/material-requirement-deepseek-flash-v0.4-word-context.json
-```
-
-Do not use `--fixture all`, add repetitions, or switch to V4-Pro for this next
-decision. The target is three word-context calls: A R3 `SATISFIED`, B R3
-`OMITTED_OR_INCOMPLETE`, and C R3 `EXPLICIT_CONFLICT`. If v0.4 still observes
-B-R3 as `EXPLICIT_CONFLICT`, stop prompt tuning and move to human-reference
-calibration, disagreement adjudication, and an uncertainty/escalation policy;
-do not start a v0.5 wording iteration for this single fixture. This PR
-performs no live provider call. The profile remains an operator diagnostic
-recommendation, not a benchmark-wide model or generation mandate. Record only
-validated atomic statuses, short visible-response evidence, sanitized
-telemetry, and locally derived labels; transport failures remain separate from
-semantic results.
+The next phase is human-reference calibration: independent annotators receive
+the same visible evidence boundary, human-human atomic agreement is measured
+first, disagreements require explicit adjudication, and only resolved
+consensus or adjudicated atoms become a reference. Judge-vs-reference
+comparison remains a separate later operation; missing annotations, unresolved
+disagreements, and Judge execution errors stay outside semantic agreement
+denominators. This PR performs no live provider call.

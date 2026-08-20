@@ -9,3 +9,6 @@ export * from "./critical-failure-comparison.js";
 export * from "./critical-failure-packet.js";
 export * from "./critical-failure-reference.js";
 export * from "./critical-failure-report.js";
+export * from "./human-reference-agreement.js";
+export * from "./human-reference-reference.js";
+export * from "./human-reference-comparison.js";
