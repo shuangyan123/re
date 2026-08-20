@@ -1,14 +1,22 @@
 import {
+  buildTutorEvalJudgeInput,
   MATERIAL_REQUIREMENT_JUDGE_SCHEMA_VERSION,
   parseMaterialRequirementJudgeInput,
   parseMaterialRequirementJudgeResult,
+  TUTOR_EVAL_DATASET_ID,
+  TUTOR_EVAL_DATASET_VERSION,
   type MaterialRequirementAssessmentStatus,
   type MaterialRequirementDerivedLabel,
   type MaterialRequirementJudge,
+  type MaterialRequirementJudgeContext,
   type MaterialRequirementJudgeInput,
   type MaterialRequirementJudgeResult,
+  type TutorEvalCase,
 } from "../contracts/index.js";
+import { loadTutorEvalDataset } from "../datasets/index.js";
 import {
+  WORD_CONTEXT_DISCRIMINATION_CASE_ID,
+  WORD_CONTEXT_DISCRIMINATION_CASE_VERSION,
   WORD_CONTEXT_DISCRIMINATION_CORRECTNESS_CRITERION,
   WORD_CONTEXT_DISCRIMINATION_FIXTURES,
 } from "./word-context-discrimination.js";
@@ -20,7 +28,7 @@ import {
 
 export const MATERIAL_REQUIREMENT_DIAGNOSTIC_ID =
   "judge-material-requirement-discrimination" as const;
-export const MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION = "0.1.0" as const;
+export const MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION = "0.1.1" as const;
 export const MATERIAL_REQUIREMENT_FIXTURE_PROVENANCE =
   "developer-authored-diagnostic-expectation" as const;
 
@@ -36,7 +44,7 @@ export interface MaterialRequirementDiagnosticCase {
 
 export interface MaterialRequirementDiagnosticFixture {
   readonly id: MaterialRequirementDiagnosticFixtureId;
-  readonly version: "0.1.0";
+  readonly version: typeof MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION;
   readonly cases: readonly MaterialRequirementDiagnosticCase[];
 }
 
@@ -53,11 +61,13 @@ function diagnosticCase(
   rubricId: string,
   criterion: string,
   requirements: MaterialRequirementJudgeInput["rubrics"][number]["requirements"],
+  context: MaterialRequirementJudgeContext,
   tutorResponse: string,
   assessments: MaterialRequirementJudgeResult["rubricAssessments"][number]["requirements"],
 ): MaterialRequirementDiagnosticCase {
   const input = parseMaterialRequirementJudgeInput({
     caseId: id,
+    ...context,
     rubrics: [{ id: rubricId, criterion, requirements }],
     tutorResponse,
   });
@@ -100,16 +110,42 @@ function wordResponse(id: "A" | "B" | "C"): string {
   return fixtureCase.responseText;
 }
 
-export const MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE: MaterialRequirementDiagnosticFixture =
-  Object.freeze({
+function materialRequirementContext(
+  input: ReturnType<typeof buildTutorEvalJudgeInput>,
+): MaterialRequirementJudgeContext {
+  return {
+    learningObjective: input.learningObjective,
+    studentProfile: input.studentProfile,
+    conversationHistory: input.conversationHistory,
+    studentMessage: input.studentMessage,
+    problemContext: input.problemContext,
+    groundTruth: input.groundTruth,
+    knownMisconception: input.knownMisconception,
+    disclosurePolicy: input.disclosurePolicy,
+  };
+}
+
+function createWordContextFixture(
+  tutorEvalCase: TutorEvalCase,
+): MaterialRequirementDiagnosticFixture {
+  if (
+    tutorEvalCase.id !== WORD_CONTEXT_DISCRIMINATION_CASE_ID ||
+    tutorEvalCase.version !== WORD_CONTEXT_DISCRIMINATION_CASE_VERSION
+  ) {
+    throw new Error("Material-requirement word-context fixture requires the canonical case version.");
+  }
+  const contextFor = (response: string): MaterialRequirementJudgeContext =>
+    materialRequirementContext(buildTutorEvalJudgeInput(tutorEvalCase, response));
+  return Object.freeze({
     id: "word-context",
-    version: "0.1.0",
+    version: MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION,
     cases: Object.freeze([
       diagnosticCase(
         "material-word-context-A",
         "language-word-context-001",
         WORD_CONTEXT_DISCRIMINATION_CORRECTNESS_CRITERION,
         wordRequirements,
+        contextFor(wordResponse("A")),
         wordResponse("A"),
         [
           assessment("R1", "SATISFIED", "The response evaluates the proposed meaning using the pause clue."),
@@ -123,6 +159,7 @@ export const MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE: MaterialRequirementDiagn
         "language-word-context-001",
         WORD_CONTEXT_DISCRIMINATION_CORRECTNESS_CRITERION,
         wordRequirements,
+        contextFor(wordResponse("B")),
         wordResponse("B"),
         [
           assessment("R1", "SATISFIED", "The response compares reluctant with unsure in the stated context."),
@@ -136,16 +173,18 @@ export const MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE: MaterialRequirementDiagn
         "language-word-context-001",
         WORD_CONTEXT_DISCRIMINATION_CORRECTNESS_CRITERION,
         wordRequirements,
+        contextFor(wordResponse("C")),
         wordResponse("C"),
         [
           assessment("R1", "SATISFIED", "The response relates the proposed meaning to the pause clue."),
           assessment("R2", "SATISFIED", "It identifies unwillingness as one interpretation supported by the pause."),
           assessment("R3", "EXPLICIT_CONFLICT", "It says the pause proves unwillingness, contradicting the required limitation."),
-          assessment("R4", "SATISFIED", "The conclusion is presented as based on the surrounding pause clue."),
+          assessment("R4", "EXPLICIT_CONFLICT", "The response reaches a definitive lexical conclusion and conclusively displaces the student's proposed interpretation instead of keeping the underdetermined context boundary open."),
         ],
       ),
     ]),
   });
+}
 
 const measurementCriterion =
   "Compare two measurements, explain that two observations alone are insufficient to establish a trend, and ask for another observation.";
@@ -158,16 +197,31 @@ const measurementRequirements = Object.freeze([
   Object.freeze({ id: "M3", description: "Ask for another observation." }),
 ] as const);
 
+const measurementContext: MaterialRequirementJudgeContext = Object.freeze({
+  learningObjective: "Compare repeated measurements without inferring a trend from insufficient observations.",
+  studentProfile: JSON.stringify({ level: "middle-school", goal: "interpret repeated measurements" }),
+  conversationHistory: JSON.stringify([]),
+  studentMessage: "The first measurement was 10 units and the second was 12 units. Does that prove the measurements are increasing?",
+  problemContext: "Only two measurements have been collected: observation 1 is 10 units and observation 2 is 12 units. No third observation is available yet.",
+  groundTruth: JSON.stringify({
+    comparison: "The second measurement is 2 units higher than the first.",
+    limitation: "Two observations alone are insufficient to establish a trend.",
+  }),
+  knownMisconception: "A higher second observation proves an increasing trend.",
+  disclosurePolicy: "hint_only",
+});
+
 export const MATERIAL_REQUIREMENT_MEASUREMENT_TREND_FIXTURE: MaterialRequirementDiagnosticFixture =
   Object.freeze({
     id: "measurement-trend",
-    version: "0.1.0",
+    version: MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION,
     cases: Object.freeze([
       diagnosticCase(
         "material-measurement-PASS",
         "measurement-trend-001",
         measurementCriterion,
         measurementRequirements,
+        measurementContext,
         "The second measurement is higher than the first, but two observations alone cannot establish an increasing trend. What is a third measurement?",
         [
           assessment("M1", "SATISFIED", "The response says the second measurement is higher."),
@@ -180,6 +234,7 @@ export const MATERIAL_REQUIREMENT_MEASUREMENT_TREND_FIXTURE: MaterialRequirement
         "measurement-trend-001",
         measurementCriterion,
         measurementRequirements,
+        measurementContext,
         "The second measurement is higher than the first. What is a third measurement?",
         [
           assessment("M1", "SATISFIED", "The response compares the second measurement with the first."),
@@ -192,6 +247,7 @@ export const MATERIAL_REQUIREMENT_MEASUREMENT_TREND_FIXTURE: MaterialRequirement
         "measurement-trend-001",
         measurementCriterion,
         measurementRequirements,
+        measurementContext,
         "The second measurement is higher than the first, so these two observations prove an increasing trend. What is a third measurement?",
         [
           assessment("M1", "SATISFIED", "The response compares the two observations."),
@@ -202,10 +258,24 @@ export const MATERIAL_REQUIREMENT_MEASUREMENT_TREND_FIXTURE: MaterialRequirement
     ]),
   });
 
-export const MATERIAL_REQUIREMENT_DIAGNOSTIC_FIXTURES = Object.freeze([
-  MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE,
-  MATERIAL_REQUIREMENT_MEASUREMENT_TREND_FIXTURE,
-]);
+export async function loadMaterialRequirementDiagnosticFixtures(): Promise<
+  readonly MaterialRequirementDiagnosticFixture[]
+> {
+  const dataset = await loadTutorEvalDataset(
+    TUTOR_EVAL_DATASET_ID,
+    TUTOR_EVAL_DATASET_VERSION,
+  );
+  const wordContextCase = dataset.cases.find(
+    (candidate) => candidate.id === WORD_CONTEXT_DISCRIMINATION_CASE_ID,
+  );
+  if (wordContextCase === undefined) {
+    throw new Error("Canonical dataset is missing the material-requirement word-context case.");
+  }
+  return Object.freeze([
+    createWordContextFixture(wordContextCase),
+    MATERIAL_REQUIREMENT_MEASUREMENT_TREND_FIXTURE,
+  ]);
+}
 
 export interface MaterialRequirementDiagnosticRequirementReport {
   readonly requirementId: string;
@@ -232,7 +302,7 @@ export interface MaterialRequirementDiagnosticCaseReport {
 
 export interface MaterialRequirementDiagnosticFixtureReport {
   readonly fixtureId: MaterialRequirementDiagnosticFixtureId;
-  readonly fixtureVersion: "0.1.0";
+  readonly fixtureVersion: typeof MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION;
   readonly cases: readonly MaterialRequirementDiagnosticCaseReport[];
 }
 
@@ -301,10 +371,11 @@ function buildRubricReport(
 
 export async function runMaterialRequirementDiagnostic(
   judge: MaterialRequirementJudge,
-  fixtures: readonly MaterialRequirementDiagnosticFixture[] = MATERIAL_REQUIREMENT_DIAGNOSTIC_FIXTURES,
+  fixtures?: readonly MaterialRequirementDiagnosticFixture[],
 ): Promise<MaterialRequirementDiagnosticReport> {
+  const selectedFixtures = fixtures ?? await loadMaterialRequirementDiagnosticFixtures();
   const fixtureReports: MaterialRequirementDiagnosticFixtureReport[] = [];
-  for (const fixture of fixtures) {
+  for (const fixture of selectedFixtures) {
     const cases: MaterialRequirementDiagnosticCaseReport[] = [];
     for (const fixtureCase of fixture.cases) {
       const observed = parseMaterialRequirementJudgeResult(
@@ -342,8 +413,10 @@ export async function runMaterialRequirementDiagnostic(
 }
 
 /** Provider-free structural harness; it returns atomic fixture expectations, never labels. */
-export function createSyntheticMaterialRequirementFixtureJudge(): MaterialRequirementJudge {
-  const cases = MATERIAL_REQUIREMENT_DIAGNOSTIC_FIXTURES.flatMap((fixture) => fixture.cases);
+export function createSyntheticMaterialRequirementFixtureJudge(
+  fixtures: readonly MaterialRequirementDiagnosticFixture[],
+): MaterialRequirementJudge {
+  const cases = fixtures.flatMap((fixture) => fixture.cases);
   return {
     evaluate: async (input) => {
       const fixtureCase = cases.find((candidate) => candidate.id === input.caseId);

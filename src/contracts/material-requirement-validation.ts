@@ -9,10 +9,12 @@ import {
   type MaterialRequirementRubric,
   type MaterialRequirementRubricAssessment,
 } from "./material-requirement-judge.js";
+import { TUTOR_EVAL_DISCLOSURE_POLICIES } from "./tutor-eval-disclosure.js";
 
 type UnknownRecord = Record<string, unknown>;
 
 const statuses = new Set<string>(MATERIAL_REQUIREMENT_ASSESSMENT_STATUSES);
+const disclosurePolicies = new Set<string>(TUTOR_EVAL_DISCLOSURE_POLICIES);
 const identifierPattern = /^[A-Za-z][A-Za-z0-9._:-]*$/u;
 export const MATERIAL_REQUIREMENT_EVIDENCE_MAX_LENGTH = 500 as const;
 
@@ -84,8 +86,29 @@ export function parseMaterialRequirementJudgeInput(
   const record = asRecord(value);
   if (
     record === null ||
-    !hasOnlyKeys(record, ["caseId", "rubrics", "tutorResponse"]) ||
+    !hasOnlyKeys(record, [
+      "caseId",
+      "learningObjective",
+      "studentProfile",
+      "conversationHistory",
+      "studentMessage",
+      "problemContext",
+      "groundTruth",
+      "knownMisconception",
+      "disclosurePolicy",
+      "rubrics",
+      "tutorResponse",
+    ]) ||
     !identifier(record.caseId) ||
+    !nonEmptyString(record.learningObjective) ||
+    typeof record.studentProfile !== "string" ||
+    typeof record.conversationHistory !== "string" ||
+    !nonEmptyString(record.studentMessage) ||
+    typeof record.problemContext !== "string" ||
+    typeof record.groundTruth !== "string" ||
+    typeof record.knownMisconception !== "string" ||
+    typeof record.disclosurePolicy !== "string" ||
+    !disclosurePolicies.has(record.disclosurePolicy) ||
     !Array.isArray(record.rubrics) ||
     record.rubrics.length === 0 ||
     !nonEmptyString(record.tutorResponse)
@@ -101,6 +124,14 @@ export function parseMaterialRequirementJudgeInput(
   }
   return {
     caseId: record.caseId,
+    learningObjective: record.learningObjective,
+    studentProfile: record.studentProfile,
+    conversationHistory: record.conversationHistory,
+    studentMessage: record.studentMessage,
+    problemContext: record.problemContext,
+    groundTruth: record.groundTruth,
+    knownMisconception: record.knownMisconception,
+    disclosurePolicy: record.disclosurePolicy as MaterialRequirementJudgeInput["disclosurePolicy"],
     rubrics: rubrics as MaterialRequirementRubric[],
     tutorResponse: record.tutorResponse,
   };

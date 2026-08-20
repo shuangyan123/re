@@ -17,6 +17,14 @@ import {
 
 const input: MaterialRequirementJudgeInput = parseMaterialRequirementJudgeInput({
   caseId: "structured-case-001",
+  learningObjective: "Assess the response against the supplied case evidence.",
+  studentProfile: JSON.stringify({ level: "synthetic" }),
+  conversationHistory: JSON.stringify([]),
+  studentMessage: "A synthetic student message.",
+  problemContext: "A synthetic problem context.",
+  groundTruth: JSON.stringify({ expected: "synthetic" }),
+  knownMisconception: "A synthetic known misconception.",
+  disclosurePolicy: "hint_only",
   rubrics: [
     {
       id: "rubric-a",
@@ -33,6 +41,35 @@ const input: MaterialRequirementJudgeInput = parseMaterialRequirementJudgeInput(
     },
   ],
   tutorResponse: "A visible synthetic Tutor response.",
+});
+
+test("MaterialRequirement input requires complete typed context and rejects extras", () => {
+  assert.equal(input.studentMessage, "A synthetic student message.");
+  for (const requiredField of [
+    "learningObjective",
+    "studentProfile",
+    "conversationHistory",
+    "studentMessage",
+    "problemContext",
+    "groundTruth",
+    "knownMisconception",
+    "disclosurePolicy",
+  ] as const) {
+    const missing = { ...input } as Record<string, unknown>;
+    delete missing[requiredField];
+    assert.throws(
+      () => parseMaterialRequirementJudgeInput(missing),
+      /Material Requirement Judge input or result is invalid/,
+    );
+  }
+  assert.throws(
+    () => parseMaterialRequirementJudgeInput({ ...input, providerMetadata: {} }),
+    /Material Requirement Judge input or result is invalid/,
+  );
+  assert.throws(
+    () => parseMaterialRequirementJudgeInput({ ...input, conversationHistory: [] }),
+    /Material Requirement Judge input or result is invalid/,
+  );
 });
 
 function validResult(): unknown {
