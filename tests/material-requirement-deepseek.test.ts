@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  MATERIAL_REQUIREMENT_ASSESSMENT_STATUSES,
   MaterialRequirementJudgeExecutionError,
   type MaterialRequirementJudgeInput,
   type MaterialRequirementJudgeResult,
@@ -15,9 +16,14 @@ import {
 import {
   createSyntheticMaterialRequirementFixtureJudge,
   loadMaterialRequirementDiagnosticFixtures,
+  loadMaterialRequirementJudgePrompt,
+  MATERIAL_REQUIREMENT_JUDGE_PROMPT_ID,
+  MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION,
   runMaterialRequirementDiagnostic,
   type MaterialRequirementDiagnosticFixture,
 } from "../src/judge/index.js";
+
+const materialJudgePrompt = await loadMaterialRequirementJudgePrompt();
 
 function responseBody(
   content: string,
@@ -51,9 +57,9 @@ function materialJudgeOptions(
 ) {
   return {
     model: "deepseek-v4-flash",
-    prompt: "Material Requirement Judge prompt v0.1.",
-    promptId: "tutor-eval-material-requirement-judge-system",
-    promptVersion: "0.1",
+    prompt: materialJudgePrompt,
+    promptId: MATERIAL_REQUIREMENT_JUDGE_PROMPT_ID,
+    promptVersion: MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION,
     fetch,
     requireReasoningSeparation: true,
     environment: {
@@ -102,7 +108,24 @@ test("Material DeepSeek adapter serializes complete context and preserves atomic
     assert.equal(init.headers.Authorization, "Bearer test-key");
     assert.equal(request.model, "deepseek-v4-flash");
     assert.equal(request.messages[0]?.role, "system");
-    assert.equal(request.messages[0]?.content, "Material Requirement Judge prompt v0.1.");
+    const systemPrompt = request.messages[0]?.content ?? "";
+    assert.equal(systemPrompt, materialJudgePrompt);
+    for (const field of [
+      "schemaVersion",
+      "caseId",
+      "rubricAssessments",
+      "rubricId",
+      "requirements",
+      "requirementId",
+      "status",
+    ]) {
+      assert.match(systemPrompt, new RegExp(`"${field}"`));
+    }
+    for (const status of MATERIAL_REQUIREMENT_ASSESSMENT_STATUSES) {
+      assert.match(systemPrompt, new RegExp(`\\b${status}\\b`));
+    }
+    assert.match(systemPrompt, /Do not output `PASS`, `PARTIAL`, or `FAIL`/);
+    assert.doesNotMatch(systemPrompt, /"status"\s*:\s*"(?:PASS|PARTIAL|FAIL)"/);
     assert.equal(payload.kind, "MaterialRequirementJudgeInput");
     assert.equal(payload.schemaVersion, undefined);
     assert.equal(request.thinking?.type, "disabled");
@@ -114,6 +137,19 @@ test("Material DeepSeek adapter serializes complete context and preserves atomic
     assert.equal(typeof payload.payload.knownMisconception, "string");
     assert.equal(typeof payload.payload.tutorResponse, "string");
     assert.ok(payload.payload.rubrics[0]?.requirements.length);
+    for (const forbiddenInputKey of [
+      "expected",
+      "expectedStatus",
+      "derivedLabel",
+      "fixtureExpected",
+    ]) {
+      assert.equal(forbiddenInputKey in payload.payload, false);
+    }
+    for (const rubric of payload.payload.rubrics) {
+      for (const requirement of rubric.requirements) {
+        assert.deepEqual(Object.keys(requirement).sort(), ["description", "id"]);
+      }
+    }
     const fixtureCase = cases.find((candidate) => candidate.input.caseId === payload.payload.caseId);
     assert.ok(fixtureCase);
     return responseBody(validAtomicResult(fixtureCase));
