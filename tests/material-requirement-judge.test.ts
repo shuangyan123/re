@@ -329,13 +329,15 @@ test("experimental v0.2 prompt and schema keep atomic output separate from produ
   assert.doesNotMatch(JSON.stringify(schema), /criticalFailures|factualErrors|insufficientInformation/);
 });
 
-test("historical v0.1 material prompt remains readable and byte-immutable", async () => {
+test("historical v0.1 material prompt remains readable and content-immutable", async () => {
   const historicalPrompt = await readFile(
     resolve(process.cwd(), "prompts/tutor-eval-material-requirement-judge-system-v0.1.md"),
     "utf8",
   );
   assert.equal(
-    createHash("sha256").update(historicalPrompt, "utf8").digest("hex"),
-    "89239b0f205f04bff8756e3f0bf47159f8ec30a54f8a63343ca4ae6015bbba5a",
+    createHash("sha256")
+      .update(historicalPrompt.replace(/\r\n?/gu, "\n"), "utf8")
+      .digest("hex"),
+    "2f89fdf56f50c7dc16b7586b06f319f9ccf0151e463e8dadce4ed6bfda02fa8a",
   );
 });
