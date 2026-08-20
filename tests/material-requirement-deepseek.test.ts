@@ -131,7 +131,7 @@ test("Material DeepSeek adapter serializes complete context and preserves atomic
     assert.equal(request.thinking?.type, "disabled");
     assert.equal(request.temperature, 0);
     assert.equal(request.max_tokens, 4096);
-    assert.match(payload.payload.studentMessage, /measurement|reluctant|unsure/i);
+    assert.match(payload.payload.studentMessage, /measurement|observations|reluctant|unsure/i);
     assert.equal(typeof payload.payload.problemContext, "string");
     assert.equal(typeof payload.payload.groundTruth, "string");
     assert.equal(typeof payload.payload.knownMisconception, "string");
@@ -160,17 +160,17 @@ test("Material DeepSeek adapter serializes complete context and preserves atomic
     provider: "deepseek",
     model: judge.descriptor.model,
   });
-  assert.equal(calls.length, 9);
-  assert.equal(report.plannedCalls, 9);
-  assert.equal(report.completedCalls, 9);
+  assert.equal(calls.length, 12);
+  assert.equal(report.plannedCalls, 12);
+  assert.equal(report.completedCalls, 12);
   assert.deepEqual(report.semanticAvailability, {
-    observedCases: 9,
-    plannedCases: 9,
+    observedCases: 12,
+    plannedCases: 12,
     share: 1,
   });
   assert.equal(report.executionErrors.count, 0);
-  assert.equal(report.tokenUsageCoverage.totalTokens.completeTotal, 1_260);
-  assert.equal(report.tokenUsageCoverage.totalTokens.knownTotal, 1_260);
+  assert.equal(report.tokenUsageCoverage.totalTokens.completeTotal, 1_680);
+  assert.equal(report.tokenUsageCoverage.totalTokens.knownTotal, 1_680);
   assert.equal(report.fixtures[0]!.cases[0]!.attempts, 1);
   assert.equal(report.fixtures[0]!.cases[0]!.cost, null);
   assert.match(JSON.stringify(report), /synthetic-fixture/);

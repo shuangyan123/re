@@ -37,12 +37,13 @@ function parseFixture(value: string): JudgeMaterialRequirementCliOptions["fixtur
     value === "all" ||
     value === "word-context" ||
     value === "measurement-trend" ||
-    value === "atomic-boundaries"
+    value === "atomic-boundaries" ||
+    value === "epistemic-strength"
   ) {
     return value;
   }
   throw new TutorbenchCliUsageError(
-    "--fixture must be all, word-context, measurement-trend, or atomic-boundaries.",
+    "--fixture must be all, word-context, measurement-trend, atomic-boundaries, or epistemic-strength.",
   );
 }
 
@@ -101,7 +102,7 @@ export function printJudgeMaterialRequirementHelp(): void {
 
 Options:
   --fixture <id>        all (default), word-context, measurement-trend,
-                        or atomic-boundaries
+                        atomic-boundaries, or epistemic-strength
   --judge-deepseek      Use the explicitly configured live DeepSeek Judge
   --output <path>       Write the experimental report JSON
   --help                Show this help
