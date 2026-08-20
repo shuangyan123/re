@@ -99,6 +99,15 @@ test("the same architecture derives PASS/PARTIAL/FAIL for measurement trend", as
   assert.deepEqual(derivedLabels(report, "measurement-trend"), ["PASS", "PARTIAL", "FAIL"]);
   assert.equal(report.dataKind, "synthetic-fixture");
   assert.equal(report.calibrationStatus, "uncalibrated");
+  assert.equal(report.mode, "provider-free");
+  assert.equal(report.plannedCalls, 3);
+  assert.equal(report.completedCalls, 3);
+  assert.deepEqual(report.semanticAvailability, {
+    observedCases: 3,
+    plannedCases: 3,
+    share: 1,
+  });
+  assert.equal(report.executionErrors.count, 0);
   assert.equal(report.diagnosticVersion, MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION);
   assert.equal(report.promptVersion, MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION);
   const measurementInput = fixtures[1]?.cases[0]?.input;
@@ -140,10 +149,20 @@ test("tutorbench exposes the opt-in provider-free structured diagnostic", () => 
   assert.equal(parsed.help, false);
   if (!parsed.help && "judgeMaterialRequirement" in parsed) {
     assert.equal(parsed.judgeMaterialRequirement.fixture, "measurement-trend");
+    assert.equal(parsed.judgeMaterialRequirement.judgeDeepSeek, false);
     assert.match(
       parsed.judgeMaterialRequirement.outputPath ?? "",
       /artifacts[\\/]material-requirement\.json$/,
     );
+  }
+  const liveParsed = parseTutorbenchArgs([
+    "judge-material-requirement-discrimination",
+    "--fixture=all",
+    "--judge-deepseek",
+  ]);
+  assert.equal(liveParsed.help, false);
+  if (!liveParsed.help && "judgeMaterialRequirement" in liveParsed) {
+    assert.equal(liveParsed.judgeMaterialRequirement.judgeDeepSeek, true);
   }
   assert.throws(
     () => parseTutorbenchArgs([
@@ -162,5 +181,5 @@ test("experimental identities do not bump production or comparison versions", ()
   assert.equal(WORD_CONTEXT_DISCRIMINATION_CASE_VERSION, "1.1.1");
   assert.equal(JUDGE_CANDIDATE_COMPARISON_VERSION, "0.1.1");
   assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.1");
-  assert.equal(MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION, "0.1.1");
+  assert.equal(MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION, "0.2.0");
 });

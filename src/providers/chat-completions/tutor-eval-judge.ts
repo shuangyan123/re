@@ -140,6 +140,24 @@ export interface ChatCompletionsJudge extends TutorEvalJudge {
   readonly evaluateWithMetrics: NonNullable<TutorEvalJudge["evaluateWithMetrics"]>;
 }
 
+export interface ChatCompletionsExecutorOptions<TInput, TResult>
+  extends ChatCompletionsJudgeOptions {
+  readonly serializeInput: (input: TInput) => string;
+  readonly parseResult: (
+    content: string,
+    metrics: TutorEvalJudgeMetrics,
+    input: TInput,
+  ) => TResult;
+}
+
+export interface ChatCompletionsExecutor<TInput, TResult> {
+  readonly descriptor: TutorEvalJudgeDescriptor;
+  readonly evaluateWithMetrics: (
+    input: TInput,
+  ) => Promise<{ readonly result: TResult; readonly metrics: TutorEvalJudgeMetrics }>;
+  readonly evaluate: (input: TInput) => Promise<TResult>;
+}
+
 const unpinnedModelAliases = new Set(["latest", "auto", "recommended"]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -261,8 +279,8 @@ function serializeJudgeInput(input: TutorEvalJudgeInput): string {
   });
 }
 
-export function buildChatCompletionsJudgeRequest(
-  input: TutorEvalJudgeInput,
+function buildChatCompletionsJudgeRequestWithUserContent(
+  userContent: string,
   options: ChatCompletionsJudgeRequestOptions,
 ): ChatCompletionsJudgeRequest {
   const model = nonEmptyString(options.model);
@@ -294,7 +312,7 @@ export function buildChatCompletionsJudgeRequest(
     model,
     messages: [
       { role: "system", content: options.prompt },
-      { role: "user", content: serializeJudgeInput(input) },
+      { role: "user", content: userContent },
     ],
     ...(jsonMode === "enabled" ? { response_format: { type: "json_object" } } : {}),
     ...(options.thinking === undefined ? {} : { thinking: options.thinking }),
@@ -312,6 +330,16 @@ export function buildChatCompletionsJudgeRequest(
       ? {}
       : { temperature: options.temperature }),
   };
+}
+
+export function buildChatCompletionsJudgeRequest(
+  input: TutorEvalJudgeInput,
+  options: ChatCompletionsJudgeRequestOptions,
+): ChatCompletionsJudgeRequest {
+  return buildChatCompletionsJudgeRequestWithUserContent(
+    serializeJudgeInput(input),
+    options,
+  );
 }
 
 function endpointFor(baseUrl: string, endpointPath: string | undefined): string {
@@ -431,9 +459,9 @@ function normalizedApiKey(value: string | null | undefined): string | null {
   return nonEmptyString(value);
 }
 
-export function createChatCompletionsJudge(
-  options: ChatCompletionsJudgeOptions,
-): ChatCompletionsJudge {
+export function createChatCompletionsExecutor<TInput, TResult>(
+  options: ChatCompletionsExecutorOptions<TInput, TResult>,
+): ChatCompletionsExecutor<TInput, TResult> {
   assertRequestConfiguration(options);
   const timeoutMs = options.timeoutMs ?? DEFAULT_CHAT_COMPLETIONS_JUDGE_TIMEOUT_MS;
   const maxAttempts = options.maxAttempts ?? DEFAULT_CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS;
@@ -483,12 +511,15 @@ export function createChatCompletionsJudge(
   };
 
   const evaluateWithMetrics: NonNullable<
-    TutorEvalJudge["evaluateWithMetrics"]
-  > = async (input) => {
+    ChatCompletionsExecutor<TInput, TResult>["evaluateWithMetrics"]
+  > = async (input: TInput) => {
     if (apiKey === null) {
       throw new TutorEvalJudgeExecutionError("judge_unavailable");
     }
-    const request = buildChatCompletionsJudgeRequest(input, requestOptions);
+    const request = buildChatCompletionsJudgeRequestWithUserContent(
+      options.serializeInput(input),
+      requestOptions,
+    );
     const requestBody = JSON.stringify(request);
     const startedAt = performance.now();
     let attempts = 0;
@@ -595,10 +626,16 @@ export function createChatCompletionsJudge(
           // Never guess which part of an unsplit provider response is the final answer.
           throw new TutorEvalJudgeExecutionError("judge_result_invalid", metrics);
         }
-        return {
-          result: parseProviderResult(extracted.content, metrics),
-          metrics,
-        };
+        let result: TResult;
+        try {
+          result = options.parseResult(extracted.content, metrics, input);
+        } catch (error) {
+          if (error instanceof TutorEvalJudgeExecutionError) {
+            throw error;
+          }
+          throw new TutorEvalJudgeExecutionError("judge_result_invalid", metrics);
+        }
+        return { result, metrics };
       } catch (error) {
         if (error instanceof TutorEvalJudgeExecutionError) {
           throw error;
@@ -630,4 +667,14 @@ export function createChatCompletionsJudge(
     evaluateWithMetrics,
     evaluate: async (input) => (await evaluateWithMetrics(input)).result,
   };
+}
+
+export function createChatCompletionsJudge(
+  options: ChatCompletionsJudgeOptions,
+): ChatCompletionsJudge {
+  return createChatCompletionsExecutor({
+    ...options,
+    serializeInput: serializeJudgeInput,
+    parseResult: parseProviderResult,
+  });
 }
