@@ -301,7 +301,7 @@ Commands:
   judge-candidate-comparison
                          Compare explicitly selected Judge candidates on the fixed diagnostic
   judge-material-requirement-discrimination
-                         Run provider-free structured requirement fixtures
+                         Run structured requirement fixtures (provider-free by default)
 
 Run options:
   --http <url>          POST TutorTurnInput JSON to this http(s) endpoint
@@ -471,6 +471,7 @@ async function runAsExecutable(): Promise<void> {
         error.name === "HttpTutorConfigurationError" ||
         error.name === "HttpTutorExecutionHostConfigurationError" ||
         error.name === "DeepSeekJudgeConfigurationError" ||
+        error.name === "MaterialRequirementJudgeConfigurationError" ||
         error.name === "MiniMaxJudgeConfigurationError" ||
         error.name === "ChatCompletionsJudgeConfigurationError" ||
         error.name === "ReviewTranslationArtifactError" ||

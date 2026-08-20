@@ -2,8 +2,9 @@
 
 ## Status and motivation
 
-This is an opt-in, provider-independent calibration experiment. It does not
-replace the production TutorEval Judge or change normal `tutorbench evaluate`.
+This is an opt-in, provider-independent calibration experiment with an optional
+explicitly configured live diagnostic. It does not replace the production
+TutorEval Judge or change normal `tutorbench evaluate`.
 
 The motivating DeepSeek V4-Flash non-thinking, temperature-zero diagnostic
 produced these valid observations with the production
@@ -116,7 +117,8 @@ These are developer-authored `synthetic-fixture` expectations with
 `calibrationStatus: uncalibrated`; agreement is not accuracy, human verification,
 or gold-label evidence.
 
-The provider-free structural harness is available through:
+The diagnostic has two explicit modes. The default provider-free structural
+harness is available through:
 
 ```text
 tutorbench judge-material-requirement-discrimination
@@ -130,6 +132,31 @@ word-context fixture therefore loads the canonical
 `tutor-eval-v0.2a@0.2a.5` `language-word-context-001@1.1.1` case and uses the
 production Judge serialization convention; the measurement fixture declares
 its complete minimal synthetic context explicitly.
+
+The optional live mode is enabled only by `--judge-deepseek`:
+
+```powershell
+$env:DEEPSEEK_JUDGE_MODEL = "deepseek-v4-flash"
+$env:DEEPSEEK_JUDGE_THINKING = "disabled"
+$env:DEEPSEEK_JUDGE_TEMPERATURE = "0"
+$env:DEEPSEEK_JUDGE_MAX_TOKENS = "4096"
+node dist/src/cli/tutorbench.js judge-material-requirement-discrimination --fixture all --judge-deepseek --output artifacts/material-requirement-deepseek-flash-r1.json
+```
+
+Without that flag the command constructs no provider adapter and makes zero
+provider calls. With it, the command fails before network activity when
+`DEEPSEEK_API_KEY` or the concrete `DEEPSEEK_JUDGE_MODEL` is missing, prints
+the provider/model and planned call count without secrets, and executes each
+fixture case independently. A case-level execution error remains an error in
+the report; it is never converted to an atomic status or `FAIL` label.
+
+Live reports retain `dataKind: synthetic-fixture` and
+`calibrationStatus: uncalibrated`. They include planned/completed calls,
+semantic availability, execution-error counts by code, per-case latency and
+sanitized token usage, plus known/complete token totals. Missing token usage is
+unknown rather than zero, and a complete total is emitted only when every
+planned call reports that field. Neither a 6/6 agreement nor any live result
+creates a calibration, accuracy, or winner claim.
 
 ## Preserved production boundaries
 
@@ -151,17 +178,25 @@ The new experimental identities are:
 
 - Material Requirement Judge result schema: `1`
 - prompt: `tutor-eval-material-requirement-judge-system@0.1`
-- diagnostic and both synthetic fixtures: `0.1.1`
+- diagnostic report: `0.2.0`
+- both synthetic fixtures: `0.1.1`
 
-## Low-cost live follow-up
+## Operator first probe
 
-A later, separately scoped probe may add a provider adapter only after verifying
-that the experimental input carries the same relevant case-scoped evidence as
-the production Judge input. The smallest useful live check is one
-temperature-zero, non-thinking V4-Flash pass over the six fixed responses
-(A/B/C plus the three measurement/trend cases), with the explicit requirements
-supplied unchanged. It should record only validated atomic statuses and short
-visible-response evidence, then derive labels locally. Transport failures must
-remain separate from semantic results. Repetition should be added only after
-this single pass shows whether atomic semantic recognition is the remaining
-failure mode.
+The recommended first live probe is exactly six calls over the fixed A/B/C and
+measurement PASS/PARTIAL/FAIL cases:
+
+```powershell
+$env:DEEPSEEK_JUDGE_MODEL = "deepseek-v4-flash"
+$env:DEEPSEEK_JUDGE_THINKING = "disabled"
+$env:DEEPSEEK_JUDGE_TEMPERATURE = "0"
+$env:DEEPSEEK_JUDGE_MAX_TOKENS = "4096"
+node dist/src/cli/tutorbench.js judge-material-requirement-discrimination --fixture all --judge-deepseek --output artifacts/material-requirement-deepseek-flash-r1.json
+```
+
+The profile is an operator diagnostic recommendation, not a benchmark-wide
+model or generation mandate. Run this six-call probe first; do not substitute
+the full 48-case benchmark. Record only validated atomic statuses, short
+visible-response evidence, sanitized telemetry, and locally derived labels.
+Transport failures remain separate from semantic results. Any repetition or
+broader evaluation requires a separately scoped decision after the first probe.

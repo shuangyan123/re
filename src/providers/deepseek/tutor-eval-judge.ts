@@ -1,16 +1,19 @@
 import {
   buildChatCompletionsJudgeRequest,
   ChatCompletionsJudgeConfigurationError,
+  createChatCompletionsExecutor,
   createChatCompletionsJudge,
   DEFAULT_CHAT_COMPLETIONS_JUDGE_MAX_ATTEMPTS,
   MAX_CHAT_COMPLETIONS_JUDGE_ATTEMPTS,
   type ChatCompletionsFetch,
+  type ChatCompletionsExecutor,
   type ChatCompletionsJudgeConfigurationErrorCode,
   type ChatCompletionsJudge,
   type ChatCompletionsJudgeRequest,
   type ChatCompletionsJudgeRequestOptions,
 } from "../chat-completions/index.js";
 import type { TutorEvalJudgeInput } from "../../contracts/index.js";
+import type { TutorEvalJudgeMetrics } from "../../contracts/index.js";
 
 export const DEEPSEEK_JUDGE_PROVIDER = "deepseek" as const;
 export const DEEPSEEK_JUDGE_BASE_URL = "https://api.deepseek.com" as const;
@@ -98,6 +101,18 @@ export interface DeepSeekJudgeOptions extends DeepSeekJudgeRequestOptions {
   readonly fetch?: ChatCompletionsFetch;
   readonly timeoutMs?: number;
   readonly maxAttempts?: number;
+}
+
+export interface DeepSeekJudgeExecutorOptions<TInput, TResult>
+  extends DeepSeekJudgeOptions {
+  /** Reject unsplit <think> wrappers at the final-content boundary when required. */
+  readonly requireReasoningSeparation?: boolean;
+  readonly serializeInput: (input: TInput) => string;
+  readonly parseResult: (
+    content: string,
+    metrics: TutorEvalJudgeMetrics,
+    input: TInput,
+  ) => TResult;
 }
 
 function nonEmptyEnvironmentValue(value: string | null | undefined): string | null {
@@ -356,6 +371,77 @@ export function createDeepSeekJudge(options: DeepSeekJudgeOptions): DeepSeekJudg
       maxAttempts: options.maxAttempts === undefined
         ? environmentConfig.maxAttempts
         : options.maxAttempts,
+    });
+  } catch (error) {
+    toGenericConfigurationError(error);
+  }
+}
+
+/**
+ * DeepSeek configuration and generation semantics shared by experimental
+ * structured diagnostics. The caller owns the input serializer and result
+ * parser so production TutorEval result semantics cannot leak into them.
+ */
+export function createDeepSeekJudgeExecutor<TInput, TResult>(
+  options: DeepSeekJudgeExecutorOptions<TInput, TResult>,
+): ChatCompletionsExecutor<TInput, TResult> {
+  const environment = options.environment ?? process.env;
+  const environmentConfig = readDeepSeekJudgeEnvironment(environment);
+  const apiKey = options.apiKey === undefined
+    ? nonEmptyEnvironmentValue(environment.DEEPSEEK_API_KEY)
+    : nonEmptyEnvironmentValue(options.apiKey);
+  const effectiveOptions: DeepSeekJudgeRequestOptions = {
+    model: options.model,
+    prompt: options.prompt,
+    promptId: options.promptId,
+    promptVersion: options.promptVersion,
+    thinkingMode: options.thinkingMode === undefined
+      ? environmentConfig.thinkingMode
+      : options.thinkingMode,
+    ...(options.reasoningEffort === undefined
+      ? environmentConfig.reasoningEffort === undefined
+        ? {}
+        : { reasoningEffort: environmentConfig.reasoningEffort }
+      : { reasoningEffort: options.reasoningEffort }),
+    maxOutputTokens: options.maxOutputTokens === undefined
+      ? environmentConfig.maxOutputTokens
+      : options.maxOutputTokens,
+    ...(options.temperature === undefined
+      ? environmentConfig.temperature === undefined
+        ? {}
+        : { temperature: environmentConfig.temperature }
+      : { temperature: options.temperature }),
+  };
+  const generation = resolveDeepSeekJudgeGeneration(effectiveOptions);
+  try {
+    return createChatCompletionsExecutor({
+      model: effectiveOptions.model,
+      prompt: effectiveOptions.prompt,
+      promptId: effectiveOptions.promptId,
+      promptVersion: effectiveOptions.promptVersion,
+      provider: DEEPSEEK_JUDGE_PROVIDER,
+      baseUrl: DEEPSEEK_JUDGE_BASE_URL,
+      apiKey,
+      thinking: { type: generation.thinkingMode },
+      ...(generation.reasoningEffort === undefined
+        ? {}
+        : { reasoningEffort: generation.reasoningEffort }),
+      maxOutputTokens: generation.maxOutputTokens,
+      ...(generation.temperature === undefined
+        ? {}
+        : { temperature: generation.temperature }),
+      ...(options.requireReasoningSeparation === undefined
+        ? {}
+        : { requireReasoningSeparation: options.requireReasoningSeparation }),
+      ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+      timeoutMs: options.timeoutMs === undefined
+        ? environmentConfig.timeoutMs
+        : options.timeoutMs,
+      maxAttempts: options.maxAttempts === undefined
+        ? environmentConfig.maxAttempts
+        : options.maxAttempts,
+      serializeInput: options.serializeInput,
+      parseResult: options.parseResult,
     });
   } catch (error) {
     toGenericConfigurationError(error);

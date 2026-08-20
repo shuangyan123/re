@@ -1,4 +1,5 @@
 export * from "./tutor-eval-judge.js";
+export * from "./material-requirement-judge.js";
 export type {
   ChatCompletionsFetch,
   ChatCompletionsHttpResponse,

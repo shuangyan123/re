@@ -8,10 +8,13 @@ import {
   type MaterialRequirementAssessmentStatus,
   type MaterialRequirementDerivedLabel,
   type MaterialRequirementJudge,
+  MaterialRequirementJudgeExecutionError,
   type MaterialRequirementJudgeContext,
   type MaterialRequirementJudgeInput,
   type MaterialRequirementJudgeResult,
   type TutorEvalCase,
+  type TutorEvalJudgeMetrics,
+  type TutorEvalTokenUsage,
 } from "../contracts/index.js";
 import { loadTutorEvalDataset } from "../datasets/index.js";
 import {
@@ -28,7 +31,8 @@ import {
 
 export const MATERIAL_REQUIREMENT_DIAGNOSTIC_ID =
   "judge-material-requirement-discrimination" as const;
-export const MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION = "0.1.1" as const;
+export const MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION = "0.2.0" as const;
+export const MATERIAL_REQUIREMENT_FIXTURE_VERSION = "0.1.1" as const;
 export const MATERIAL_REQUIREMENT_FIXTURE_PROVENANCE =
   "developer-authored-diagnostic-expectation" as const;
 
@@ -44,7 +48,7 @@ export interface MaterialRequirementDiagnosticCase {
 
 export interface MaterialRequirementDiagnosticFixture {
   readonly id: MaterialRequirementDiagnosticFixtureId;
-  readonly version: typeof MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION;
+  readonly version: typeof MATERIAL_REQUIREMENT_FIXTURE_VERSION;
   readonly cases: readonly MaterialRequirementDiagnosticCase[];
 }
 
@@ -138,7 +142,7 @@ function createWordContextFixture(
     materialRequirementContext(buildTutorEvalJudgeInput(tutorEvalCase, response));
   return Object.freeze({
     id: "word-context",
-    version: MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION,
+    version: MATERIAL_REQUIREMENT_FIXTURE_VERSION,
     cases: Object.freeze([
       diagnosticCase(
         "material-word-context-A",
@@ -214,7 +218,7 @@ const measurementContext: MaterialRequirementJudgeContext = Object.freeze({
 export const MATERIAL_REQUIREMENT_MEASUREMENT_TREND_FIXTURE: MaterialRequirementDiagnosticFixture =
   Object.freeze({
     id: "measurement-trend",
-    version: MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION,
+    version: MATERIAL_REQUIREMENT_FIXTURE_VERSION,
     cases: Object.freeze([
       diagnosticCase(
         "material-measurement-PASS",
@@ -297,12 +301,35 @@ export interface MaterialRequirementDiagnosticRubricReport {
 
 export interface MaterialRequirementDiagnosticCaseReport {
   readonly fixtureCaseId: string;
+  readonly status: "observed" | "error";
+  readonly executionErrorCode?: string;
+  readonly latencyMs?: number;
+  readonly tokenUsage?: TutorEvalTokenUsage | null;
+  readonly attempts?: number;
+  readonly cost?: number | null;
   readonly rubrics: readonly MaterialRequirementDiagnosticRubricReport[];
+}
+
+export type MaterialRequirementDiagnosticMode = "provider-free" | "live";
+
+export interface MaterialRequirementDiagnosticRunOptions {
+  readonly mode?: MaterialRequirementDiagnosticMode;
+  readonly provider?: string;
+  readonly model?: string;
+}
+
+export interface MaterialRequirementTokenCoverage {
+  readonly completeTotal: number | null;
+  readonly knownTotal: number | null;
+  readonly knownCount: number;
+  readonly plannedCount: number;
+  readonly unavailableCount: number;
+  readonly coverageShare: number;
 }
 
 export interface MaterialRequirementDiagnosticFixtureReport {
   readonly fixtureId: MaterialRequirementDiagnosticFixtureId;
-  readonly fixtureVersion: typeof MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION;
+  readonly fixtureVersion: typeof MATERIAL_REQUIREMENT_FIXTURE_VERSION;
   readonly cases: readonly MaterialRequirementDiagnosticCaseReport[];
 }
 
@@ -313,11 +340,71 @@ export interface MaterialRequirementDiagnosticReport {
   readonly dataKind: "synthetic-fixture";
   readonly fixtureProvenance: typeof MATERIAL_REQUIREMENT_FIXTURE_PROVENANCE;
   readonly calibrationStatus: "uncalibrated";
+  readonly mode: MaterialRequirementDiagnosticMode;
+  readonly provider?: string;
+  readonly model?: string;
   readonly materialRequirementSchemaVersion: 1;
   readonly promptId: typeof MATERIAL_REQUIREMENT_JUDGE_PROMPT_ID;
   readonly promptVersion: typeof MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION;
   readonly fixtures: readonly MaterialRequirementDiagnosticFixtureReport[];
+  readonly plannedCalls: number;
+  /** Calls that reached a terminal observed or typed-error outcome. */
+  readonly completedCalls: number;
+  readonly semanticAvailability: {
+    readonly observedCases: number;
+    readonly plannedCases: number;
+    readonly share: number;
+  };
+  readonly executionErrors: {
+    readonly count: number;
+    readonly byCode: Readonly<Record<string, number>>;
+  };
+  readonly tokenUsageCoverage: {
+    readonly inputTokens: MaterialRequirementTokenCoverage;
+    readonly outputTokens: MaterialRequirementTokenCoverage;
+    readonly totalTokens: MaterialRequirementTokenCoverage;
+  };
   readonly limitations: readonly string[];
+}
+
+function ratio(observed: number, planned: number): number {
+  return planned === 0 ? 0 : observed / planned;
+}
+
+function tokenCoverage(
+  metrics: readonly (TutorEvalJudgeMetrics | null | undefined)[],
+  field: "inputTokens" | "outputTokens" | "totalTokens",
+): MaterialRequirementTokenCoverage {
+  const values = metrics.map((metric) => metric?.tokenUsage?.[field] ?? null);
+  const unavailableCount = values.filter((value) => value === null).length;
+  const knownValues = values.filter((value): value is number => value !== null);
+  const knownTotal = knownValues.length === 0
+    ? null
+    : knownValues.reduce((sum, value) => sum + value, 0);
+  return {
+    completeTotal: unavailableCount === 0 && knownTotal !== null ? knownTotal : null,
+    knownTotal,
+    knownCount: knownValues.length,
+    plannedCount: values.length,
+    unavailableCount,
+    coverageShare: ratio(knownValues.length, values.length),
+  };
+}
+
+function increment(counts: Record<string, number>, code: string): void {
+  counts[code] = (counts[code] ?? 0) + 1;
+}
+
+function readMaterialExecutionFailure(
+  error: unknown,
+): { readonly code: string; readonly metrics?: TutorEvalJudgeMetrics } {
+  if (error instanceof MaterialRequirementJudgeExecutionError) {
+    return {
+      code: error.code,
+      ...(error.metrics === undefined ? {} : { metrics: error.metrics }),
+    };
+  }
+  return { code: "material_judge_transport_error" };
 }
 
 function buildRubricReport(
@@ -372,20 +459,68 @@ function buildRubricReport(
 export async function runMaterialRequirementDiagnostic(
   judge: MaterialRequirementJudge,
   fixtures?: readonly MaterialRequirementDiagnosticFixture[],
+  options: MaterialRequirementDiagnosticRunOptions = {},
 ): Promise<MaterialRequirementDiagnosticReport> {
   const selectedFixtures = fixtures ?? await loadMaterialRequirementDiagnosticFixtures();
   const fixtureReports: MaterialRequirementDiagnosticFixtureReport[] = [];
+  const metricsByCase: (TutorEvalJudgeMetrics | null)[] = [];
+  const executionErrorsByCode: Record<string, number> = {};
+  let plannedCalls = 0;
+  let completedCalls = 0;
+  let observedCases = 0;
   for (const fixture of selectedFixtures) {
     const cases: MaterialRequirementDiagnosticCaseReport[] = [];
     for (const fixtureCase of fixture.cases) {
-      const observed = parseMaterialRequirementJudgeResult(
-        await judge.evaluate(fixtureCase.input),
-        fixtureCase.input,
-      );
-      cases.push({
-        fixtureCaseId: fixtureCase.id,
-        rubrics: buildRubricReport(fixtureCase.input, fixtureCase.expected, observed),
-      });
+      plannedCalls += 1;
+      try {
+        const evaluation = judge.evaluateWithMetrics === undefined
+          ? { result: await judge.evaluate(fixtureCase.input), metrics: null }
+          : await judge.evaluateWithMetrics(fixtureCase.input);
+        const metrics = evaluation.metrics ?? null;
+        let observed: MaterialRequirementJudgeResult;
+        try {
+          observed = parseMaterialRequirementJudgeResult(
+            evaluation.result,
+            fixtureCase.input,
+          );
+        } catch {
+          throw new MaterialRequirementJudgeExecutionError(
+            "material_judge_result_invalid",
+            metrics ?? undefined,
+          );
+        }
+        metricsByCase.push(metrics);
+        cases.push({
+          fixtureCaseId: fixtureCase.id,
+          status: "observed",
+          ...(metrics === null ? {} : {
+            latencyMs: metrics.latencyMs,
+            tokenUsage: metrics.tokenUsage,
+            attempts: metrics.attempts,
+            cost: metrics.cost,
+          }),
+          rubrics: buildRubricReport(fixtureCase.input, fixtureCase.expected, observed),
+        });
+        completedCalls += 1;
+        observedCases += 1;
+      } catch (error) {
+        const failure = readMaterialExecutionFailure(error);
+        increment(executionErrorsByCode, failure.code);
+        metricsByCase.push(failure.metrics ?? null);
+        cases.push({
+          fixtureCaseId: fixtureCase.id,
+          status: "error",
+          executionErrorCode: failure.code,
+          ...(failure.metrics === undefined ? {} : {
+            latencyMs: failure.metrics.latencyMs,
+            tokenUsage: failure.metrics.tokenUsage,
+            attempts: failure.metrics.attempts,
+            cost: failure.metrics.cost,
+          }),
+          rubrics: [],
+        });
+        completedCalls += 1;
+      }
     }
     fixtureReports.push({
       fixtureId: fixture.id,
@@ -393,6 +528,7 @@ export async function runMaterialRequirementDiagnostic(
       cases,
     });
   }
+  const mode = options.mode ?? "provider-free";
   return {
     schemaVersion: 1,
     diagnosticId: MATERIAL_REQUIREMENT_DIAGNOSTIC_ID,
@@ -400,14 +536,37 @@ export async function runMaterialRequirementDiagnostic(
     dataKind: "synthetic-fixture",
     fixtureProvenance: MATERIAL_REQUIREMENT_FIXTURE_PROVENANCE,
     calibrationStatus: "uncalibrated",
+    mode,
+    ...(options.provider === undefined ? {} : { provider: options.provider }),
+    ...(options.model === undefined ? {} : { model: options.model }),
     materialRequirementSchemaVersion: MATERIAL_REQUIREMENT_JUDGE_SCHEMA_VERSION,
     promptId: MATERIAL_REQUIREMENT_JUDGE_PROMPT_ID,
     promptVersion: MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION,
     fixtures: fixtureReports,
+    plannedCalls,
+    completedCalls,
+    semanticAvailability: {
+      observedCases,
+      plannedCases: plannedCalls,
+      share: ratio(observedCases, plannedCalls),
+    },
+    executionErrors: {
+      count: Object.values(executionErrorsByCode).reduce(
+        (sum, count) => sum + count,
+        0,
+      ),
+      byCode: executionErrorsByCode,
+    },
+    tokenUsageCoverage: {
+      inputTokens: tokenCoverage(metricsByCase, "inputTokens"),
+      outputTokens: tokenCoverage(metricsByCase, "outputTokens"),
+      totalTokens: tokenCoverage(metricsByCase, "totalTokens"),
+    },
     limitations: [
       "Developer-authored diagnostic expectations are synthetic fixtures, not human-reference gold.",
       "Atomic and derived agreement are reported separately and are not accuracy claims.",
       "This opt-in experiment does not replace the production Judge, evaluator, scoring, or critical-failure semantics.",
+      "Execution errors are availability observations, not atomic disagreements or derived semantic labels.",
     ],
   };
 }
@@ -439,6 +598,11 @@ export function formatMaterialRequirementDiagnosticReport(
     `Diagnostic: ${report.diagnosticId}@${report.diagnosticVersion}`,
     `Data: ${report.dataKind} (${report.fixtureProvenance})`,
     `Calibration: ${report.calibrationStatus}`,
+    `Mode: ${report.mode}${report.provider === undefined ? "" : ` / Provider: ${report.provider}`}${report.model === undefined ? "" : ` / Model: ${report.model}`}`,
+    `Planned Judge calls: ${report.plannedCalls}`,
+    `Completed Judge calls: ${report.completedCalls}`,
+    `Semantic availability: ${report.semanticAvailability.observedCases}/${report.semanticAvailability.plannedCases}`,
+    `Execution errors: ${report.executionErrors.count}`,
     `Prompt: ${report.promptId}@${report.promptVersion}`,
     "",
   ];
@@ -446,6 +610,15 @@ export function formatMaterialRequirementDiagnosticReport(
     lines.push(`Fixture: ${fixture.fixtureId}@${fixture.fixtureVersion}`);
     for (const fixtureCase of fixture.cases) {
       lines.push(`  Case: ${fixtureCase.fixtureCaseId}`);
+      if (fixtureCase.status === "error") {
+        lines.push(
+          `    Status: error (${fixtureCase.executionErrorCode ?? "unknown"})`,
+          ...(fixtureCase.latencyMs === undefined
+            ? []
+            : [`    Latency: ${fixtureCase.latencyMs}ms`]),
+        );
+        continue;
+      }
       for (const rubric of fixtureCase.rubrics) {
         lines.push(`    Rubric: ${rubric.rubricId}`);
         for (const requirement of rubric.requirements) {
@@ -460,6 +633,14 @@ export function formatMaterialRequirementDiagnosticReport(
       }
     }
   }
-  lines.push("", "Limitations:", ...report.limitations.map((value) => `- ${value}`));
+  lines.push(
+    "",
+    `Known total tokens: ${report.tokenUsageCoverage.totalTokens.knownTotal ?? "unavailable"}`,
+    `Complete total tokens: ${report.tokenUsageCoverage.totalTokens.completeTotal ?? "unavailable"}`,
+    `Token usage coverage: ${report.tokenUsageCoverage.totalTokens.knownCount}/${report.tokenUsageCoverage.totalTokens.plannedCount}`,
+    "",
+    "Limitations:",
+    ...report.limitations.map((value) => `- ${value}`),
+  );
   return lines.join("\n");
 }
