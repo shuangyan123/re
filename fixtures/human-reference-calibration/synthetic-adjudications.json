@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "calibrationProtocolId": "human-reference-material-calibration",
+  "calibrationProtocolVersion": "0.1.0",
+  "dataKind": "synthetic-fixture",
+  "fixture": {
+    "synthetic": true,
+    "notHumanCalibrationData": true
+  },
+  "adjudications": [
+    {
+      "schemaVersion": 1,
+      "caseId": "case-disagreement",
+      "rubricId": "rubric-evidence",
+      "requirementId": "requirement-relevant-evidence",
+      "sourceAnnotatorIds": [
+        "annotator-a",
+        "annotator-b"
+      ],
+      "sourceStatuses": {
+        "annotator-a": "OMITTED_OR_INCOMPLETE",
+        "annotator-b": "EXPLICIT_CONFLICT"
+      },
+      "adjudicatedStatus": "EXPLICIT_CONFLICT",
+      "evidence": "The response does not supply the requested supporting detail.",
+      "adjudicationReason": "The incomplete evidence prompt is the narrower supported interpretation.",
+      "adjudicatorId": "synthetic-adjudicator"
+    }
+  ]
+}

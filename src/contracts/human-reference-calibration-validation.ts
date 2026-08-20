@@ -9,7 +9,15 @@ import {
   type HumanAtomicAdjudication,
   type HumanAtomicAnnotation,
   type HumanAtomicStatus,
+  type HumanAtomicMissingAssessment,
+  type HumanAtomicUnresolvedDisagreement,
+  type HumanReferenceAdjudicationDataKind,
+  type HumanReferenceAdjudicationFile,
+  type HumanReferenceAnnotationFile,
   type HumanReferenceAnnotationTask,
+  type HumanReferenceDataKind,
+  type HumanReferenceSet,
+  type ReferenceAtomicAssessment,
   type HumanAnnotationDataKind,
   type HumanReferenceSyntheticFixtureMarker,
 } from "./human-reference-calibration.js";
@@ -23,6 +31,14 @@ type UnknownRecord = Record<string, unknown>;
 const statuses = new Set<string>(HUMAN_ATOMIC_STATUSES);
 const dataKinds = new Set<HumanAnnotationDataKind>([
   "human-annotation",
+  "synthetic-fixture",
+]);
+const referenceDataKinds = new Set<HumanReferenceDataKind>([
+  "human-reference",
+  "synthetic-fixture",
+]);
+const adjudicationDataKinds = new Set<HumanReferenceAdjudicationDataKind>([
+  "human-adjudication",
   "synthetic-fixture",
 ]);
 const identifierPattern = /^[A-Za-z][A-Za-z0-9._:-]*$/u;
@@ -86,6 +102,18 @@ function parseStatus(value: unknown): HumanAtomicStatus | null {
   return typeof value === "string" && statuses.has(value)
     ? value as HumanAtomicStatus
     : null;
+}
+
+function parseOpaqueIdList(value: unknown, minimumLength = 1): string[] | null {
+  if (
+    !Array.isArray(value) ||
+    value.length < minimumLength ||
+    !value.every(opaqueId) ||
+    new Set(value).size !== value.length
+  ) {
+    return null;
+  }
+  return [...value].sort((left, right) => left.localeCompare(right));
 }
 
 function parseTaskInput(value: UnknownRecord): MaterialRequirementJudgeInput | null {
@@ -259,6 +287,87 @@ export function parseHumanAnnotationBatch(value: unknown): HumanAnnotationBatch 
   };
 }
 
+export function parseHumanReferenceAnnotationFile(
+  value: unknown,
+): HumanReferenceAnnotationFile {
+  const record = asRecord(value);
+  const requiredAnnotatorIds = parseOpaqueIdList(record?.requiredAnnotatorIds, 2);
+  if (
+    record === null ||
+    !hasOnlyKeys(record, [
+      "schemaVersion",
+      "batchId",
+      "calibrationProtocolId",
+      "calibrationProtocolVersion",
+      "dataKind",
+      "fixture",
+      "tasks",
+      "annotations",
+      "requiredAnnotatorIds",
+    ]) ||
+    requiredAnnotatorIds === null
+  ) {
+    return invalid();
+  }
+  const batchRecord = { ...record };
+  delete batchRecord.requiredAnnotatorIds;
+  const batch = parseHumanAnnotationBatch(batchRecord);
+  if (batch.annotations.some((annotation) => !requiredAnnotatorIds.includes(annotation.annotatorId))) {
+    return invalid();
+  }
+  return {
+    ...batch,
+    requiredAnnotatorIds,
+  };
+}
+
+function parseAdjudicationDataKind(value: unknown): HumanReferenceAdjudicationDataKind | null {
+  return typeof value === "string" && adjudicationDataKinds.has(value as HumanReferenceAdjudicationDataKind)
+    ? value as HumanReferenceAdjudicationDataKind
+    : null;
+}
+
+export function parseHumanReferenceAdjudicationFile(
+  value: unknown,
+): HumanReferenceAdjudicationFile {
+  const record = asRecord(value);
+  const fixture = fixtureMarker(record?.fixture);
+  const dataKind = parseAdjudicationDataKind(record?.dataKind);
+  const adjudications = Array.isArray(record?.adjudications)
+    ? record.adjudications.map(parseHumanAtomicAdjudication)
+    : null;
+  if (
+    record === null ||
+    record.schemaVersion !== HUMAN_REFERENCE_CALIBRATION_SCHEMA_VERSION ||
+    !hasOnlyKeys(record, [
+      "schemaVersion",
+      "calibrationProtocolId",
+      "calibrationProtocolVersion",
+      "dataKind",
+      "fixture",
+      "adjudications",
+    ]) ||
+    record.calibrationProtocolId !== HUMAN_REFERENCE_PROTOCOL_ID ||
+    record.calibrationProtocolVersion !== HUMAN_REFERENCE_PROTOCOL_VERSION ||
+    dataKind === null ||
+    fixture === null ||
+    (dataKind === "synthetic-fixture" && fixture === undefined) ||
+    (dataKind === "human-adjudication" && fixture !== undefined) ||
+    adjudications === null ||
+    new Set(adjudications.map((adjudication) => identityKey(adjudication))).size !== adjudications.length
+  ) {
+    return invalid();
+  }
+  return {
+    schemaVersion: HUMAN_REFERENCE_CALIBRATION_SCHEMA_VERSION,
+    calibrationProtocolId: HUMAN_REFERENCE_PROTOCOL_ID,
+    calibrationProtocolVersion: HUMAN_REFERENCE_PROTOCOL_VERSION,
+    dataKind,
+    ...(fixture === undefined ? {} : { fixture }),
+    adjudications,
+  };
+}
+
 function parseStatusRecord(
   value: unknown,
 ): Readonly<Record<string, HumanAtomicStatus>> | null {
@@ -326,6 +435,294 @@ export function parseHumanAtomicAdjudication(
     ...(parsedEvidence === undefined ? {} : { evidence: parsedEvidence }),
     ...(parsedReason === undefined ? {} : { adjudicationReason: parsedReason }),
     ...(record.adjudicatorId === undefined ? {} : { adjudicatorId: record.adjudicatorId }),
+  };
+}
+
+function parseReferenceDataKind(value: unknown): HumanReferenceDataKind | null {
+  return typeof value === "string" && referenceDataKinds.has(value as HumanReferenceDataKind)
+    ? value as HumanReferenceDataKind
+    : null;
+}
+
+function parseReferenceAtomicAssessment(
+  value: unknown,
+): ReferenceAtomicAssessment | null {
+  const record = asRecord(value);
+  const sourceAnnotatorIds = parseOpaqueIdList(record?.sourceAnnotatorIds, 2);
+  const provenance = record?.provenance;
+  if (
+    record === null ||
+    !hasOnlyKeys(record, [
+      "caseId",
+      "rubricId",
+      "requirementId",
+      "status",
+      "provenance",
+      "sourceAnnotatorIds",
+    ]) ||
+    !identifier(record.caseId) ||
+    !identifier(record.rubricId) ||
+    !identifier(record.requirementId) ||
+    parseStatus(record.status) === null ||
+    (provenance !== "human_consensus" && provenance !== "human_adjudicated") ||
+    sourceAnnotatorIds === null
+  ) {
+    return null;
+  }
+  return {
+    caseId: record.caseId,
+    rubricId: record.rubricId,
+    requirementId: record.requirementId,
+    status: parseStatus(record.status) as HumanAtomicStatus,
+    provenance,
+    sourceAnnotatorIds,
+  };
+}
+
+function parseEvidenceRecord(
+  value: unknown,
+): Readonly<Record<string, string | undefined>> | null {
+  const record = asRecord(value);
+  if (record === null || Object.keys(record).some((key) => !opaqueId(key))) {
+    return null;
+  }
+  const entries = Object.entries(record);
+  if (entries.some(([, evidenceValue]) => evidenceValue !== undefined && !evidence(evidenceValue))) {
+    return null;
+  }
+  return Object.fromEntries(entries) as Record<string, string | undefined>;
+}
+
+function parseUnresolvedDisagreement(
+  value: unknown,
+): HumanAtomicUnresolvedDisagreement | null {
+  const record = asRecord(value);
+  const statuses = parseStatusRecord(record?.statuses);
+  const evidenceByAnnotator = parseEvidenceRecord(record?.evidenceByAnnotator);
+  if (
+    record === null ||
+    !hasOnlyKeys(record, [
+      "caseId",
+      "rubricId",
+      "requirementId",
+      "statuses",
+      "evidenceByAnnotator",
+    ]) ||
+    !identifier(record.caseId) ||
+    !identifier(record.rubricId) ||
+    !identifier(record.requirementId) ||
+    statuses === null ||
+    Object.keys(statuses).length < 2 ||
+    new Set(Object.values(statuses)).size < 2 ||
+    evidenceByAnnotator === null ||
+    Object.keys(evidenceByAnnotator).some((annotatorId) => !(annotatorId in statuses))
+  ) {
+    return null;
+  }
+  return {
+    caseId: record.caseId,
+    rubricId: record.rubricId,
+    requirementId: record.requirementId,
+    statuses,
+    evidenceByAnnotator,
+  };
+}
+
+function parseMissingAssessment(
+  value: unknown,
+): HumanAtomicMissingAssessment | null {
+  const record = asRecord(value);
+  const missingAnnotatorIds = parseOpaqueIdList(record?.missingAnnotatorIds, 1);
+  const presentAnnotatorIds = parseOpaqueIdList(record?.presentAnnotatorIds, 0);
+  if (
+    record === null ||
+    !hasOnlyKeys(record, [
+      "caseId",
+      "rubricId",
+      "requirementId",
+      "missingAnnotatorIds",
+      "presentAnnotatorIds",
+    ]) ||
+    !identifier(record.caseId) ||
+    !identifier(record.rubricId) ||
+    !identifier(record.requirementId) ||
+    missingAnnotatorIds === null ||
+    presentAnnotatorIds === null ||
+    missingAnnotatorIds.some((annotatorId) => presentAnnotatorIds.includes(annotatorId))
+  ) {
+    return null;
+  }
+  return {
+    caseId: record.caseId,
+    rubricId: record.rubricId,
+    requirementId: record.requirementId,
+    missingAnnotatorIds,
+    presentAnnotatorIds,
+  };
+}
+
+function parseCoverage(value: unknown): {
+  readonly plannedAtomicAssessments: number;
+  readonly resolvedAtomicAssessments: number;
+  readonly unresolvedAtomicAssessments: number;
+  readonly missingAtomicAssessments: number;
+  readonly referenceCoverageShare: number | null;
+} | null {
+  const record = asRecord(value);
+  const countKeys = [
+    "plannedAtomicAssessments",
+    "resolvedAtomicAssessments",
+    "unresolvedAtomicAssessments",
+    "missingAtomicAssessments",
+  ] as const;
+  if (
+    record === null ||
+    !hasOnlyKeys(record, [...countKeys, "referenceCoverageShare"]) ||
+    countKeys.some((key) =>
+      typeof record[key] !== "number" ||
+      !Number.isSafeInteger(record[key]) ||
+      (record[key] as number) < 0,
+    ) ||
+    (record.referenceCoverageShare !== null && (
+      typeof record.referenceCoverageShare !== "number" ||
+      !Number.isFinite(record.referenceCoverageShare) ||
+      record.referenceCoverageShare < 0 ||
+      record.referenceCoverageShare > 1
+    ))
+  ) {
+    return null;
+  }
+  return {
+    plannedAtomicAssessments: record.plannedAtomicAssessments as number,
+    resolvedAtomicAssessments: record.resolvedAtomicAssessments as number,
+    unresolvedAtomicAssessments: record.unresolvedAtomicAssessments as number,
+    missingAtomicAssessments: record.missingAtomicAssessments as number,
+    referenceCoverageShare: record.referenceCoverageShare as number | null,
+  };
+}
+
+export function parseHumanReferenceSet(value: unknown): HumanReferenceSet {
+  const record = asRecord(value);
+  const fixture = fixtureMarker(record?.fixture);
+  const dataKind = parseReferenceDataKind(record?.dataKind);
+  const tasks = Array.isArray(record?.tasks)
+    ? record.tasks.map(parseHumanReferenceAnnotationTask)
+    : null;
+  const references = Array.isArray(record?.references)
+    ? record.references.map(parseReferenceAtomicAssessment)
+    : null;
+  const unresolvedDisagreements = Array.isArray(record?.unresolvedDisagreements)
+    ? record.unresolvedDisagreements.map(parseUnresolvedDisagreement)
+    : null;
+  const missingAnnotations = Array.isArray(record?.missingAnnotations)
+    ? record.missingAnnotations.map(parseMissingAssessment)
+    : null;
+  const coverage = parseCoverage(record?.coverage);
+  if (
+    record === null ||
+    record.schemaVersion !== HUMAN_REFERENCE_CALIBRATION_SCHEMA_VERSION ||
+    !hasOnlyKeys(record, [
+      "schemaVersion",
+      "calibrationProtocolId",
+      "calibrationProtocolVersion",
+      "dataKind",
+      "fixture",
+      "humanCalibrationAvailable",
+      "tasks",
+      "references",
+      "unresolvedDisagreements",
+      "missingAnnotations",
+      "coverage",
+    ]) ||
+    record.calibrationProtocolId !== HUMAN_REFERENCE_PROTOCOL_ID ||
+    record.calibrationProtocolVersion !== HUMAN_REFERENCE_PROTOCOL_VERSION ||
+    dataKind === null ||
+    fixture === null ||
+    (dataKind === "synthetic-fixture" && fixture === undefined) ||
+    (dataKind === "human-reference" && fixture !== undefined) ||
+    typeof record.humanCalibrationAvailable !== "boolean" ||
+    record.humanCalibrationAvailable !== (dataKind === "human-reference") ||
+    tasks === null ||
+    tasks.length === 0 ||
+    new Set(tasks.map((task) => task.caseId)).size !== tasks.length ||
+    references === null ||
+    references.some((reference) => reference === null) ||
+    unresolvedDisagreements === null ||
+    unresolvedDisagreements.some((disagreement) => disagreement === null) ||
+    missingAnnotations === null ||
+    missingAnnotations.some((missing) => missing === null) ||
+    coverage === null
+  ) {
+    return invalid();
+  }
+
+  const taskUnits = new Set<string>();
+  const taskByUnit = new Map<string, { readonly caseId: string; readonly rubricId: string; readonly requirementId: string }>();
+  for (const task of tasks) {
+    for (const rubric of task.rubrics) {
+      for (const requirement of rubric.requirements) {
+        const unit = {
+          caseId: task.caseId,
+          rubricId: rubric.id,
+          requirementId: requirement.id,
+        };
+        const key = identityKey(unit);
+        taskUnits.add(key);
+        taskByUnit.set(key, unit);
+      }
+    }
+  }
+
+  const assignedUnits = new Map<string, "reference" | "unresolved" | "missing">();
+  const registerUnit = (
+    unit: { readonly caseId: string; readonly rubricId: string; readonly requirementId: string },
+    kind: "reference" | "unresolved" | "missing",
+  ): void => {
+    const key = identityKey(unit);
+    if (!taskByUnit.has(key) || assignedUnits.has(key)) {
+      return invalid();
+    }
+    assignedUnits.set(key, kind);
+  };
+  const typedReferences = references as ReferenceAtomicAssessment[];
+  const typedUnresolved = unresolvedDisagreements as HumanAtomicUnresolvedDisagreement[];
+  const typedMissing = missingAnnotations as HumanAtomicMissingAssessment[];
+  typedReferences.forEach((reference) => registerUnit(reference, "reference"));
+  typedUnresolved.forEach((disagreement) => registerUnit(disagreement, "unresolved"));
+  typedMissing.forEach((missing) => registerUnit(missing, "missing"));
+  if (assignedUnits.size !== taskUnits.size) {
+    return invalid();
+  }
+
+  const expectedCoverage = {
+    plannedAtomicAssessments: taskUnits.size,
+    resolvedAtomicAssessments: typedReferences.length,
+    unresolvedAtomicAssessments: typedUnresolved.length,
+    missingAtomicAssessments: typedMissing.length,
+    referenceCoverageShare: taskUnits.size === 0 ? null : typedReferences.length / taskUnits.size,
+  };
+  if (
+    coverage.plannedAtomicAssessments !== expectedCoverage.plannedAtomicAssessments ||
+    coverage.resolvedAtomicAssessments !== expectedCoverage.resolvedAtomicAssessments ||
+    coverage.unresolvedAtomicAssessments !== expectedCoverage.unresolvedAtomicAssessments ||
+    coverage.missingAtomicAssessments !== expectedCoverage.missingAtomicAssessments ||
+    coverage.resolvedAtomicAssessments + coverage.unresolvedAtomicAssessments + coverage.missingAtomicAssessments !== coverage.plannedAtomicAssessments ||
+    coverage.referenceCoverageShare !== expectedCoverage.referenceCoverageShare
+  ) {
+    return invalid();
+  }
+  return {
+    schemaVersion: HUMAN_REFERENCE_CALIBRATION_SCHEMA_VERSION,
+    calibrationProtocolId: HUMAN_REFERENCE_PROTOCOL_ID,
+    calibrationProtocolVersion: HUMAN_REFERENCE_PROTOCOL_VERSION,
+    dataKind,
+    ...(fixture === undefined ? {} : { fixture }),
+    humanCalibrationAvailable: record.humanCalibrationAvailable,
+    tasks,
+    references: typedReferences,
+    unresolvedDisagreements: typedUnresolved,
+    missingAnnotations: typedMissing,
+    coverage,
   };
 }
 

@@ -8,6 +8,7 @@ export const HUMAN_REFERENCE_CALIBRATION_SCHEMA_VERSION = 1 as const;
 export const HUMAN_REFERENCE_PROTOCOL_ID =
   "human-reference-material-calibration" as const;
 export const HUMAN_REFERENCE_PROTOCOL_VERSION = "0.1.0" as const;
+export const HUMAN_REFERENCE_CALIBRATION_REPORT_SCHEMA_VERSION = 1 as const;
 export const HUMAN_REFERENCE_EVIDENCE_MAX_LENGTH = 500 as const;
 
 /** Human semantic labels intentionally reuse the Material Requirement Judge atoms. */
@@ -50,6 +51,27 @@ export interface HumanAnnotationBatch {
   readonly fixture?: HumanReferenceSyntheticFixtureMarker;
   readonly tasks: readonly HumanReferenceAnnotationTask[];
   readonly annotations: readonly HumanAtomicAnnotation[];
+}
+
+/**
+ * Persisted annotation input adds the required annotator set to the batch
+ * envelope so a file can be rebuilt without trusting TypeScript-only types.
+ */
+export interface HumanReferenceAnnotationFile extends HumanAnnotationBatch {
+  readonly requiredAnnotatorIds: readonly string[];
+}
+
+export type HumanReferenceAdjudicationDataKind =
+  | "human-adjudication"
+  | "synthetic-fixture";
+
+export interface HumanReferenceAdjudicationFile {
+  readonly schemaVersion: typeof HUMAN_REFERENCE_CALIBRATION_SCHEMA_VERSION;
+  readonly calibrationProtocolId: typeof HUMAN_REFERENCE_PROTOCOL_ID;
+  readonly calibrationProtocolVersion: typeof HUMAN_REFERENCE_PROTOCOL_VERSION;
+  readonly dataKind: HumanReferenceAdjudicationDataKind;
+  readonly fixture?: HumanReferenceSyntheticFixtureMarker;
+  readonly adjudications: readonly HumanAtomicAdjudication[];
 }
 
 export interface HumanAtomicAdjudication {
@@ -145,6 +167,10 @@ export interface HumanReferenceSet {
   readonly calibrationProtocolVersion: typeof HUMAN_REFERENCE_PROTOCOL_VERSION;
   readonly dataKind: HumanReferenceDataKind;
   readonly fixture?: HumanReferenceSyntheticFixtureMarker;
+  /**
+   * Provenance-only flag: this equals dataKind === "human-reference". It does
+   * not mean coverage is complete, the set is ready, or the Judge is calibrated.
+   */
   readonly humanCalibrationAvailable: boolean;
   readonly tasks: readonly HumanReferenceAnnotationTask[];
   readonly references: readonly ReferenceAtomicAssessment[];
@@ -199,4 +225,20 @@ export interface HumanReferenceJudgeComparison {
   /** Use referenceAgreement, not accuracy, until a calibration protocol is established. */
   readonly referenceAgreement: HumanReferenceAtomicAgreement;
   readonly derivedLabelAgreement: HumanReferenceDerivedAgreement;
+}
+
+export interface HumanReferenceCalibrationReport {
+  readonly schemaVersion: typeof HUMAN_REFERENCE_CALIBRATION_REPORT_SCHEMA_VERSION;
+  readonly calibrationProtocolId: typeof HUMAN_REFERENCE_PROTOCOL_ID;
+  readonly calibrationProtocolVersion: typeof HUMAN_REFERENCE_PROTOCOL_VERSION;
+  readonly dataKind: HumanReferenceDataKind;
+  /** Clear report name for provenance; it is not a readiness or calibration score. */
+  readonly humanReferenceDataPresent: boolean;
+  readonly fixture?: HumanReferenceSyntheticFixtureMarker;
+  readonly humanHumanAgreement: HumanPairwiseAgreementReport;
+  readonly referenceCoverage: HumanReferenceCoverage;
+  readonly resolvedReferences: readonly ReferenceAtomicAssessment[];
+  readonly unresolvedDisagreements: readonly HumanAtomicUnresolvedDisagreement[];
+  readonly missingAnnotations: readonly HumanAtomicMissingAssessment[];
+  readonly derivedReferenceLabels: readonly HumanReferenceDerivedLabel[];
 }

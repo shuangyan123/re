@@ -58,6 +58,12 @@ import {
   type JudgeMaterialRequirementCliOptions,
 } from "./judge-material-requirement-discrimination.js";
 import {
+  parseHumanReferenceCalibrationArgs,
+  printHumanReferenceCalibrationHelp,
+  runHumanReferenceCalibration,
+  type HumanReferenceCalibrationCliOptions,
+} from "./human-reference-calibration.js";
+import {
   nextTutorbenchValue,
   positiveTutorbenchInteger,
   tutorbenchOptionValue,
@@ -81,7 +87,7 @@ export interface TutorbenchRunOptions {
 }
 
 export type TutorbenchCliOptions =
-  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" | "judge-material-requirement-discrimination" }
+  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" | "judge-material-requirement-discrimination" | "human-reference-calibration" }
   | { readonly help: false; readonly run: TutorbenchRunOptions }
   | { readonly help: false; readonly collect: TutorbenchCollectCliOptions }
   | { readonly help: false; readonly collectModel: TutorbenchCollectModelCliOptions }
@@ -89,7 +95,8 @@ export type TutorbenchCliOptions =
   | { readonly help: false; readonly reviewTranslate: ReviewTranslateCliOptions }
   | { readonly help: false; readonly judgeWordContextDiscrimination: JudgeWordContextDiscriminationCliOptions }
   | { readonly help: false; readonly judgeCandidateComparison: JudgeCandidateComparisonCliOptions }
-  | { readonly help: false; readonly judgeMaterialRequirement: JudgeMaterialRequirementCliOptions };
+  | { readonly help: false; readonly judgeMaterialRequirement: JudgeMaterialRequirementCliOptions }
+  | { readonly help: false; readonly humanReferenceCalibration: HumanReferenceCalibrationCliOptions };
 
 export function parseTutorbenchArgs(
   args: readonly string[],
@@ -138,6 +145,12 @@ export function parseTutorbenchArgs(
     return diagnostic.help
       ? { help: true, helpCommand: "judge-material-requirement-discrimination" }
       : { help: false, judgeMaterialRequirement: diagnostic };
+  }
+  if (args[0] === "human-reference-calibration") {
+    const calibration = parseHumanReferenceCalibrationArgs(args.slice(1));
+    return calibration.help
+      ? { help: true, helpCommand: "human-reference-calibration" }
+      : { help: false, humanReferenceCalibration: calibration };
   }
   if (args[0] !== "run") {
     throw new TutorbenchCliUsageError(
@@ -289,6 +302,7 @@ Usage:
   tutorbench judge-word-context-discrimination --judge-deepseek [options]
   tutorbench judge-candidate-comparison [options]
   tutorbench judge-material-requirement-discrimination [options]
+  tutorbench human-reference-calibration --annotations <path> [options]
 
 Commands:
   run                   Quick local evaluation; responses are not frozen
@@ -302,6 +316,8 @@ Commands:
                          Compare explicitly selected Judge candidates on the fixed diagnostic
   judge-material-requirement-discrimination
                          Run structured requirement fixtures (provider-free by default)
+  human-reference-calibration
+                         Ingest strict human-reference JSON and report deterministic calibration evidence
 
 Run options:
   --http <url>          POST TutorTurnInput JSON to this http(s) endpoint
@@ -408,6 +424,8 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       printJudgeCandidateComparisonHelp();
     } else if (options.helpCommand === "judge-material-requirement-discrimination") {
       printJudgeMaterialRequirementHelp();
+    } else if (options.helpCommand === "human-reference-calibration") {
+      printHumanReferenceCalibrationHelp();
     } else {
       printHelp();
     }
@@ -451,6 +469,12 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       return;
     }
     await runJudgeMaterialRequirementCli(options.judgeMaterialRequirement);
+  } else if ("humanReferenceCalibration" in options) {
+    if (options.humanReferenceCalibration.help) {
+      printHumanReferenceCalibrationHelp();
+      return;
+    }
+    await runHumanReferenceCalibration(options.humanReferenceCalibration);
   } else {
     if (options.evaluate.help) {
       printBenchmarkCorpusHelp();
