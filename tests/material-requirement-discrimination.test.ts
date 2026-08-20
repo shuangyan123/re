@@ -16,6 +16,7 @@ import {
   MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION,
   MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION,
   MATERIAL_REQUIREMENT_FIXTURE_VERSION,
+  MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE_VERSION,
   MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION,
   JUDGE_CANDIDATE_COMPARISON_VERSION,
   runMaterialRequirementDiagnostic,
@@ -65,6 +66,18 @@ test("word-context fixture reuses the canonical production Judge evidence bounda
 
 test("provider-free atomic fixture results derive word-context A/B/C labels", async () => {
   const fixtures = await loadMaterialRequirementDiagnosticFixtures();
+  const wordFixture = fixtures.find((fixture) => fixture.id === "word-context");
+  assert.ok(wordFixture);
+  assert.equal(wordFixture.version, "0.2.0");
+  assert.deepEqual(
+    wordFixture.cases[0]?.input.rubrics[0]?.requirements.map((requirement) => requirement.description),
+    [
+      "Evaluate the student's proposed meaning against the surrounding context.",
+      "Explain what the pause-before-agreeing clue supports.",
+      "State that the pause-before-agreeing clue alone is insufficient to determine whether the character is unwilling, uncertain, or simply thinking before agreeing.",
+      "Do not treat the student's proposed meaning as automatically correct or incorrect.",
+    ],
+  );
   const seenOutputs: unknown[] = [];
   const baseJudge = createSyntheticMaterialRequirementFixtureJudge(fixtures);
   const report = await runMaterialRequirementDiagnostic({
@@ -232,5 +245,6 @@ test("experimental identities do not bump production or comparison versions", ()
   assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.3");
   assert.equal(MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION, "0.2.0");
   assert.equal(MATERIAL_REQUIREMENT_FIXTURE_VERSION, "0.1.1");
+  assert.equal(MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE_VERSION, "0.2.0");
   assert.equal(MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION, "0.1.0");
 });

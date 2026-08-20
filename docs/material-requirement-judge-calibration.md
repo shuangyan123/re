@@ -110,6 +110,36 @@ visible Tutor response; an affirmative conflict anywhere in that response is
 conflict takes precedence over omission. No word-context lexical special case
 is present.
 
+## Follow-up v0.3 word-context probes
+
+Two subsequent word-context probes used DeepSeek V4-Flash and V4-Pro, both with
+thinking disabled and temperature `0`. The two model profiles produced the
+same atomic labels for all three cases:
+
+| Case | Observed atomic labels for both profiles | Derived label |
+| --- | --- | --- |
+| A | R1/R2/R3/R4 `SATISFIED` | `PASS` |
+| B | R1/R2/R3/R4 `SATISFIED` | `PASS` |
+| C | R1/R2 `SATISFIED`, R3 `OMITTED_OR_INCOMPLETE`, R4 `EXPLICIT_CONFLICT` | `FAIL` |
+
+The developer-authored expectations remain A `PASS`, B R3
+`OMITTED_OR_INCOMPLETE` and therefore `PARTIAL`, and C R3/R4
+`EXPLICIT_CONFLICT` and therefore `FAIL`. The cross-profile agreement makes a
+simple weaker-model or model-tier explanation less persuasive; it does not
+establish that either output is correct, calibrated, or gold. It instead
+motivates auditing the authored atomic requirement itself.
+
+The original R3 mixed a requested explanatory speech act (explain what a clue
+cannot establish) with an epistemic truth constraint (the clue alone is
+insufficient to determine a conclusion). The v0.3 diagnostic decomposition
+clarifies R3 as a truth-condition-oriented requirement. R4 remains responsible
+for how the Tutor treats the student's proposed interpretation; the two
+requirements are deliberately kept separate.
+
+This is an experimental decomposition change only. The canonical dataset
+criterion `Evaluate the student's proposed meaning against the surrounding
+context.` and its `tutor-eval-v0.2a@0.2a.5` semantics remain unchanged.
+
 ## Contract and deterministic policy
 
 `MaterialRequirement` has a stable, non-empty `id` and a non-empty
@@ -145,7 +175,7 @@ classified as omission.
 
 ## Synthetic fixtures and report semantics
 
-The `word-context@0.1.1` fixture explicitly defines four requirements for the
+The `word-context@0.2.0` fixture explicitly defines four requirements for the
 current correctness criterion. Atomic expectations derive:
 
 - A: all satisfied -> `PASS`
@@ -159,6 +189,12 @@ lexical conclusion: it conclusively displaces the student's proposed
 interpretation instead of keeping the underdetermined context boundary open.
 R3 already independently derived `FAIL`, so this developer-authored diagnostic
 expectation correction does not change the derived label or benchmark semantics.
+
+R3 now reads: "State that the pause-before-agreeing clue alone is insufficient
+to determine whether the character is unwilling, uncertain, or simply thinking
+before agreeing." This requirement tests evidence sufficiency directly. It
+does not replace or merge R4, which continues to test whether the Tutor treats
+the student's proposed meaning as automatically correct or incorrect.
 
 The independent `measurement-trend@0.1.1` fixture proves the same generic
 pattern outside language learning:
@@ -249,7 +285,8 @@ The new experimental identities are:
 - Material Requirement Judge result schema: `1`
 - prompt: `tutor-eval-material-requirement-judge-system@0.3`
 - diagnostic report: `0.2.0`
-- existing `word-context` and `measurement-trend` fixtures: `0.1.1`
+- `word-context` fixture: `0.2.0`
+- `measurement-trend` fixture: `0.1.1`
 - new `atomic-boundaries` fixture: `0.1.0`
 
 ## Historical probe and next live strategy

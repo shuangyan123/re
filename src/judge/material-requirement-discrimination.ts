@@ -33,6 +33,7 @@ export const MATERIAL_REQUIREMENT_DIAGNOSTIC_ID =
   "judge-material-requirement-discrimination" as const;
 export const MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION = "0.2.0" as const;
 export const MATERIAL_REQUIREMENT_FIXTURE_VERSION = "0.1.1" as const;
+export const MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE_VERSION = "0.2.0" as const;
 export const MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION = "0.1.0" as const;
 export const MATERIAL_REQUIREMENT_FIXTURE_PROVENANCE =
   "developer-authored-diagnostic-expectation" as const;
@@ -44,6 +45,7 @@ export type MaterialRequirementDiagnosticFixtureId =
 
 export type MaterialRequirementDiagnosticFixtureVersion =
   | typeof MATERIAL_REQUIREMENT_FIXTURE_VERSION
+  | typeof MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE_VERSION
   | typeof MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION;
 
 export interface MaterialRequirementDiagnosticCase {
@@ -100,7 +102,8 @@ const wordRequirements = Object.freeze([
   }),
   Object.freeze({
     id: "R3",
-    description: "Explain what the pause-before-agreeing clue cannot establish on its own.",
+    description:
+      "State that the pause-before-agreeing clue alone is insufficient to determine whether the character is unwilling, uncertain, or simply thinking before agreeing.",
   }),
   Object.freeze({
     id: "R4",
@@ -148,7 +151,7 @@ function createWordContextFixture(
     materialRequirementContext(buildTutorEvalJudgeInput(tutorEvalCase, response));
   return Object.freeze({
     id: "word-context",
-    version: MATERIAL_REQUIREMENT_FIXTURE_VERSION,
+    version: MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE_VERSION,
     cases: Object.freeze([
       diagnosticCase(
         "material-word-context-A",
@@ -174,7 +177,11 @@ function createWordContextFixture(
         [
           assessment("R1", "SATISFIED", "The response compares reluctant with unsure in the stated context."),
           assessment("R2", "SATISFIED", "It uses the pause as evidence of hesitation."),
-          assessment("R3", "OMITTED_OR_INCOMPLETE", "It does not state the limit of what the pause alone establishes."),
+          assessment(
+            "R3",
+            "OMITTED_OR_INCOMPLETE",
+            "It does not state that the pause clue alone is insufficient to determine the character's exact intended meaning.",
+          ),
           assessment("R4", "SATISFIED", "It evaluates the guess through a stated context clue."),
         ],
       ),
@@ -188,7 +195,11 @@ function createWordContextFixture(
         [
           assessment("R1", "SATISFIED", "The response relates the proposed meaning to the pause clue."),
           assessment("R2", "SATISFIED", "It identifies unwillingness as one interpretation supported by the pause."),
-          assessment("R3", "EXPLICIT_CONFLICT", "It says the pause proves unwillingness, contradicting the required limitation."),
+          assessment(
+            "R3",
+            "EXPLICIT_CONFLICT",
+            "It says the pause establishes unwillingness with certainty, contradicting the required evidence-sufficiency limitation.",
+          ),
           assessment("R4", "EXPLICIT_CONFLICT", "The response reaches a definitive lexical conclusion and conclusively displaces the student's proposed interpretation instead of keeping the underdetermined context boundary open."),
         ],
       ),
