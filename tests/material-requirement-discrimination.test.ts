@@ -3,14 +3,16 @@ import { test } from "node:test";
 
 import { parseTutorbenchArgs } from "../src/cli/tutorbench.js";
 import {
+  buildTutorEvalJudgeInput,
   TUTOR_EVAL_DATASET_VERSION,
   TUTOR_EVAL_EVALUATOR_VERSION,
   TUTOR_EVAL_JUDGE_SCHEMA_VERSION,
 } from "../src/contracts/index.js";
+import { loadTutorEvalDataset } from "../src/datasets/index.js";
 import {
   createSyntheticMaterialRequirementFixtureJudge,
   formatMaterialRequirementDiagnosticReport,
-  MATERIAL_REQUIREMENT_DIAGNOSTIC_FIXTURES,
+  loadMaterialRequirementDiagnosticFixtures,
   MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION,
   MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION,
   JUDGE_CANDIDATE_COMPARISON_VERSION,
@@ -29,16 +31,47 @@ function derivedLabels(
   return fixture.cases.map((fixtureCase) => fixtureCase.rubrics[0]!.observedDerivedLabel);
 }
 
+test("word-context fixture reuses the canonical production Judge evidence boundary", async () => {
+  const fixtures = await loadMaterialRequirementDiagnosticFixtures();
+  const wordFixture = fixtures.find((fixture) => fixture.id === "word-context");
+  assert.ok(wordFixture);
+  const dataset = await loadTutorEvalDataset("tutor-eval-v0.2a", "0.2a.5");
+  const canonicalCase = dataset.cases.find(
+    (candidate) => candidate.id === "language-word-context-001",
+  );
+  assert.ok(canonicalCase);
+  for (const fixtureCase of wordFixture.cases) {
+    const productionInput = buildTutorEvalJudgeInput(
+      canonicalCase,
+      fixtureCase.input.tutorResponse,
+    );
+    assert.equal(fixtureCase.input.studentMessage, productionInput.studentMessage);
+    assert.equal(fixtureCase.input.problemContext, productionInput.problemContext);
+    assert.equal(fixtureCase.input.disclosurePolicy, productionInput.disclosurePolicy);
+    assert.equal(fixtureCase.input.learningObjective, productionInput.learningObjective);
+    assert.equal(fixtureCase.input.studentProfile, productionInput.studentProfile);
+    assert.equal(fixtureCase.input.conversationHistory, productionInput.conversationHistory);
+    assert.equal(fixtureCase.input.groundTruth, productionInput.groundTruth);
+    assert.equal(fixtureCase.input.knownMisconception, productionInput.knownMisconception);
+    assert.deepEqual(Object.keys(fixtureCase.input.rubrics[0]!).sort(), [
+      "criterion",
+      "id",
+      "requirements",
+    ]);
+  }
+});
+
 test("provider-free atomic fixture results derive word-context A/B/C labels", async () => {
+  const fixtures = await loadMaterialRequirementDiagnosticFixtures();
   const seenOutputs: unknown[] = [];
-  const baseJudge = createSyntheticMaterialRequirementFixtureJudge();
+  const baseJudge = createSyntheticMaterialRequirementFixtureJudge(fixtures);
   const report = await runMaterialRequirementDiagnostic({
     evaluate: async (input) => {
       const output = await baseJudge.evaluate(input);
       seenOutputs.push(output);
       return output;
     },
-  }, [MATERIAL_REQUIREMENT_DIAGNOSTIC_FIXTURES[0]!]);
+  }, [fixtures[0]!]);
 
   assert.deepEqual(derivedLabels(report, "word-context"), ["PASS", "PARTIAL", "FAIL"]);
   assert.deepEqual(
@@ -47,28 +80,40 @@ test("provider-free atomic fixture results derive word-context A/B/C labels", as
     [
       ["SATISFIED", "SATISFIED", "SATISFIED", "SATISFIED"],
       ["SATISFIED", "SATISFIED", "OMITTED_OR_INCOMPLETE", "SATISFIED"],
-      ["SATISFIED", "SATISFIED", "EXPLICIT_CONFLICT", "SATISFIED"],
+      ["SATISFIED", "SATISFIED", "EXPLICIT_CONFLICT", "EXPLICIT_CONFLICT"],
     ],
   );
   assert.equal(seenOutputs.length, 3);
   assert.doesNotMatch(JSON.stringify(seenOutputs), /"(PASS|PARTIAL|FAIL)"/);
+  const conflictEvidence = fixtures[0]?.cases[2]?.expected.rubricAssessments[0]
+    ?.requirements.find((requirement) => requirement.requirementId === "R4")?.evidence;
+  assert.match(conflictEvidence ?? "", /definitive lexical conclusion/);
 });
 
 test("the same architecture derives PASS/PARTIAL/FAIL for measurement trend", async () => {
+  const fixtures = await loadMaterialRequirementDiagnosticFixtures();
   const report = await runMaterialRequirementDiagnostic(
-    createSyntheticMaterialRequirementFixtureJudge(),
-    [MATERIAL_REQUIREMENT_DIAGNOSTIC_FIXTURES[1]!],
+    createSyntheticMaterialRequirementFixtureJudge(fixtures),
+    [fixtures[1]!],
   );
   assert.deepEqual(derivedLabels(report, "measurement-trend"), ["PASS", "PARTIAL", "FAIL"]);
   assert.equal(report.dataKind, "synthetic-fixture");
   assert.equal(report.calibrationStatus, "uncalibrated");
   assert.equal(report.diagnosticVersion, MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION);
   assert.equal(report.promptVersion, MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION);
+  const measurementInput = fixtures[1]?.cases[0]?.input;
+  assert.ok(measurementInput);
+  assert.match(measurementInput.studentMessage, /first measurement.*second/i);
+  assert.match(measurementInput.problemContext, /10 units.*12 units/i);
+  assert.match(measurementInput.groundTruth, /insufficient to establish a trend/i);
+  assert.match(measurementInput.knownMisconception, /proves an increasing trend/i);
 });
 
 test("report distinguishes atomic agreement from derived agreement without accuracy claims", async () => {
+  const fixtures = await loadMaterialRequirementDiagnosticFixtures();
   const report = await runMaterialRequirementDiagnostic(
-    createSyntheticMaterialRequirementFixtureJudge(),
+    createSyntheticMaterialRequirementFixtureJudge(fixtures),
+    fixtures,
   );
   const formatted = formatMaterialRequirementDiagnosticReport(report);
   assert.match(formatted, /Atomic agreement: 4\/4/);
@@ -117,5 +162,5 @@ test("experimental identities do not bump production or comparison versions", ()
   assert.equal(WORD_CONTEXT_DISCRIMINATION_CASE_VERSION, "1.1.1");
   assert.equal(JUDGE_CANDIDATE_COMPARISON_VERSION, "0.1.1");
   assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.1");
-  assert.equal(MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION, "0.1.0");
+  assert.equal(MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION, "0.1.1");
 });

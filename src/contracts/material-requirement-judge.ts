@@ -1,3 +1,5 @@
+import type { TutorEvalJudgeInput } from "./tutor-eval-judge.js";
+
 export const MATERIAL_REQUIREMENT_JUDGE_SCHEMA_VERSION = 1 as const;
 
 export const MATERIAL_REQUIREMENT_ASSESSMENT_STATUSES = [
@@ -20,7 +22,19 @@ export interface MaterialRequirementRubric {
   readonly requirements: readonly MaterialRequirement[];
 }
 
-export interface MaterialRequirementJudgeInput {
+export type MaterialRequirementJudgeContext = Pick<
+  TutorEvalJudgeInput,
+  | "learningObjective"
+  | "studentProfile"
+  | "conversationHistory"
+  | "studentMessage"
+  | "problemContext"
+  | "groundTruth"
+  | "knownMisconception"
+  | "disclosurePolicy"
+>;
+
+export interface MaterialRequirementJudgeInput extends MaterialRequirementJudgeContext {
   readonly caseId: string;
   readonly rubrics: readonly MaterialRequirementRubric[];
   readonly tutorResponse: string;

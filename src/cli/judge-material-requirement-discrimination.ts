@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import {
   createSyntheticMaterialRequirementFixtureJudge,
   formatMaterialRequirementDiagnosticReport,
-  MATERIAL_REQUIREMENT_DIAGNOSTIC_FIXTURES,
+  loadMaterialRequirementDiagnosticFixtures,
   runMaterialRequirementDiagnostic,
   type MaterialRequirementDiagnosticFixtureId,
   type MaterialRequirementDiagnosticReport,
@@ -92,13 +92,14 @@ export async function runJudgeMaterialRequirementCli(
   if (options.help) {
     throw new TutorbenchCliUsageError("Use --help through the tutorbench dispatcher.");
   }
+  const allFixtures = await loadMaterialRequirementDiagnosticFixtures();
   const fixtures = options.fixture === "all"
-    ? MATERIAL_REQUIREMENT_DIAGNOSTIC_FIXTURES
-    : MATERIAL_REQUIREMENT_DIAGNOSTIC_FIXTURES.filter(
+    ? allFixtures
+    : allFixtures.filter(
       (fixture) => fixture.id === options.fixture,
     );
   const report = await runMaterialRequirementDiagnostic(
-    createSyntheticMaterialRequirementFixtureJudge(),
+    createSyntheticMaterialRequirementFixtureJudge(fixtures),
     fixtures,
   );
   console.log(formatMaterialRequirementDiagnosticReport(report));
