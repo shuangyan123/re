@@ -54,6 +54,28 @@ It cannot return or override the final rubric label. Requirement decomposition
 is not performed by a runtime LLM: requirements are developer-authored fixture
 data or must be supplied explicitly by a caller.
 
+## Pre-live wire-contract hardening
+
+Prompt v0.1 established the atomic semantics and conflict precedence, but it
+did not specify the wire JSON result shape that the model had to serialize.
+That left a semantically correct response such as a flat `R1`/`R2` mapping
+unable to pass the existing strict application parser.
+
+Before the first paid live probe, prompt v0.2 adds the exact application-level
+result contract: `schemaVersion`, the input `caseId`, one
+`rubricAssessments` entry per supplied rubric, and one `requirements` entry per
+supplied requirement under its original rubric. IDs must be copied exactly;
+atomic statuses remain limited to the three values above; optional evidence is
+limited to brief visible-Tutor-response evidence. Unknown fields, missing or
+duplicate requirements, extra rubrics, Markdown fences, and prose outside the
+single JSON object remain invalid.
+
+This is interface hardening so the first live probe measures atomic semantic
+recognition rather than an undocumented private serialization format. It is
+not a change intended to move a model toward developer-expected atomic labels.
+The runtime strict parser, deterministic aggregator, result schema, fixtures,
+and expected statuses remain unchanged.
+
 ## Contract and deterministic policy
 
 `MaterialRequirement` has a stable, non-empty `id` and a non-empty
@@ -177,7 +199,7 @@ In particular, an ordinary rubric-level material conflict derives rubric
 The new experimental identities are:
 
 - Material Requirement Judge result schema: `1`
-- prompt: `tutor-eval-material-requirement-judge-system@0.1`
+- prompt: `tutor-eval-material-requirement-judge-system@0.2`
 - diagnostic report: `0.2.0`
 - both synthetic fixtures: `0.1.1`
 

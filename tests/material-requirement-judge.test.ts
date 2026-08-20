@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { resolve } from "node:path";
 
 import {
+  MATERIAL_REQUIREMENT_ASSESSMENT_STATUSES,
   MATERIAL_REQUIREMENT_JUDGE_SCHEMA_VERSION,
   parseMaterialRequirementJudgeInput,
   parseMaterialRequirementJudgeResult,
@@ -12,6 +16,7 @@ import {
   buildMaterialRequirementJudgeResultJsonSchema,
   loadMaterialRequirementJudgePrompt,
   MATERIAL_REQUIREMENT_JUDGE_PROMPT_ID,
+  MATERIAL_REQUIREMENT_JUDGE_PROMPT_ASSET,
   MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION,
 } from "../src/judge/index.js";
 
@@ -42,6 +47,13 @@ const input: MaterialRequirementJudgeInput = parseMaterialRequirementJudgeInput(
   ],
   tutorResponse: "A visible synthetic Tutor response.",
 });
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Expected a JSON Schema object.");
+  }
+  return value as Record<string, unknown>;
+}
 
 test("MaterialRequirement input requires complete typed context and rejects extras", () => {
   assert.equal(input.studentMessage, "A synthetic student message.");
@@ -240,17 +252,92 @@ test("deterministic aggregation implements the public severity rules independent
   assert.throws(() => aggregateMaterialRequirementAssessments([]), /At least one/);
 });
 
-test("experimental prompt and schema keep atomic output separate from production labels", async () => {
+test("experimental v0.2 prompt and schema keep atomic output separate from production labels", async () => {
   assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_ID, "tutor-eval-material-requirement-judge-system");
-  assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.1");
+  assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.2");
+  assert.equal(
+    MATERIAL_REQUIREMENT_JUDGE_PROMPT_ASSET,
+    "prompts/tutor-eval-material-requirement-judge-system-v0.2.md",
+  );
   const prompt = await loadMaterialRequirementJudgePrompt();
+  assert.match(prompt, /Return exactly one JSON object with this shape/i);
+  for (const field of [
+    "schemaVersion",
+    "caseId",
+    "rubricAssessments",
+    "rubricId",
+    "requirements",
+    "requirementId",
+    "status",
+  ]) {
+    assert.match(prompt, new RegExp(`"${field}"`));
+  }
+  for (const status of MATERIAL_REQUIREMENT_ASSESSMENT_STATUSES) {
+    assert.match(prompt, new RegExp(`\\b${status}\\b`));
+  }
   assert.match(prompt, /Do not output `PASS`, `PARTIAL`, or `FAIL`/);
   assert.match(prompt, /explicit conflict takes precedence over omission/i);
   assert.match(prompt, /hidden\s+reasoning/i);
+  assert.match(prompt, /copy\s+`caseId`\s+exactly/i);
+  assert.match(prompt, /copy every\s+`rubricId`\s+exactly/i);
+  assert.match(prompt, /copy(?:ing)? every\s+`requirementId`\s+exactly/i);
+  assert.match(prompt, /every supplied rubric exactly\s+once/i);
+  assert.match(prompt, /every supplied requirement exactly\s+once/i);
+  assert.match(prompt, /additional\s+requirements/i);
+  assert.match(prompt, /additional rubrics/i);
+  assert.match(prompt, /additional fields/i);
+  assert.match(prompt, /Do not rename keys/i);
+  assert.match(prompt, /evidence` is optional/i);
+  assert.match(prompt, /visible Tutor response only/i);
+  assert.match(prompt, /Markdown code fence/i);
+  assert.match(prompt, /explanatory\s+prose outside the single JSON object/i);
+  assert.match(prompt, /does\s+not contain developer-expected atomic statuses/i);
+
   const schema = buildMaterialRequirementJudgeResultJsonSchema();
+  const schemaProperties = asRecord(schema.properties);
+  assert.equal(schema.additionalProperties, false);
+  assert.deepEqual(Object.keys(schemaProperties).sort(), [
+    "caseId",
+    "rubricAssessments",
+    "schemaVersion",
+  ]);
+  assert.deepEqual(schema.required, ["schemaVersion", "caseId", "rubricAssessments"]);
   assert.deepEqual(
-    (schema.properties as Record<string, unknown>).schemaVersion,
+    schemaProperties.schemaVersion,
     { type: "integer", enum: [1] },
   );
+  const rubricAssessmentsSchema = asRecord(schemaProperties.rubricAssessments);
+  const rubricSchema = asRecord(rubricAssessmentsSchema.items);
+  const rubricProperties = asRecord(rubricSchema.properties);
+  assert.equal(rubricSchema.additionalProperties, false);
+  assert.deepEqual(Object.keys(rubricProperties).sort(), ["requirements", "rubricId"]);
+  assert.deepEqual(rubricSchema.required, ["rubricId", "requirements"]);
+  const requirementsSchema = asRecord(rubricProperties.requirements);
+  const requirementSchema = asRecord(requirementsSchema.items);
+  const requirementProperties = asRecord(requirementSchema.properties);
+  assert.equal(requirementSchema.additionalProperties, false);
+  assert.deepEqual(Object.keys(requirementProperties).sort(), [
+    "evidence",
+    "requirementId",
+    "status",
+  ]);
+  assert.deepEqual(requirementSchema.required, ["requirementId", "status"]);
+  assert.deepEqual(
+    asRecord(requirementProperties.status).enum,
+    [...MATERIAL_REQUIREMENT_ASSESSMENT_STATUSES],
+  );
   assert.doesNotMatch(JSON.stringify(schema), /criticalFailures|factualErrors|insufficientInformation/);
+});
+
+test("historical v0.1 material prompt remains readable and content-immutable", async () => {
+  const historicalPrompt = await readFile(
+    resolve(process.cwd(), "prompts/tutor-eval-material-requirement-judge-system-v0.1.md"),
+    "utf8",
+  );
+  assert.equal(
+    createHash("sha256")
+      .update(historicalPrompt.replace(/\r\n?/gu, "\n"), "utf8")
+      .digest("hex"),
+    "2f89fdf56f50c7dc16b7586b06f319f9ccf0151e463e8dadce4ed6bfda02fa8a",
+  );
 });
