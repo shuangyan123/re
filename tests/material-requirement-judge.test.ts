@@ -252,12 +252,12 @@ test("deterministic aggregation implements the public severity rules independent
   assert.throws(() => aggregateMaterialRequirementAssessments([]), /At least one/);
 });
 
-test("experimental v0.3 prompt and schema keep atomic output separate from production labels", async () => {
+test("experimental v0.4 prompt and schema keep atomic output separate from production labels", async () => {
   assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_ID, "tutor-eval-material-requirement-judge-system");
-  assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.3");
+  assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.4");
   assert.equal(
     MATERIAL_REQUIREMENT_JUDGE_PROMPT_ASSET,
-    "prompts/tutor-eval-material-requirement-judge-system-v0.3.md",
+    "prompts/tutor-eval-material-requirement-judge-system-v0.4.md",
   );
   const prompt = await loadMaterialRequirementJudgePrompt();
   assert.match(prompt, /Return exactly one JSON object with this shape/i);
@@ -297,9 +297,22 @@ test("experimental v0.3 prompt and schema keep atomic output separate from produ
   assert.match(prompt, /entire visible Tutor response/i);
   assert.match(prompt, /any substantive affirmative claim anywhere\s+in the response/i);
   assert.match(prompt, /Conflict takes precedence over\s+omission/i);
+  assert.match(prompt, /support(?:s)?[ ,/]|suggest(?:s)?[ ,/]|favor(?:s)?[ ,/]|point(?:s)? toward|is consistent with/i);
+  assert.match(prompt, /does not by itself\s+assert that the evidence is sufficient/i);
+  assert.match(prompt, /determine, establish, prove, or make\s+that conclusion certain/i);
+  assert.match(prompt, /ordinary support\s+language is not automatically a conflict/i);
+  assert.match(prompt, /semantic examples, not a\s+keyword list/i);
+  assert.match(prompt, /substantive meaning/i);
+  assert.match(prompt, /three-level distinction/i);
+  assert.match(prompt, /support, suggestion, or consistency without an insufficiency statement/i);
+  assert.match(prompt, /evidence alone proves, determines, or establishes X with\s+certainty/i);
   assert.doesNotMatch(prompt, /reluctant/i);
   assert.doesNotMatch(prompt, /pause-before-agreeing/i);
   assert.doesNotMatch(prompt, /unwilling/i);
+  assert.doesNotMatch(prompt, /unsure/i);
+  assert.doesNotMatch(prompt, /vocabulary/i);
+  assert.doesNotMatch(prompt, /student word meaning/i);
+  assert.doesNotMatch(prompt, /word-context/i);
 
   const schema = buildMaterialRequirementJudgeResultJsonSchema();
   const schemaProperties = asRecord(schema.properties);
@@ -337,7 +350,7 @@ test("experimental v0.3 prompt and schema keep atomic output separate from produ
   assert.doesNotMatch(JSON.stringify(schema), /criticalFailures|factualErrors|insufficientInformation/);
 });
 
-test("historical v0.1 and v0.2 material prompts remain readable and content-immutable", async () => {
+test("historical v0.1 through v0.3 material prompts remain readable and content-immutable", async () => {
   const historicalPrompts = [
     {
       asset: "prompts/tutor-eval-material-requirement-judge-system-v0.1.md",
@@ -346,6 +359,10 @@ test("historical v0.1 and v0.2 material prompts remain readable and content-immu
     {
       asset: "prompts/tutor-eval-material-requirement-judge-system-v0.2.md",
       sha256: "7c1576731e8de7b314ebeb8a930c68b0bad841c77a4cba5be1b63a949bc6c929",
+    },
+    {
+      asset: "prompts/tutor-eval-material-requirement-judge-system-v0.3.md",
+      sha256: "cc9767c1a29c28d626b9c7f82fbc4b7a8cdb1a7391def4e28636be36b0a51400",
     },
   ] as const;
   for (const historical of historicalPrompts) {

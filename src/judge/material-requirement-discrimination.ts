@@ -35,18 +35,21 @@ export const MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION = "0.2.0" as const;
 export const MATERIAL_REQUIREMENT_FIXTURE_VERSION = "0.1.1" as const;
 export const MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE_VERSION = "0.2.0" as const;
 export const MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION = "0.1.0" as const;
+export const MATERIAL_REQUIREMENT_EPISTEMIC_STRENGTH_FIXTURE_VERSION = "0.1.0" as const;
 export const MATERIAL_REQUIREMENT_FIXTURE_PROVENANCE =
   "developer-authored-diagnostic-expectation" as const;
 
 export type MaterialRequirementDiagnosticFixtureId =
   | "word-context"
   | "measurement-trend"
-  | "atomic-boundaries";
+  | "atomic-boundaries"
+  | "epistemic-strength";
 
 export type MaterialRequirementDiagnosticFixtureVersion =
   | typeof MATERIAL_REQUIREMENT_FIXTURE_VERSION
   | typeof MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE_VERSION
-  | typeof MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION;
+  | typeof MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION
+  | typeof MATERIAL_REQUIREMENT_EPISTEMIC_STRENGTH_FIXTURE_VERSION;
 
 export interface MaterialRequirementDiagnosticCase {
   readonly id: string;
@@ -341,6 +344,81 @@ export const MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE: MaterialRequirement
     ]),
   });
 
+const epistemicStrengthCriterion =
+  "Distinguish evidential support from whether the available observations establish the hypothesis.";
+const epistemicStrengthRequirements = Object.freeze([
+  Object.freeze({
+    id: "E-STRENGTH",
+    description: "State that the available observations alone are insufficient to establish the increasing-trend hypothesis.",
+  }),
+] as const);
+const epistemicStrengthContext: MaterialRequirementJudgeContext = Object.freeze({
+  learningObjective: "Distinguish evidence that supports a hypothesis from evidence that establishes it.",
+  studentProfile: JSON.stringify({ level: "middle-school", goal: "interpret evidence strength" }),
+  conversationHistory: JSON.stringify([]),
+  studentMessage: "Two observations support the increasing-trend hypothesis. Is that enough to establish it?",
+  problemContext: "Only two observations are available. They are consistent with an increasing trend, but no third observation or independent confirmation is available.",
+  groundTruth: JSON.stringify({
+    support: "The observations support or suggest an increasing-trend hypothesis.",
+    limitation: "The available observations alone are insufficient to establish the hypothesis.",
+  }),
+  knownMisconception: "Evidence that supports a hypothesis proves it with certainty.",
+  disclosurePolicy: "hint_only",
+});
+
+export const MATERIAL_REQUIREMENT_EPISTEMIC_STRENGTH_FIXTURE: MaterialRequirementDiagnosticFixture =
+  Object.freeze({
+    id: "epistemic-strength",
+    version: MATERIAL_REQUIREMENT_EPISTEMIC_STRENGTH_FIXTURE_VERSION,
+    cases: Object.freeze([
+      diagnosticCase(
+        "material-epistemic-strength-support",
+        "epistemic-strength-001",
+        epistemicStrengthCriterion,
+        epistemicStrengthRequirements,
+        epistemicStrengthContext,
+        "The two observations support the increasing-trend hypothesis.",
+        [
+          assessment(
+            "E-STRENGTH",
+            "OMITTED_OR_INCOMPLETE",
+            "Support for the hypothesis does not state that the available observations alone are insufficient to establish it.",
+          ),
+        ],
+      ),
+      diagnosticCase(
+        "material-epistemic-strength-conflict",
+        "epistemic-strength-001",
+        epistemicStrengthCriterion,
+        epistemicStrengthRequirements,
+        epistemicStrengthContext,
+        "The two observations prove the increasing-trend hypothesis.",
+        [
+          assessment(
+            "E-STRENGTH",
+            "EXPLICIT_CONFLICT",
+            "The response says the available observations prove the hypothesis, contradicting the insufficiency requirement.",
+          ),
+        ],
+      ),
+      diagnosticCase(
+        "material-epistemic-strength-support-with-limitation",
+        "epistemic-strength-001",
+        epistemicStrengthCriterion,
+        epistemicStrengthRequirements,
+        epistemicStrengthContext,
+        "The observations suggest an increase, but these observations alone are insufficient to establish the increasing-trend hypothesis.",
+        [
+          assessment(
+            "E-STRENGTH",
+            "SATISFIED",
+            "The response distinguishes a suggestion from the explicit insufficiency of the available observations alone.",
+          ),
+        ],
+      ),
+    ]),
+  });
+
 export async function loadMaterialRequirementDiagnosticFixtures(): Promise<
   readonly MaterialRequirementDiagnosticFixture[]
 > {
@@ -358,6 +436,7 @@ export async function loadMaterialRequirementDiagnosticFixtures(): Promise<
     createWordContextFixture(wordContextCase),
     MATERIAL_REQUIREMENT_MEASUREMENT_TREND_FIXTURE,
     MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE,
+    MATERIAL_REQUIREMENT_EPISTEMIC_STRENGTH_FIXTURE,
   ]);
 }
 

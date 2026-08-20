@@ -15,6 +15,7 @@ import {
   loadMaterialRequirementDiagnosticFixtures,
   MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION,
   MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION,
+  MATERIAL_REQUIREMENT_EPISTEMIC_STRENGTH_FIXTURE_VERSION,
   MATERIAL_REQUIREMENT_FIXTURE_VERSION,
   MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE_VERSION,
   MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION,
@@ -170,6 +171,48 @@ test("generic atomic-boundary fixture separates omission, conflict, and satisfac
   }
 });
 
+test("epistemic-strength fixture separates support, certainty, and explicit limitation", async () => {
+  const fixtures = await loadMaterialRequirementDiagnosticFixtures();
+  const fixture = fixtures.find((candidate) => candidate.id === "epistemic-strength");
+  assert.ok(fixture);
+  const report = await runMaterialRequirementDiagnostic(
+    createSyntheticMaterialRequirementFixtureJudge([fixture]),
+    [fixture],
+  );
+
+  assert.equal(fixture.version, MATERIAL_REQUIREMENT_EPISTEMIC_STRENGTH_FIXTURE_VERSION);
+  assert.deepEqual(
+    fixture.cases.map((fixtureCase) => fixtureCase.input.rubrics[0]?.requirements[0]),
+    [
+      {
+        id: "E-STRENGTH",
+        description: "State that the available observations alone are insufficient to establish the increasing-trend hypothesis.",
+      },
+      {
+        id: "E-STRENGTH",
+        description: "State that the available observations alone are insufficient to establish the increasing-trend hypothesis.",
+      },
+      {
+        id: "E-STRENGTH",
+        description: "State that the available observations alone are insufficient to establish the increasing-trend hypothesis.",
+      },
+    ],
+  );
+  assert.deepEqual(
+    report.fixtures[0]?.cases.map(
+      (fixtureCase) => fixtureCase.rubrics[0]?.requirements[0]?.observedStatus,
+    ),
+    ["OMITTED_OR_INCOMPLETE", "EXPLICIT_CONFLICT", "SATISFIED"],
+  );
+  assert.deepEqual(derivedLabels(report, "epistemic-strength"), ["FAIL", "FAIL", "PASS"]);
+  for (const fixtureCase of fixture.cases) {
+    assert.doesNotMatch(
+      JSON.stringify(fixtureCase.input),
+      /expectedStatus|expectedDerivedLabel|fixture expectation/i,
+    );
+  }
+});
+
 test("report distinguishes atomic agreement from derived agreement without accuracy claims", async () => {
   const fixtures = await loadMaterialRequirementDiagnosticFixtures();
   const report = await runMaterialRequirementDiagnostic(
@@ -226,6 +269,15 @@ test("tutorbench exposes the opt-in provider-free structured diagnostic", () => 
     assert.equal(atomicParsed.judgeMaterialRequirement.fixture, "atomic-boundaries");
     assert.equal(atomicParsed.judgeMaterialRequirement.judgeDeepSeek, false);
   }
+  const epistemicParsed = parseTutorbenchArgs([
+    "judge-material-requirement-discrimination",
+    "--fixture=epistemic-strength",
+  ]);
+  assert.equal(epistemicParsed.help, false);
+  if (!epistemicParsed.help && "judgeMaterialRequirement" in epistemicParsed) {
+    assert.equal(epistemicParsed.judgeMaterialRequirement.fixture, "epistemic-strength");
+    assert.equal(epistemicParsed.judgeMaterialRequirement.judgeDeepSeek, false);
+  }
   assert.throws(
     () => parseTutorbenchArgs([
       "judge-material-requirement-discrimination",
@@ -242,9 +294,10 @@ test("experimental identities do not bump production or comparison versions", ()
   assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.4");
   assert.equal(WORD_CONTEXT_DISCRIMINATION_CASE_VERSION, "1.1.1");
   assert.equal(JUDGE_CANDIDATE_COMPARISON_VERSION, "0.1.1");
-  assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.3");
+  assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.4");
   assert.equal(MATERIAL_REQUIREMENT_DIAGNOSTIC_VERSION, "0.2.0");
   assert.equal(MATERIAL_REQUIREMENT_FIXTURE_VERSION, "0.1.1");
   assert.equal(MATERIAL_REQUIREMENT_WORD_CONTEXT_FIXTURE_VERSION, "0.2.0");
   assert.equal(MATERIAL_REQUIREMENT_ATOMIC_BOUNDARIES_FIXTURE_VERSION, "0.1.0");
+  assert.equal(MATERIAL_REQUIREMENT_EPISTEMIC_STRENGTH_FIXTURE_VERSION, "0.1.0");
 });

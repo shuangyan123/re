@@ -140,6 +140,41 @@ This is an experimental decomposition change only. The canonical dataset
 criterion `Evaluate the student's proposed meaning against the surrounding
 context.` and its `tutor-eval-v0.2a@0.2a.5` semantics remain unchanged.
 
+## First v0.3 word-context@0.2.0 Flash probe evidence
+
+A separate first probe of `word-context@0.2.0` used DeepSeek V4-Flash with
+thinking disabled and temperature `0`, while the experimental prompt identity
+was v0.3. The observed labels were:
+
+| Case | Observed atomic labels | Atomic agreement | Derived label |
+| --- | --- | --- | --- |
+| A | R1/R2/R3/R4 `SATISFIED` | 4/4 | `PASS` |
+| B | R1/R2 `SATISFIED`, R3 `EXPLICIT_CONFLICT`, R4 `SATISFIED` | 3/4 | `FAIL` |
+| C | R1/R2 `SATISFIED`, R3/R4 `EXPLICIT_CONFLICT` | 4/4 | `FAIL` |
+
+The developer-authored expectation for B remains R3
+`OMITTED_OR_INCOMPLETE`, which derives `PARTIAL`; C is already aligned. B-R3
+is the only disagreement in this three-case probe. The Judge explained its
+classification by saying that the Tutor's statement that the clue “supports
+unwillingness” contradicted the requirement that the clue alone is
+insufficient to determine unwillingness, uncertainty, or thinking.
+
+That explanation conflates evidential support with evidential sufficiency.
+Evidence can support or favor one interpretation while still being
+insufficient to establish that interpretation with certainty. The fixture's
+developer-authored boundary therefore remains: support without an explicit
+insufficiency statement is `OMITTED_OR_INCOMPLETE`, while a definitive
+determination is `EXPLICIT_CONFLICT`. This is diagnostic evidence about one
+purposive probe, not an accuracy, gold-label, calibration, or ground-truth
+claim.
+
+Prompt v0.4 adds this distinction generically. It treats support, suggestion,
+favoring, consistency, and increased plausibility as weaker than sufficiency
+or certainty; it requires an affirmative claim that evidence proves,
+establishes, determines, or guarantees a conclusion before assigning
+`EXPLICIT_CONFLICT`. The examples are semantic guidance rather than a keyword
+list, and context can still make apparently weaker wording express certainty.
+
 ## Contract and deterministic policy
 
 `MaterialRequirement` has a stable, non-empty `id` and a non-empty
@@ -213,6 +248,21 @@ boundary with one generic `M-LIMIT` requirement:
 - an explicit statement that two observations are not enough to establish a
   trend -> `SATISFIED`
 
+The separate `epistemic-strength@0.1.0` fixture isolates the new generic
+support-versus-sufficiency boundary with one requirement: “State that the
+available observations alone are insufficient to establish the increasing-trend
+hypothesis.” Its three provider-free cases are:
+
+- “The two observations support the increasing-trend hypothesis.” ->
+  `OMITTED_OR_INCOMPLETE`
+- “The two observations prove the increasing-trend hypothesis.” ->
+  `EXPLICIT_CONFLICT`
+- “The observations suggest an increase, but these observations alone are
+  insufficient to establish the increasing-trend hypothesis.” -> `SATISFIED`
+
+The fixture is generic measurement/science evidence and does not alter the
+word-context requirement or its expectations.
+
 The synthetic Judge still returns only atomic statuses. Derived labels are
 reported as secondary deterministic diagnostics, not supplied by the fixture
 Judge or leaked in live Judge input.
@@ -246,7 +296,7 @@ $env:DEEPSEEK_JUDGE_MODEL = "deepseek-v4-flash"
 $env:DEEPSEEK_JUDGE_THINKING = "disabled"
 $env:DEEPSEEK_JUDGE_TEMPERATURE = "0"
 $env:DEEPSEEK_JUDGE_MAX_TOKENS = "4096"
-node dist/src/cli/tutorbench.js judge-material-requirement-discrimination --fixture word-context --judge-deepseek --output artifacts/material-requirement-deepseek-flash-v0.3-word-context.json
+node dist/src/cli/tutorbench.js judge-material-requirement-discrimination --fixture word-context --judge-deepseek --output artifacts/material-requirement-deepseek-flash-v0.4-word-context.json
 ```
 
 Without that flag the command constructs no provider adapter and makes zero
@@ -283,20 +333,22 @@ In particular, an ordinary rubric-level material conflict derives rubric
 The new experimental identities are:
 
 - Material Requirement Judge result schema: `1`
-- prompt: `tutor-eval-material-requirement-judge-system@0.3`
+- prompt: `tutor-eval-material-requirement-judge-system@0.4`
 - diagnostic report: `0.2.0`
 - `word-context` fixture: `0.2.0`
 - `measurement-trend` fixture: `0.1.1`
-- new `atomic-boundaries` fixture: `0.1.0`
+- `atomic-boundaries` fixture: `0.1.0`
+- `epistemic-strength` fixture: `0.1.0`
 
 ## Historical probe and next live strategy
 
 The historical v0.2 structured probe made exactly six calls over the fixed
 word-context A/B/C and measurement PASS/PARTIAL/FAIL cases. At that time,
-`--fixture all` selected those six cases. Prompt v0.3 adds
-`atomic-boundaries@0.1.0`, so `--fixture all` now plans nine calls and must not be
-used accidentally as though it still represented the historical six-call
-probe.
+`--fixture all` selected those six cases. Prompt v0.3 added
+`atomic-boundaries@0.1.0`, so the v0.3 diagnostic planned nine calls. Prompt
+v0.4 adds `epistemic-strength@0.1.0`, so the current `--fixture all` plans
+twelve calls. These counts are historical/current fixture composition, not a
+recommendation to spend quota on an all-fixture probe.
 
 The minimum next live probe is three calls over only the word-context fixture:
 
@@ -305,14 +357,17 @@ $env:DEEPSEEK_JUDGE_MODEL = "deepseek-v4-flash"
 $env:DEEPSEEK_JUDGE_THINKING = "disabled"
 $env:DEEPSEEK_JUDGE_TEMPERATURE = "0"
 $env:DEEPSEEK_JUDGE_MAX_TOKENS = "4096"
-node dist/src/cli/tutorbench.js judge-material-requirement-discrimination --fixture word-context --judge-deepseek --output artifacts/material-requirement-deepseek-flash-v0.3-word-context.json
+node dist/src/cli/tutorbench.js judge-material-requirement-discrimination --fixture word-context --judge-deepseek --output artifacts/material-requirement-deepseek-flash-v0.4-word-context.json
 ```
 
-If the next decision explicitly needs direct generic-boundary evidence, run
-`--fixture atomic-boundaries` as a separate three-call targeted probe, for six
-calls total across the two targeted commands. Do not automatically rerun all
-nine cases or the full 48-case benchmark. This PR performs no live provider
-call. The profile remains an operator diagnostic recommendation, not a
-benchmark-wide model or generation mandate. Record only validated atomic
-statuses, short visible-response evidence, sanitized telemetry, and locally
-derived labels; transport failures remain separate from semantic results.
+Do not use `--fixture all`, add repetitions, or switch to V4-Pro for this next
+decision. The target is three word-context calls: A R3 `SATISFIED`, B R3
+`OMITTED_OR_INCOMPLETE`, and C R3 `EXPLICIT_CONFLICT`. If v0.4 still observes
+B-R3 as `EXPLICIT_CONFLICT`, stop prompt tuning and move to human-reference
+calibration, disagreement adjudication, and an uncertainty/escalation policy;
+do not start a v0.5 wording iteration for this single fixture. This PR
+performs no live provider call. The profile remains an operator diagnostic
+recommendation, not a benchmark-wide model or generation mandate. Record only
+validated atomic statuses, short visible-response evidence, sanitized
+telemetry, and locally derived labels; transport failures remain separate from
+semantic results.

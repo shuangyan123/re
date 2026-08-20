@@ -3,9 +3,9 @@ import { resolve } from "node:path";
 
 export const MATERIAL_REQUIREMENT_JUDGE_PROMPT_ID =
   "tutor-eval-material-requirement-judge-system" as const;
-export const MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION = "0.3" as const;
+export const MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION = "0.4" as const;
 export const MATERIAL_REQUIREMENT_JUDGE_PROMPT_ASSET =
-  "prompts/tutor-eval-material-requirement-judge-system-v0.3.md" as const;
+  "prompts/tutor-eval-material-requirement-judge-system-v0.4.md" as const;
 
 export async function loadMaterialRequirementJudgePrompt(
   baseDirectory = process.cwd(),
