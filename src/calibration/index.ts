@@ -12,3 +12,5 @@ export * from "./critical-failure-report.js";
 export * from "./human-reference-agreement.js";
 export * from "./human-reference-reference.js";
 export * from "./human-reference-comparison.js";
+export * from "./human-reference-io.js";
+export * from "./human-reference-report.js";

@@ -62,6 +62,50 @@ annotations. Synthetic tests use `dataKind: "synthetic-fixture"` together
 with `{ "synthetic": true, "notHumanCalibrationData": true }`; that marker is
 never treated as human calibration evidence.
 
+## Strict JSON persistence and local workflow
+
+The pilot input files are ordinary JSON, but they are untrusted runtime data.
+`parseHumanReferenceAnnotationFile()` and
+`parseHumanReferenceAdjudicationFile()` reject malformed protocol identity,
+unknown fields, duplicate identities, invalid statuses, wrong rubric owners,
+hidden/provider fields, and invalid synthetic markers. A persisted
+`HumanReferenceSet` is accepted only after the parser reconstructs every task
+atom and verifies that references, unresolved disagreements, and missing
+annotations form an exact non-overlapping partition. Coverage counts and
+`referenceCoverageShare` are recomputed from the task requirements; supplied
+totals are never trusted.
+
+The provider-free local command is:
+
+```text
+tutorbench human-reference-calibration \
+  --annotations fixtures/human-reference-calibration/synthetic-annotations.json \
+  --adjudications fixtures/human-reference-calibration/synthetic-adjudications.json \
+  --output artifacts/human-reference-calibration-report.json
+```
+
+It performs no Tutor or Judge call. The report contains human-human agreement,
+reference coverage, resolved references, unresolved disagreements, missing
+annotations, and labels derived only from fully resolved rubrics. It does not
+claim accuracy or emit a calibrated score. `humanReferenceDataPresent` is the
+clear report-level provenance field. The existing
+`HumanReferenceSet.humanCalibrationAvailable` field is retained for contract
+compatibility, but is provenance-only (`dataKind === "human-reference"`); it
+does not mean complete coverage, readiness, or Judge calibration.
+
+These states remain distinct:
+
+```text
+valid JSON set -> may be incomplete -> complete coverage -> separate Judge/reference agreement
+```
+
+Complete coverage is still not a calibration claim. Only a separately approved
+human pilot with documented reviewers, adjudication, and validation can support
+calibration readiness; readiness is not inferred by any automatic coverage
+threshold. The checked-in files under
+`fixtures/human-reference-calibration/` are synthetic regression fixtures, not
+human annotations.
+
 ## Human-human agreement
 
 `calculateHumanPairwiseAgreement()` compares two explicitly named annotator

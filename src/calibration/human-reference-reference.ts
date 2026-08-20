@@ -17,6 +17,7 @@ import {
   parseHumanAtomicAdjudication,
   parseHumanAtomicAnnotation,
   parseHumanReferenceAnnotationTask,
+  parseHumanReferenceSet,
 } from "../contracts/human-reference-calibration-validation.js";
 import { aggregateMaterialRequirementAssessments } from "../judge/material-requirement-aggregation.js";
 import { humanAtomicIdentityKey } from "./human-reference-agreement.js";
@@ -362,11 +363,5 @@ export function deriveHumanReferenceRubricLabels(
 export function assertHumanReferenceSetReady(
   referenceSet: HumanReferenceSet,
 ): void {
-  if (
-    referenceSet.schemaVersion !== HUMAN_REFERENCE_CALIBRATION_SCHEMA_VERSION ||
-    referenceSet.calibrationProtocolId !== HUMAN_REFERENCE_PROTOCOL_ID ||
-    referenceSet.calibrationProtocolVersion !== HUMAN_REFERENCE_PROTOCOL_VERSION
-  ) {
-    return invalid();
-  }
+  parseHumanReferenceSet(referenceSet);
 }

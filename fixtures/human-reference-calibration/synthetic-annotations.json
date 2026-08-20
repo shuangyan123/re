@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "batchId": "synthetic-human-reference-calibration-001",
+  "calibrationProtocolId": "human-reference-material-calibration",
+  "calibrationProtocolVersion": "0.1.0",
+  "dataKind": "synthetic-fixture",
+  "fixture": {
+    "synthetic": true,
+    "notHumanCalibrationData": true
+  },
+  "requiredAnnotatorIds": [
+    "annotator-a",
+    "annotator-b"
+  ],
+  "tasks": [
+    {
+      "schemaVersion": 1,
+      "caseId": "case-consensus",
+      "learningObjective": "Identify the central idea in a short explanation.",
+      "studentProfile": "A learner practicing concise explanations.",
+      "conversationHistory": "",
+      "studentMessage": "What is the central idea here?",
+      "problemContext": "The learner is reading a short paragraph.",
+      "groundTruth": "The central idea is the main point supported by the paragraph.",
+      "knownMisconception": "The first detail is not always the central idea.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        {
+          "id": "rubric-consensus",
+          "criterion": "The tutor keeps the learner focused on the central idea.",
+          "requirements": [
+            {
+              "id": "requirement-central-idea",
+              "description": "The response asks for or addresses the paragraph's main point."
+            }
+          ]
+        }
+      ],
+      "tutorResponse": "Look for the point that the details support."
+    },
+    {
+      "schemaVersion": 1,
+      "caseId": "case-disagreement",
+      "learningObjective": "Use evidence to explain a claim.",
+      "studentProfile": "A learner who needs to connect claims to evidence.",
+      "conversationHistory": "",
+      "studentMessage": "How can I support my claim?",
+      "problemContext": "The learner has a claim but no cited evidence.",
+      "groundTruth": "A supported claim needs a relevant detail or quotation.",
+      "knownMisconception": "A confident opinion is not evidence.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        {
+          "id": "rubric-evidence",
+          "criterion": "The tutor prompts a relevant piece of evidence.",
+          "requirements": [
+            {
+              "id": "requirement-relevant-evidence",
+              "description": "The response asks the learner to connect the claim to a relevant detail."
+            }
+          ]
+        }
+      ],
+      "tutorResponse": "Name one detail that supports your claim."
+    },
+    {
+      "schemaVersion": 1,
+      "caseId": "case-missing",
+      "learningObjective": "Compare two quantities using a ratio.",
+      "studentProfile": "A learner practicing ratio comparisons.",
+      "conversationHistory": "",
+      "studentMessage": "How do I compare these quantities?",
+      "problemContext": "Two quantities are shown in a table.",
+      "groundTruth": "A ratio compares the quantities in the same order each time.",
+      "knownMisconception": "Reversing the order changes the meaning of the ratio.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        {
+          "id": "rubric-ratio",
+          "criterion": "The tutor preserves the order of the ratio.",
+          "requirements": [
+            {
+              "id": "requirement-ratio-order",
+              "description": "The response asks the learner to state which quantity comes first."
+            }
+          ]
+        }
+      ],
+      "tutorResponse": "Write the two quantities in the order the question names them."
+    }
+  ],
+  "annotations": [
+    {
+      "schemaVersion": 1,
+      "caseId": "case-consensus",
+      "rubricId": "rubric-consensus",
+      "requirementId": "requirement-central-idea",
+      "annotatorId": "annotator-a",
+      "status": "SATISFIED",
+      "evidence": "The response points the learner toward the main point."
+    },
+    {
+      "schemaVersion": 1,
+      "caseId": "case-consensus",
+      "rubricId": "rubric-consensus",
+      "requirementId": "requirement-central-idea",
+      "annotatorId": "annotator-b",
+      "status": "SATISFIED",
+      "evidence": "The prompt keeps the learner focused on the central idea."
+    },
+    {
+      "schemaVersion": 1,
+      "caseId": "case-disagreement",
+      "rubricId": "rubric-evidence",
+      "requirementId": "requirement-relevant-evidence",
+      "annotatorId": "annotator-a",
+      "status": "OMITTED_OR_INCOMPLETE",
+      "evidence": "The response does not explicitly ask for a supporting detail."
+    },
+    {
+      "schemaVersion": 1,
+      "caseId": "case-disagreement",
+      "rubricId": "rubric-evidence",
+      "requirementId": "requirement-relevant-evidence",
+      "annotatorId": "annotator-b",
+      "status": "EXPLICIT_CONFLICT",
+      "evidence": "The response conflicts with the evidence requirement."
+    },
+    {
+      "schemaVersion": 1,
+      "caseId": "case-missing",
+      "rubricId": "rubric-ratio",
+      "requirementId": "requirement-ratio-order",
+      "annotatorId": "annotator-a",
+      "status": "SATISFIED",
+      "evidence": "The response preserves the named order."
+    }
+  ]
+}
