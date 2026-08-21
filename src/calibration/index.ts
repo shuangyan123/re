@@ -14,3 +14,5 @@ export * from "./human-reference-reference.js";
 export * from "./human-reference-comparison.js";
 export * from "./human-reference-io.js";
 export * from "./human-reference-report.js";
+export * from "./human-reference-pilot.js";
+export * from "./human-reference-pilot-io.js";

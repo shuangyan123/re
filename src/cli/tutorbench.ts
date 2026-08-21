@@ -64,6 +64,15 @@ import {
   type HumanReferenceCalibrationCliOptions,
 } from "./human-reference-calibration.js";
 import {
+  parseHumanReferencePilotExportArgs,
+  parseHumanReferencePilotImportArgs,
+  printHumanReferencePilotExportHelp,
+  printHumanReferencePilotImportHelp,
+  runHumanReferencePilotExport,
+  runHumanReferencePilotImport,
+  type HumanReferencePilotCliOptions,
+} from "./human-reference-pilot.js";
+import {
   nextTutorbenchValue,
   positiveTutorbenchInteger,
   tutorbenchOptionValue,
@@ -87,7 +96,7 @@ export interface TutorbenchRunOptions {
 }
 
 export type TutorbenchCliOptions =
-  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" | "judge-material-requirement-discrimination" | "human-reference-calibration" }
+  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" | "judge-material-requirement-discrimination" | "human-reference-calibration" | "human-reference-pilot-export" | "human-reference-pilot-import" }
   | { readonly help: false; readonly run: TutorbenchRunOptions }
   | { readonly help: false; readonly collect: TutorbenchCollectCliOptions }
   | { readonly help: false; readonly collectModel: TutorbenchCollectModelCliOptions }
@@ -96,7 +105,9 @@ export type TutorbenchCliOptions =
   | { readonly help: false; readonly judgeWordContextDiscrimination: JudgeWordContextDiscriminationCliOptions }
   | { readonly help: false; readonly judgeCandidateComparison: JudgeCandidateComparisonCliOptions }
   | { readonly help: false; readonly judgeMaterialRequirement: JudgeMaterialRequirementCliOptions }
-  | { readonly help: false; readonly humanReferenceCalibration: HumanReferenceCalibrationCliOptions };
+  | { readonly help: false; readonly humanReferenceCalibration: HumanReferenceCalibrationCliOptions }
+  | { readonly help: false; readonly humanReferencePilotExport: Extract<HumanReferencePilotCliOptions, { readonly mode: "export" }> }
+  | { readonly help: false; readonly humanReferencePilotImport: Extract<HumanReferencePilotCliOptions, { readonly mode: "import" }> };
 
 export function parseTutorbenchArgs(
   args: readonly string[],
@@ -151,6 +162,18 @@ export function parseTutorbenchArgs(
     return calibration.help
       ? { help: true, helpCommand: "human-reference-calibration" }
       : { help: false, humanReferenceCalibration: calibration };
+  }
+  if (args[0] === "human-reference-pilot-export") {
+    const pilotExport = parseHumanReferencePilotExportArgs(args.slice(1));
+    return pilotExport.help
+      ? { help: true, helpCommand: "human-reference-pilot-export" }
+      : { help: false, humanReferencePilotExport: pilotExport };
+  }
+  if (args[0] === "human-reference-pilot-import") {
+    const pilotImport = parseHumanReferencePilotImportArgs(args.slice(1));
+    return pilotImport.help
+      ? { help: true, helpCommand: "human-reference-pilot-import" }
+      : { help: false, humanReferencePilotImport: pilotImport };
   }
   if (args[0] !== "run") {
     throw new TutorbenchCliUsageError(
@@ -303,6 +326,8 @@ Usage:
   tutorbench judge-candidate-comparison [options]
   tutorbench judge-material-requirement-discrimination [options]
   tutorbench human-reference-calibration --annotations <path> [options]
+  tutorbench human-reference-pilot-export [options]
+  tutorbench human-reference-pilot-import [options]
 
 Commands:
   run                   Quick local evaluation; responses are not frozen
@@ -318,6 +343,10 @@ Commands:
                          Run structured requirement fixtures (provider-free by default)
   human-reference-calibration
                          Ingest strict human-reference JSON and report deterministic calibration evidence
+  human-reference-pilot-export
+                         Export two identical blind Material Requirement packets
+  human-reference-pilot-import
+                         Strictly merge two completed pilot submissions
 
 Run options:
   --http <url>          POST TutorTurnInput JSON to this http(s) endpoint
@@ -426,6 +455,10 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       printJudgeMaterialRequirementHelp();
     } else if (options.helpCommand === "human-reference-calibration") {
       printHumanReferenceCalibrationHelp();
+    } else if (options.helpCommand === "human-reference-pilot-export") {
+      printHumanReferencePilotExportHelp();
+    } else if (options.helpCommand === "human-reference-pilot-import") {
+      printHumanReferencePilotImportHelp();
     } else {
       printHelp();
     }
@@ -475,6 +508,18 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       return;
     }
     await runHumanReferenceCalibration(options.humanReferenceCalibration);
+  } else if ("humanReferencePilotExport" in options) {
+    if (options.humanReferencePilotExport.help) {
+      printHumanReferencePilotExportHelp();
+      return;
+    }
+    await runHumanReferencePilotExport(options.humanReferencePilotExport);
+  } else if ("humanReferencePilotImport" in options) {
+    if (options.humanReferencePilotImport.help) {
+      printHumanReferencePilotImportHelp();
+      return;
+    }
+    await runHumanReferencePilotImport(options.humanReferencePilotImport);
   } else {
     if (options.evaluate.help) {
       printBenchmarkCorpusHelp();
