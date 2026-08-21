@@ -106,6 +106,124 @@ threshold. The checked-in files under
 `fixtures/human-reference-calibration/` are synthetic regression fixtures, not
 human annotations.
 
+## Running the first blind human pilot
+
+The first pilot is intentionally limited to the fixed three-response
+word-context diagnostic: three visible Tutor responses and twelve atomic
+requirements, completed independently by two annotators. Export it with:
+
+```text
+npm run build
+node dist/src/cli/tutorbench.js human-reference-pilot-export \
+  --fixture word-context \
+  --annotator annotator-a \
+  --annotator annotator-b \
+  --output-dir artifacts/human-reference-pilot/word-context-001
+```
+
+The command writes exactly two packets:
+
+```text
+artifacts/human-reference-pilot/word-context-001/annotator-a.packet.json
+artifacts/human-reference-pilot/word-context-001/annotator-b.packet.json
+```
+
+Give only the A packet to annotator A and only the B packet to annotator B.
+The packets have the same allowlisted visible evidence: case identity,
+learning objective, learner/context fields, Tutor response, rubric, and
+explicit atomic requirements. They do not contain developer expected labels,
+PASS/PARTIAL/FAIL expectations, Judge output/evidence/reasoning, provider
+metadata, prior annotation, or adjudication. The task-set fingerprint binds a
+submission to the exported packet set.
+
+Each annotator creates one completed submission. The submission envelope must
+copy its packet's `pilotId`, `batchId`, protocol identity, task-set fingerprint,
+and opaque `annotatorId`; the `annotations` array must contain exactly one
+entry for every visible atomic requirement. The envelope is:
+
+```json
+{
+  "schemaVersion": 1,
+  "packetKind": "annotator-submission",
+  "pilotProtocolId": "human-reference-material-blind-pilot",
+  "pilotProtocolVersion": "0.1.0",
+  "pilotId": "human-reference-word-context-001",
+  "batchId": "copy-from-packet",
+  "calibrationProtocolId": "human-reference-material-calibration",
+  "calibrationProtocolVersion": "0.1.0",
+  "taskSetFingerprint": "copy-from-packet",
+  "annotatorId": "annotator-a",
+  "dataKind": "human-annotation",
+  "annotations": []
+}
+```
+
+Fill `annotations` with exactly one entry for every visible atomic requirement.
+A compact entry is:
+
+```json
+{
+  "caseId": "material-word-context-A",
+  "rubricId": "language-word-context-001",
+  "requirementId": "R1",
+  "status": "SATISFIED",
+  "evidence": "Brief evidence grounded in the visible Tutor response."
+}
+```
+
+The only statuses are `SATISFIED`, `OMITTED_OR_INCOMPLETE`, and
+`EXPLICIT_CONFLICT`. Evidence is optional and capped at 500 characters. The
+submission has no per-atom `annotatorId`; the envelope identity is authoritative.
+For a real pilot use `dataKind: "human-annotation"` and do not add the
+synthetic fixture marker. Synthetic provider-free tests must instead use
+`dataKind: "synthetic-fixture"` plus both marker fields, and their output is
+never human-reference evidence.
+
+After both annotators finish, import only the two submissions:
+
+```text
+node dist/src/cli/tutorbench.js human-reference-pilot-import \
+  --packet-dir artifacts/human-reference-pilot/word-context-001 \
+  --submission artifacts/human-reference-pilot/word-context-001/annotator-a.completed.json \
+  --submission artifacts/human-reference-pilot/word-context-001/annotator-b.completed.json \
+  --output artifacts/human-reference-pilot/word-context-001/human-reference-annotations.json
+```
+
+Import fails closed for missing, duplicate, unexpected, stale, or wrong-owner
+atoms; mismatched pilot/protocol/fingerprint; wrong annotator identity; extra
+fields; unsupported statuses; and oversized evidence. It converts the two
+complete submissions to the existing `HumanReferenceAnnotationFile` and
+re-parses that canonical file before writing it. Import does not adjudicate,
+majority-vote, consult developer expectations, or derive a semantic winner.
+
+Run the existing calibration workflow without adjudications first:
+
+```text
+node dist/src/cli/tutorbench.js human-reference-calibration \
+  --annotations artifacts/human-reference-pilot/word-context-001/human-reference-annotations.json \
+  --output artifacts/human-reference-pilot/word-context-001/human-reference-report.json
+```
+
+The operational lifecycle is:
+
+1. export the pilot;
+2. give A's packet only to annotator A;
+3. give B's packet only to annotator B;
+4. have both annotators complete submissions independently;
+5. import and merge the two submissions;
+6. run `human-reference-calibration` without adjudications;
+7. inspect human-human agreement first;
+8. adjudicate disagreements separately;
+9. rerun calibration with explicit adjudications;
+10. only after human reference exists, compare Material Requirement Judge v0.4 against that reference.
+
+Human-human agreement comes before Judge agreement. High agreement with
+developer-expected labels is not evidence of calibration. Complete reference
+coverage is not automatically calibration readiness, and no automatic
+threshold turns this pilot into “calibrated”. This PR provides packet export
+and strict submission import; a dedicated disagreement-only adjudication
+template is a follow-up ergonomics task.
+
 ## Human-human agreement
 
 `calculateHumanPairwiseAgreement()` compares two explicitly named annotator
