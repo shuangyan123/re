@@ -8,6 +8,7 @@ import {
 import {
   loadHumanReferencePilotPackets,
   loadHumanReferencePilotSubmission,
+  writeHumanReferencePilotAnnotationGuide,
   writeHumanReferencePilotJson,
 } from "../calibration/human-reference-pilot-io.js";
 import {
@@ -212,12 +213,14 @@ Options:
   --fixture <id>          word-context (the only supported pilot fixture)
   --annotator <id>        Repeat exactly twice; opaque ID, not a name/email
   --pilot-id <id>         Stable pilot identity (default: ${HUMAN_REFERENCE_PILOT_DEFAULT_ID})
-  --output-dir <path>     Directory for the two blind packets
+  --output-dir <path>     Directory for packets, templates, and the shared guide
   --help                  Show this help
 
 The export is provider-free. Each packet contains the same allowlisted visible
-task evidence and one annotator identity; expected labels and Judge output are
-not exported.`);
+task evidence and one annotator identity. Each matching submission template
+contains only prefilled identity and atomic IDs; expected labels and Judge
+output are not exported. One neutral annotation guide is shared by both
+annotators.`);
 }
 
 export function printHumanReferencePilotImportHelp(): void {
@@ -256,12 +259,23 @@ export async function runHumanReferencePilotExport(
   if (options.fixture !== HUMAN_REFERENCE_PILOT_FIXTURE_ID) {
     throw new TutorbenchCliUsageError("--fixture currently supports only word-context.");
   }
-  await Promise.all(exported.packets.map((packet) =>
-    writeHumanReferencePilotJson(
-      packet,
-      resolve(options.outputDirectory, `${packet.annotatorId}.packet.json`),
+  await Promise.all([
+    ...exported.packets.map((packet) =>
+      writeHumanReferencePilotJson(
+        packet,
+        resolve(options.outputDirectory, `${packet.annotatorId}.packet.json`),
+      ),
     ),
-  ));
+    ...exported.templates.map((template) =>
+      writeHumanReferencePilotJson(
+        template,
+        resolve(options.outputDirectory, `${template.annotatorId}.submission-template.json`),
+      ),
+    ),
+    writeHumanReferencePilotAnnotationGuide(
+      resolve(options.outputDirectory, "ANNOTATION_GUIDE.md"),
+    ),
+  ]);
   console.log([
     "Human-reference pilot export",
     `  Pilot: ${exported.pilotId}`,
@@ -269,6 +283,9 @@ export async function runHumanReferencePilotExport(
     `  Annotators: ${exported.packets.map((packet) => packet.annotatorId).join(", ")}`,
     `  Tasks: ${exported.tasks.length}`,
     `  Atomic requirements: ${atomicRequirementCount(exported)}`,
+    `  Packets: ${exported.packets.map((packet) => `${packet.annotatorId}.packet.json`).join(", ")}`,
+    `  Submission templates: ${exported.templates.map((template) => `${template.annotatorId}.submission-template.json`).join(", ")}`,
+    "  Annotation guide: ANNOTATION_GUIDE.md",
     `  Output directory: ${options.outputDirectory}`,
   ].join("\n"));
 }
