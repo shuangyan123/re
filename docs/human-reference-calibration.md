@@ -121,63 +121,52 @@ node dist/src/cli/tutorbench.js human-reference-pilot-export \
   --output-dir artifacts/human-reference-pilot/word-context-001
 ```
 
-The command writes exactly two packets:
+The command writes two packets, two matching editable submission templates,
+and one shared guide:
 
 ```text
 artifacts/human-reference-pilot/word-context-001/annotator-a.packet.json
+artifacts/human-reference-pilot/word-context-001/annotator-a.submission-template.json
 artifacts/human-reference-pilot/word-context-001/annotator-b.packet.json
+artifacts/human-reference-pilot/word-context-001/annotator-b.submission-template.json
+artifacts/human-reference-pilot/word-context-001/ANNOTATION_GUIDE.md
 ```
 
-Give only the A packet to annotator A and only the B packet to annotator B.
-The packets have the same allowlisted visible evidence: case identity,
-learning objective, learner/context fields, Tutor response, rubric, and
-explicit atomic requirements. They do not contain developer expected labels,
-PASS/PARTIAL/FAIL expectations, Judge output/evidence/reasoning, provider
-metadata, prior annotation, or adjudication. The task-set fingerprint binds a
+Give only the A packet and matching A template to annotator A, and only the B
+packet and matching B template to annotator B. Both annotators receive the same
+`ANNOTATION_GUIDE.md`. The packets have the same allowlisted visible evidence:
+case identity, learning objective, learner/context fields, Tutor response,
+rubric, and explicit atomic requirements. Packets do not contain developer
+expected labels, Judge output/evidence/reasoning, provider metadata, prior
+annotation, or adjudication. The task-set fingerprint binds a completed
 submission to the exported packet set.
 
-Each annotator creates one completed submission. The submission envelope must
-copy its packet's `pilotId`, `batchId`, protocol identity, task-set fingerprint,
-and opaque `annotatorId`; the `annotations` array must contain exactly one
-entry for every visible atomic requirement. The envelope is:
+The submission templates are editable working documents, not canonical
+`HumanReferencePilotSubmission` values. They already contain the pilot, batch,
+protocol, fingerprint, annotator identity, and one empty-status slot for every
+visible atomic requirement. The strict completed-submission parser must reject
+an untouched template because `status` is empty; do not change that parser or
+use a template as imported evidence.
 
-```json
-{
-  "schemaVersion": 1,
-  "packetKind": "annotator-submission",
-  "pilotProtocolId": "human-reference-material-blind-pilot",
-  "pilotProtocolVersion": "0.1.0",
-  "pilotId": "human-reference-word-context-001",
-  "batchId": "copy-from-packet",
-  "calibrationProtocolId": "human-reference-material-calibration",
-  "calibrationProtocolVersion": "0.1.0",
-  "taskSetFingerprint": "copy-from-packet",
-  "annotatorId": "annotator-a",
-  "dataKind": "human-annotation",
-  "annotations": []
-}
-```
+Each annotator should:
 
-Fill `annotations` with exactly one entry for every visible atomic requirement.
-A compact entry is:
+1. receive only their matching packet and submission template;
+2. read the shared `ANNOTATION_GUIDE.md`;
+3. inspect each visible atomic requirement independently;
+4. replace every empty `status` with `SATISFIED`, `OMITTED_OR_INCOMPLETE`, or
+   `EXPLICIT_CONFLICT` according to the guide;
+5. optionally add a short `evidence` field grounded only in the visible Tutor
+   response; and
+6. save the completed file as
+   `annotator-a.completed.json` or `annotator-b.completed.json`.
 
-```json
-{
-  "caseId": "material-word-context-A",
-  "rubricId": "language-word-context-001",
-  "requirementId": "R1",
-  "status": "SATISFIED",
-  "evidence": "Brief evidence grounded in the visible Tutor response."
-}
-```
-
-The only statuses are `SATISFIED`, `OMITTED_OR_INCOMPLETE`, and
-`EXPLICIT_CONFLICT`. Evidence is optional and capped at 500 characters. The
-submission has no per-atom `annotatorId`; the envelope identity is authoritative.
-For a real pilot use `dataKind: "human-annotation"` and do not add the
-synthetic fixture marker. Synthetic provider-free tests must instead use
+No technical IDs need to be copied by hand. Evidence is optional and capped at
+500 characters; leave the optional field absent when no evidence is recorded.
+For a real pilot keep `dataKind: "human-annotation"` and do not add a synthetic
+fixture marker. Synthetic provider-free tests may instead use
 `dataKind: "synthetic-fixture"` plus both marker fields, and their output is
-never human-reference evidence.
+never human-reference evidence. Do not exchange completed files until both
+annotators have finished.
 
 After both annotators finish, import only the two submissions:
 
@@ -206,9 +195,9 @@ node dist/src/cli/tutorbench.js human-reference-calibration \
 
 The operational lifecycle is:
 
-1. export the pilot;
-2. give A's packet only to annotator A;
-3. give B's packet only to annotator B;
+1. export the pilot, templates, and shared guide;
+2. give A's packet/template only to annotator A;
+3. give B's packet/template only to annotator B;
 4. have both annotators complete submissions independently;
 5. import and merge the two submissions;
 6. run `human-reference-calibration` without adjudications;
@@ -220,9 +209,10 @@ The operational lifecycle is:
 Human-human agreement comes before Judge agreement. High agreement with
 developer-expected labels is not evidence of calibration. Complete reference
 coverage is not automatically calibration readiness, and no automatic
-threshold turns this pilot into “calibrated”. This PR provides packet export
-and strict submission import; a dedicated disagreement-only adjudication
-template is a follow-up ergonomics task.
+threshold turns this pilot into “calibrated”. This workflow provides packet
+export, editable submission templates, a neutral shared annotation guide, and
+strict submission import; a dedicated disagreement-only adjudication template
+is a separate follow-up.
 
 ## Human-human agreement
 

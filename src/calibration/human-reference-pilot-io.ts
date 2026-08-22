@@ -6,8 +6,10 @@ import {
   parseHumanReferencePilotPacket,
   parseHumanReferencePilotSubmission,
 } from "../contracts/human-reference-pilot-validation.js";
+import { HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE } from "./human-reference-pilot.js";
 import type {
   HumanReferencePilotPacket,
+  HumanReferencePilotSubmissionTemplate,
   HumanReferencePilotSubmission,
 } from "../contracts/human-reference-pilot.js";
 import type { HumanReferenceAnnotationFile } from "../contracts/human-reference-calibration.js";
@@ -62,12 +64,31 @@ export async function writeHumanReferencePilotJson(
 ): Promise<void>;
 
 export async function writeHumanReferencePilotJson(
-  value: HumanReferencePilotPacket | HumanReferencePilotSubmission | HumanReferenceAnnotationFile,
+  value: HumanReferencePilotSubmissionTemplate,
+  outputPath: string,
+): Promise<void>;
+
+export async function writeHumanReferencePilotJson(
+  value: HumanReferencePilotPacket |
+    HumanReferencePilotSubmission |
+    HumanReferencePilotSubmissionTemplate |
+    HumanReferenceAnnotationFile,
   outputPath: string,
 ): Promise<void> {
   try {
     await mkdir(dirname(outputPath), { recursive: true });
     await writeFile(outputPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  } catch {
+    throw new BenchmarkConfigurationError("human_reference_calibration_invalid");
+  }
+}
+
+export async function writeHumanReferencePilotAnnotationGuide(
+  outputPath: string,
+): Promise<void> {
+  try {
+    await mkdir(dirname(outputPath), { recursive: true });
+    await writeFile(outputPath, HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE, "utf8");
   } catch {
     throw new BenchmarkConfigurationError("human_reference_calibration_invalid");
   }

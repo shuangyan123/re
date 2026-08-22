@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { test } from "node:test";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,6 +8,7 @@ import { join, resolve } from "node:path";
 import {
   buildHumanReferenceCalibrationReport,
   buildHumanReferenceSet,
+  HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE,
   createHumanReferencePilotExport,
   mergeHumanReferencePilotSubmissions,
 } from "../src/calibration/index.js";
@@ -127,6 +128,86 @@ test("word-context export creates deterministic, identical blind evidence packet
   assert.match(packetAJson, /"tutorResponse"/u);
   assert.match(packetAJson, /"groundTruth"/u);
   assert.deepEqual(first.packets[0]?.source.fixture, syntheticFixture);
+});
+
+test("pilot export derives identical editable templates from both packets", async () => {
+  const pilot = await makePilot();
+  assert.equal(pilot.templates.length, 2);
+  const templateA = pilot.templates[0]!;
+  const templateB = pilot.templates[1]!;
+  const expectedAtoms = pilot.tasks.flatMap((task) =>
+    task.rubrics.flatMap((rubric) =>
+      rubric.requirements.map((requirement) => ({
+        caseId: task.caseId,
+        rubricId: rubric.id,
+        requirementId: requirement.id,
+      })),
+    ),
+  ).sort((left, right) =>
+    left.caseId.localeCompare(right.caseId) ||
+    left.rubricId.localeCompare(right.rubricId) ||
+    left.requirementId.localeCompare(right.requirementId),
+  );
+
+  assert.equal(templateA.annotatorId, "annotator-a");
+  assert.equal(templateB.annotatorId, "annotator-b");
+  assert.equal(templateA.dataKind, "human-annotation");
+  assert.equal(templateB.dataKind, "human-annotation");
+  assert.equal("fixture" in templateA, false);
+  assert.equal("fixture" in templateB, false);
+  assert.equal(templateA.annotations.length, 12);
+  assert.equal(templateB.annotations.length, 12);
+  assert.deepEqual(templateA.annotations, templateB.annotations);
+  assert.deepEqual(
+    templateA.annotations.map(({ caseId, rubricId, requirementId }) => ({
+      caseId,
+      rubricId,
+      requirementId,
+    })),
+    expectedAtoms,
+  );
+  assert.ok(templateA.annotations.every((annotation) => annotation.status === ""));
+  assert.ok(templateA.annotations.every((annotation) => !("evidence" in annotation)));
+
+  assert.equal(templateA.pilotId, pilot.pilotId);
+  assert.equal(templateA.batchId, pilot.batchId);
+  assert.equal(templateA.taskSetFingerprint, pilot.taskSetFingerprint);
+  assert.equal(templateA.schemaVersion, pilot.packets[0]!.schemaVersion);
+  assert.equal(templateA.pilotProtocolId, pilot.packets[0]!.pilotProtocolId);
+  assert.equal(templateA.pilotProtocolVersion, pilot.packets[0]!.pilotProtocolVersion);
+  assert.equal(templateA.calibrationProtocolId, pilot.packets[0]!.calibrationProtocolId);
+  assert.equal(templateA.calibrationProtocolVersion, pilot.packets[0]!.calibrationProtocolVersion);
+  assert.equal(templateA.annotatorId, pilot.packets[0]!.annotatorId);
+  assert.equal(templateB.pilotId, pilot.pilotId);
+  assert.equal(templateB.batchId, pilot.batchId);
+  assert.equal(templateB.taskSetFingerprint, pilot.taskSetFingerprint);
+  assert.equal(templateB.schemaVersion, pilot.packets[1]!.schemaVersion);
+  assert.equal(templateB.pilotProtocolId, pilot.packets[1]!.pilotProtocolId);
+  assert.equal(templateB.pilotProtocolVersion, pilot.packets[1]!.pilotProtocolVersion);
+  assert.equal(templateB.calibrationProtocolId, pilot.packets[1]!.calibrationProtocolId);
+  assert.equal(templateB.calibrationProtocolVersion, pilot.packets[1]!.calibrationProtocolVersion);
+  assert.equal(templateB.annotatorId, pilot.packets[1]!.annotatorId);
+
+  const serialized = JSON.stringify(templateA);
+  assert.doesNotMatch(serialized, /"expected(?:Status|Label|Result)"/u);
+  assert.doesNotMatch(serialized, /"(?:judgeResult|judgeEvidence|reasoning|adjudication|provider|model)"/u);
+  assert.doesNotMatch(serialized, /"status":"(?:PASS|PARTIAL|FAIL)"/u);
+  assert.doesNotMatch(serialized, /annotator-b/u);
+});
+
+test("editable pilot templates remain separate from the strict submission parser", async () => {
+  const pilot = await makePilot();
+  const template = pilot.templates[0]!;
+  invalid(() => parseHumanReferencePilotSubmission(template));
+
+  const completed = {
+    ...template,
+    annotations: template.annotations.map((annotation) => ({
+      ...annotation,
+      status: "SATISFIED" as const,
+    })),
+  };
+  assert.doesNotThrow(() => parseHumanReferencePilotSubmission(completed));
 });
 
 test("pilot submission parser accepts only the editable atomic shape", async () => {
@@ -333,6 +414,17 @@ test("provider-free CLI export and import smoke uses synthetic submissions only"
     ]);
     assert.equal(exportResult.exitCode, 0, exportResult.stderr);
     assert.match(exportResult.stdout, /Human-reference pilot export/u);
+    assert.match(exportResult.stdout, /Packets:/u);
+    assert.match(exportResult.stdout, /Submission templates:/u);
+    assert.match(exportResult.stdout, /Annotation guide:/u);
+
+    assert.deepEqual((await readdir(directory)).sort(), [
+      "ANNOTATION_GUIDE.md",
+      "annotator-a.packet.json",
+      "annotator-a.submission-template.json",
+      "annotator-b.packet.json",
+      "annotator-b.submission-template.json",
+    ]);
 
     const packetA = parseHumanReferencePilotPacket(JSON.parse(
       await readFile(join(directory, "annotator-a.packet.json"), "utf8"),
@@ -340,6 +432,31 @@ test("provider-free CLI export and import smoke uses synthetic submissions only"
     const packetB = parseHumanReferencePilotPacket(JSON.parse(
       await readFile(join(directory, "annotator-b.packet.json"), "utf8"),
     ) as unknown);
+    const templateA = JSON.parse(
+      await readFile(join(directory, "annotator-a.submission-template.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const templateB = JSON.parse(
+      await readFile(join(directory, "annotator-b.submission-template.json"), "utf8"),
+    ) as Record<string, unknown>;
+    invalid(() => parseHumanReferencePilotSubmission(templateA));
+    invalid(() => parseHumanReferencePilotSubmission(templateB));
+    assert.equal(templateA.dataKind, "human-annotation");
+    assert.equal(templateB.dataKind, "human-annotation");
+    assert.equal("fixture" in templateA, false);
+    assert.equal("fixture" in templateB, false);
+    assert.deepEqual(templateA.annotations, templateB.annotations);
+    assert.equal((templateA.annotations as unknown[]).length, 12);
+    const guide = await readFile(join(directory, "ANNOTATION_GUIDE.md"), "utf8");
+    assert.equal(guide, HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE);
+    assert.match(guide, /## SATISFIED/u);
+    assert.match(guide, /## OMITTED_OR_INCOMPLETE/u);
+    assert.match(guide, /## EXPLICIT_CONFLICT/u);
+    assert.match(guide, /atomic requirement independently/u);
+    assert.match(guide, /another annotator/u);
+    assert.doesNotMatch(
+      guide,
+      /reluctant|unsure|hesitation|unwilling|pause-before-agreeing|material-word-context-[ABC]|\bR[1-4]\b/iu,
+    );
     const submissionAPath = join(directory, "annotator-a.completed.json");
     const submissionBPath = join(directory, "annotator-b.completed.json");
     await writeFile(submissionAPath, `${JSON.stringify(submissionFor(packetA), null, 2)}\n`, "utf8");

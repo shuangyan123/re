@@ -69,3 +69,33 @@ export interface HumanReferencePilotSubmission {
   readonly fixture?: HumanReferenceSyntheticFixtureMarker;
   readonly annotations: readonly HumanReferencePilotAtomicAnnotation[];
 }
+
+/**
+ * An editable working document generated from one blind packet. It is
+ * intentionally not accepted by parseHumanReferencePilotSubmission(): the
+ * empty status marks work that still needs an annotator decision.
+ */
+export interface HumanReferencePilotSubmissionTemplateAnnotation {
+  readonly caseId: string;
+  readonly rubricId: string;
+  readonly requirementId: string;
+  readonly status: "";
+  /** Added only when the annotator chooses to record visible evidence. */
+  readonly evidence?: string;
+}
+
+export interface HumanReferencePilotSubmissionTemplate {
+  readonly schemaVersion: typeof HUMAN_REFERENCE_PILOT_SCHEMA_VERSION;
+  readonly packetKind: typeof HUMAN_REFERENCE_PILOT_SUBMISSION_KIND;
+  readonly pilotProtocolId: typeof HUMAN_REFERENCE_PILOT_PROTOCOL_ID;
+  readonly pilotProtocolVersion: typeof HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION;
+  readonly pilotId: string;
+  readonly batchId: string;
+  readonly calibrationProtocolId: string;
+  readonly calibrationProtocolVersion: string;
+  readonly taskSetFingerprint: string;
+  /** Opaque stable identifier copied from exactly one exported packet. */
+  readonly annotatorId: string;
+  readonly dataKind: "human-annotation";
+  readonly annotations: readonly HumanReferencePilotSubmissionTemplateAnnotation[];
+}

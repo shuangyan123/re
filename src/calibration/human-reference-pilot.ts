@@ -22,6 +22,8 @@ import {
 import type {
   HumanReferencePilotPacket,
   HumanReferencePilotSource,
+  HumanReferencePilotSubmissionTemplate,
+  HumanReferencePilotSubmissionTemplateAnnotation,
   HumanReferencePilotSubmission,
 } from "../contracts/human-reference-pilot.js";
 import {
@@ -29,6 +31,7 @@ import {
   HUMAN_REFERENCE_PILOT_PROTOCOL_ID,
   HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION,
   HUMAN_REFERENCE_PILOT_SCHEMA_VERSION,
+  HUMAN_REFERENCE_PILOT_SUBMISSION_KIND,
 } from "../contracts/human-reference-pilot.js";
 import {
   TUTOR_EVAL_DATASET_ID,
@@ -44,6 +47,56 @@ import {
 export const HUMAN_REFERENCE_PILOT_FIXTURE_ID = "word-context" as const;
 export const HUMAN_REFERENCE_PILOT_DEFAULT_ID =
   "human-reference-word-context-001" as const;
+
+export const HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE = `# Human Reference Annotation Guide
+
+Judge each atomic requirement independently.
+
+Do not rate the Tutor response as a whole.
+
+Allowed statuses:
+
+## SATISFIED
+
+Use SATISFIED when the Tutor response explicitly satisfies the requirement,
+or states a clearly equivalent meaning.
+
+Do not require exact wording.
+
+## OMITTED_OR_INCOMPLETE
+
+Use OMITTED_OR_INCOMPLETE when the requirement is not addressed or only
+partially addressed, and the Tutor response does not explicitly make a claim
+incompatible with the requirement.
+
+## EXPLICIT_CONFLICT
+
+Use EXPLICIT_CONFLICT when the Tutor response explicitly states something that
+is incompatible with the requirement.
+
+A missing statement is not an explicit conflict.
+An incomplete explanation is not automatically an explicit conflict.
+
+## Atomic independence
+
+Evaluate each atomic requirement independently.
+
+Failure on one requirement does not automatically imply failure on another.
+Do not copy one status across multiple requirements only because the overall
+response seems good or bad.
+
+## Evidence
+
+Evidence is optional. When used, keep it short and quote or paraphrase only
+the visible Tutor response.
+
+Do not provide hidden reasoning or speculate about model intent.
+
+## Blind annotation
+
+Complete your submission independently. Do not consult another annotator,
+developer expected labels, Judge results, benchmark labels, or adjudications.
+` as const;
 
 const HUMAN_REFERENCE_PILOT_CASE_IDS = [
   "material-word-context-A",
@@ -75,6 +128,7 @@ export interface HumanReferencePilotExport {
   readonly taskSetFingerprint: string;
   readonly tasks: readonly HumanReferenceAnnotationTask[];
   readonly packets: readonly HumanReferencePilotPacket[];
+  readonly templates: readonly HumanReferencePilotSubmissionTemplate[];
 }
 
 function invalid(): never {
@@ -206,6 +260,7 @@ export function buildHumanReferencePilotExport(
     annotatorId,
     tasks: parsedTasks,
   }));
+  const templates = packets.map(buildHumanReferencePilotSubmissionTemplate);
   return {
     pilotId,
     batchId,
@@ -213,6 +268,51 @@ export function buildHumanReferencePilotExport(
     taskSetFingerprint,
     tasks: parsedTasks,
     packets,
+    templates,
+  };
+}
+
+function compareAtomicIdentifiers(
+  left: HumanReferencePilotSubmissionTemplateAnnotation,
+  right: HumanReferencePilotSubmissionTemplateAnnotation,
+): number {
+  return left.caseId.localeCompare(right.caseId) ||
+    left.rubricId.localeCompare(right.rubricId) ||
+    left.requirementId.localeCompare(right.requirementId);
+}
+
+/**
+ * Projects one packet into an editable submission document. The projection
+ * allowlists only identity and atomic IDs; visible task evidence and any
+ * diagnostic metadata never cross into the submission template.
+ */
+export function buildHumanReferencePilotSubmissionTemplate(
+  packet: HumanReferencePilotPacket,
+): HumanReferencePilotSubmissionTemplate {
+  const parsedPacket = parseHumanReferencePilotPacket(packet);
+  const annotations = parsedPacket.tasks.flatMap((task) =>
+    task.rubrics.flatMap((rubric) =>
+      rubric.requirements.map((requirement): HumanReferencePilotSubmissionTemplateAnnotation => ({
+        caseId: task.caseId,
+        rubricId: rubric.id,
+        requirementId: requirement.id,
+        status: "",
+      })),
+    ),
+  ).sort(compareAtomicIdentifiers);
+  return {
+    schemaVersion: HUMAN_REFERENCE_PILOT_SCHEMA_VERSION,
+    packetKind: HUMAN_REFERENCE_PILOT_SUBMISSION_KIND,
+    pilotProtocolId: HUMAN_REFERENCE_PILOT_PROTOCOL_ID,
+    pilotProtocolVersion: HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION,
+    pilotId: parsedPacket.pilotId,
+    batchId: parsedPacket.batchId,
+    calibrationProtocolId: parsedPacket.calibrationProtocolId,
+    calibrationProtocolVersion: parsedPacket.calibrationProtocolVersion,
+    taskSetFingerprint: parsedPacket.taskSetFingerprint,
+    annotatorId: parsedPacket.annotatorId,
+    dataKind: "human-annotation",
+    annotations,
   };
 }
 
