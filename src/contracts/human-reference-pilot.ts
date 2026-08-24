@@ -8,9 +8,19 @@ import type {
 export const HUMAN_REFERENCE_PILOT_SCHEMA_VERSION = 1 as const;
 export const HUMAN_REFERENCE_PILOT_PROTOCOL_ID =
   "human-reference-material-blind-pilot" as const;
+/** Historical Pilot #1 protocol identity. Do not change retroactively. */
 export const HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION = "0.1.0" as const;
+export const HUMAN_REFERENCE_PILOT_BOUNDARY_PROTOCOL_VERSION = "0.2.0" as const;
+export const HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE_ID =
+  "human-reference-material-annotation-guide" as const;
+export const HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE_VERSION = "0.1.0" as const;
+export const HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE_VERSION = "0.2.0" as const;
 export const HUMAN_REFERENCE_PILOT_PACKET_KIND = "annotator-packet" as const;
 export const HUMAN_REFERENCE_PILOT_SUBMISSION_KIND = "annotator-submission" as const;
+
+export type HumanReferencePilotProtocolVersion =
+  | typeof HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION
+  | typeof HUMAN_REFERENCE_PILOT_BOUNDARY_PROTOCOL_VERSION;
 
 export interface HumanReferencePilotSource {
   readonly diagnosticId: string;
@@ -29,7 +39,11 @@ export interface HumanReferencePilotPacket {
   readonly schemaVersion: typeof HUMAN_REFERENCE_PILOT_SCHEMA_VERSION;
   readonly packetKind: typeof HUMAN_REFERENCE_PILOT_PACKET_KIND;
   readonly pilotProtocolId: typeof HUMAN_REFERENCE_PILOT_PROTOCOL_ID;
-  readonly pilotProtocolVersion: typeof HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION;
+  readonly pilotProtocolVersion: HumanReferencePilotProtocolVersion;
+  /** Present and required only for the v0.2.0 boundary protocol. */
+  readonly annotationGuideId?: typeof HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE_ID;
+  /** Present and required only for the v0.2.0 boundary protocol. */
+  readonly annotationGuideVersion?: typeof HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE_VERSION;
   readonly pilotId: string;
   readonly batchId: string;
   readonly calibrationProtocolId: string;
@@ -57,7 +71,9 @@ export interface HumanReferencePilotSubmission {
   readonly schemaVersion: typeof HUMAN_REFERENCE_PILOT_SCHEMA_VERSION;
   readonly packetKind: typeof HUMAN_REFERENCE_PILOT_SUBMISSION_KIND;
   readonly pilotProtocolId: typeof HUMAN_REFERENCE_PILOT_PROTOCOL_ID;
-  readonly pilotProtocolVersion: typeof HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION;
+  readonly pilotProtocolVersion: HumanReferencePilotProtocolVersion;
+  readonly annotationGuideId?: typeof HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE_ID;
+  readonly annotationGuideVersion?: typeof HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE_VERSION;
   readonly pilotId: string;
   readonly batchId: string;
   readonly calibrationProtocolId: string;
@@ -88,7 +104,9 @@ export interface HumanReferencePilotSubmissionTemplate {
   readonly schemaVersion: typeof HUMAN_REFERENCE_PILOT_SCHEMA_VERSION;
   readonly packetKind: typeof HUMAN_REFERENCE_PILOT_SUBMISSION_KIND;
   readonly pilotProtocolId: typeof HUMAN_REFERENCE_PILOT_PROTOCOL_ID;
-  readonly pilotProtocolVersion: typeof HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION;
+  readonly pilotProtocolVersion: HumanReferencePilotProtocolVersion;
+  readonly annotationGuideId?: typeof HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE_ID;
+  readonly annotationGuideVersion?: typeof HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE_VERSION;
   readonly pilotId: string;
   readonly batchId: string;
   readonly calibrationProtocolId: string;

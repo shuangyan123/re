@@ -106,7 +106,7 @@ threshold. The checked-in files under
 `fixtures/human-reference-calibration/` are synthetic regression fixtures, not
 human annotations.
 
-## Running the first blind human pilot
+## Running the first blind human pilot (historical and frozen)
 
 The first pilot is intentionally limited to the fixed three-response
 word-context diagnostic: three visible Tutor responses and twelve atomic
@@ -213,6 +213,86 @@ threshold turns this pilot into “calibrated”. This workflow provides packet
 export, editable submission templates, a neutral shared annotation guide, and
 strict submission import; a dedicated disagreement-only adjudication template
 is a separate follow-up.
+
+Pilot #1 is a frozen historical experiment. Its source remains
+`word-context@0.2.0`, its three A/B/C Tutor responses and twelve atomics remain
+unchanged, and re-export continues to use blind-pilot protocol `@0.1.0` plus
+the original guide semantics. Existing v0.1.0 packets and completed
+submissions remain valid; they are not rewritten to include later guide fields.
+
+## Running boundary-focused Human Reference Pilot #2
+
+Pilot #2 tests whether two independent annotators apply atomic annotation
+boundaries consistently. It does not test or tune the Judge. Its independent
+synthetic source is:
+
+```text
+word-context-human-boundaries@0.1.0
+```
+
+The pilot uses six short Tutor-response cases, the same four visible R1–R4
+atomic requirement descriptions per case, and therefore 24 decisions per
+annotator (48 for two annotators). The cases isolate these boundaries:
+
+- explicit evaluation of the student's proposed meaning against context;
+- clue discussion without a relation back to the proposed meaning;
+- clue support separated from an explicit overstatement of sufficiency;
+- omission of the evidence-sufficiency limitation without an explicit conflict;
+- context-grounded correction, which is not automatic rejection; and
+- an unsupported direct verdict, which can explicitly conflict with R4.
+
+Pilot #2 uses blind-pilot protocol `@0.2.0`. Its packet, editable template, and
+completed submission bind the clarified neutral guide as:
+
+```text
+human-reference-material-annotation-guide@0.2.0
+```
+
+That binding prevents a guide from being silently replaced under the same
+pilot identity. The historical v0.1.0 envelope is unchanged and deliberately
+has no retroactively added guide fields.
+
+Export Pilot #2 with:
+
+```text
+npm run build
+node dist/src/cli/tutorbench.js human-reference-pilot-export \
+  --fixture word-context-human-boundaries \
+  --annotator annotator-a \
+  --annotator annotator-b \
+  --pilot-id human-reference-word-context-boundaries-002 \
+  --output-dir artifacts/human-reference-pilot/word-context-boundaries-002
+```
+
+The command writes the same five file roles as Pilot #1: two identical-task
+packets with different opaque annotator owners, two empty-status submission
+templates, and one shared `ANNOTATION_GUIDE.md`. The blindness allowlist is
+unchanged: no developer expected status, derived benchmark label, Judge
+result/evidence/reasoning, provider metadata, other annotator data, or
+adjudication enters a packet, template, or guide.
+
+After both annotators finish independently, import exactly two complete files:
+
+```text
+node dist/src/cli/tutorbench.js human-reference-pilot-import \
+  --packet-dir artifacts/human-reference-pilot/word-context-boundaries-002 \
+  --submission artifacts/human-reference-pilot/word-context-boundaries-002/annotator-a.completed.json \
+  --submission artifacts/human-reference-pilot/word-context-boundaries-002/annotator-b.completed.json \
+  --output artifacts/human-reference-pilot/word-context-boundaries-002/human-reference-annotations.json
+```
+
+Import remains fail-closed for stale or cross-pilot files, wrong pilot/source/
+protocol/guide/fingerprint/annotator identity, and duplicate, missing, extra, or
+wrong-owner atomics. It does not adjudicate, majority-vote, read Judge results,
+or consult developer expectations.
+
+Inspect human-human agreement first, adjudicate disagreements explicitly, and
+only then compare the frozen Material Requirement Judge v0.4 with the resolved
+human reference. There is no automatic agreement threshold. Pilot #2 is not a
+gold standard, and neither complete coverage nor agreement makes the Judge
+calibrated. Real packets, submissions, reports, adjudications, and provider
+comparison artifacts remain local, private, and ignored; no real human
+annotation values are committed.
 
 ## Human-human agreement
 

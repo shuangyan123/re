@@ -6,7 +6,6 @@ import {
   parseHumanReferencePilotPacket,
   parseHumanReferencePilotSubmission,
 } from "../contracts/human-reference-pilot-validation.js";
-import { HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE } from "./human-reference-pilot.js";
 import type {
   HumanReferencePilotPacket,
   HumanReferencePilotSubmissionTemplate,
@@ -85,10 +84,11 @@ export async function writeHumanReferencePilotJson(
 
 export async function writeHumanReferencePilotAnnotationGuide(
   outputPath: string,
+  annotationGuide: string,
 ): Promise<void> {
   try {
     await mkdir(dirname(outputPath), { recursive: true });
-    await writeFile(outputPath, HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE, "utf8");
+    await writeFile(outputPath, annotationGuide, "utf8");
   } catch {
     throw new BenchmarkConfigurationError("human_reference_calibration_invalid");
   }

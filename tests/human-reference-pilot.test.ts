@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { test } from "node:test";
 import { tmpdir } from "node:os";
@@ -9,6 +10,8 @@ import {
   buildHumanReferenceCalibrationReport,
   buildHumanReferenceSet,
   HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE,
+  HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE,
+  HUMAN_REFERENCE_PILOT_BOUNDARY_FIXTURE_ID,
   createHumanReferencePilotExport,
   mergeHumanReferencePilotSubmissions,
 } from "../src/calibration/index.js";
@@ -22,6 +25,10 @@ import type {
   HumanReferencePilotSubmission,
 } from "../src/contracts/human-reference-pilot.js";
 import { parseTutorbenchArgs } from "../src/cli/tutorbench.js";
+import {
+  loadMaterialRequirementJudgePrompt,
+  MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION,
+} from "../src/judge/index.js";
 
 const syntheticFixture = {
   synthetic: true as const,
@@ -66,6 +73,10 @@ function submissionFor(
     packetKind: "annotator-submission",
     pilotProtocolId: packet.pilotProtocolId,
     pilotProtocolVersion: packet.pilotProtocolVersion,
+    ...(packet.annotationGuideId === undefined ? {} : {
+      annotationGuideId: packet.annotationGuideId,
+      annotationGuideVersion: packet.annotationGuideVersion,
+    }),
     pilotId: packet.pilotId,
     batchId: packet.batchId,
     calibrationProtocolId: packet.calibrationProtocolId,
@@ -80,6 +91,24 @@ function submissionFor(
 
 function makePilot() {
   return createHumanReferencePilotExport(["annotator-a", "annotator-b"]);
+}
+
+function makeBoundaryPilot() {
+  return createHumanReferencePilotExport(
+    ["annotator-a", "annotator-b"],
+    undefined,
+    HUMAN_REFERENCE_PILOT_BOUNDARY_FIXTURE_ID,
+  );
+}
+
+function atomicCount(tasks: readonly HumanReferencePilotPacket["tasks"][number][]): number {
+  return tasks.reduce(
+    (count, task) => count + task.rubrics.reduce(
+      (rubricCount, rubric) => rubricCount + rubric.requirements.length,
+      0,
+    ),
+    0,
+  );
 }
 
 async function runCli(
@@ -128,6 +157,87 @@ test("word-context export creates deterministic, identical blind evidence packet
   assert.match(packetAJson, /"tutorResponse"/u);
   assert.match(packetAJson, /"groundTruth"/u);
   assert.deepEqual(first.packets[0]?.source.fixture, syntheticFixture);
+});
+
+test("Pilot #1 remains frozen while Pilot #2 binds a versioned boundary guide", async () => {
+  const historical = await makePilot();
+  assert.equal(historical.source.fixtureId, "word-context");
+  assert.equal(historical.source.fixtureVersion, "0.2.0");
+  assert.equal(historical.tasks.length, 3);
+  assert.equal(atomicCount(historical.tasks), 12);
+  assert.deepEqual(
+    historical.tasks.map((task) => task.caseId),
+    ["material-word-context-A", "material-word-context-B", "material-word-context-C"],
+  );
+  assert.equal(historical.packets[0]?.pilotProtocolVersion, "0.1.0");
+  assert.equal("annotationGuideId" in historical.packets[0]!, false);
+  assert.equal("annotationGuideVersion" in historical.packets[0]!, false);
+  assert.equal(historical.annotationGuide, HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE);
+  assert.equal(
+    createHash("sha256").update(HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE, "utf8").digest("hex"),
+    "13ddf866e0dfff92cab7ef767e6fdb1feab225cf15959889e4260f770c6d31df",
+  );
+
+  const boundary = await makeBoundaryPilot();
+  assert.equal(boundary.pilotId, "human-reference-word-context-boundaries-002");
+  assert.equal(boundary.source.diagnosticId, "human-reference-atomic-boundary-diagnostic");
+  assert.equal(boundary.source.diagnosticVersion, "0.1.0");
+  assert.equal(boundary.source.fixtureId, "word-context-human-boundaries");
+  assert.equal(boundary.source.fixtureVersion, "0.1.0");
+  assert.equal(boundary.tasks.length, 6);
+  assert.equal(atomicCount(boundary.tasks), 24);
+  assert.ok(boundary.tasks.every((task) =>
+    task.rubrics.length === 1 &&
+    task.rubrics[0]?.requirements.map((requirement) => requirement.id).join(",") ===
+      "R1,R2,R3,R4",
+  ));
+  assert.equal(boundary.packets[0]?.pilotProtocolVersion, "0.2.0");
+  assert.equal(
+    boundary.packets[0]?.annotationGuideId,
+    "human-reference-material-annotation-guide",
+  );
+  assert.equal(boundary.packets[0]?.annotationGuideVersion, "0.2.0");
+  assert.equal(boundary.annotationGuide, HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE);
+  assert.deepEqual(boundary.packets[0]?.tasks, boundary.packets[1]?.tasks);
+  assert.notEqual(boundary.packets[0]?.annotatorId, boundary.packets[1]?.annotatorId);
+});
+
+test("Pilot #2 guide preserves the clarified atomic boundary semantics", () => {
+  const guide = HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE;
+  assert.match(guide, /Omission is not conflict/u);
+  assert.match(guide, /clue alone is insufficient[\s\S]*EXPLICIT_CONFLICT/u);
+  assert.match(guide, /Failure on one atomic does not[\s\S]*propagated across\s+atomics/u);
+  assert.match(guide, /clue X supports[\s\S]*separate[\s\S]*evidence-sufficiency atomic/u);
+  assert.match(guide, /connect the\s+student's proposed meaning with context evidence/u);
+  assert.match(guide, /context-grounded[\s\S]*is not automatic rejection/u);
+  assert.match(guide, /Evidence is optional/u);
+  assert.match(guide, /Do not consult another annotator/u);
+  assert.doesNotMatch(
+    guide,
+    /material-word-context-[ABC]|human-word-context-boundary-[A-F]|DeepSeek|MiniMax|OpenAI|\bR[1-4]\b/u,
+  );
+});
+
+test("Pilot #2 packets are blind allowlist projections with 24 empty template atoms", async () => {
+  const pilot = await makeBoundaryPilot();
+  const packetA = pilot.packets[0]!;
+  const packetB = pilot.packets[1]!;
+  assert.deepEqual(packetA.tasks, packetB.tasks);
+  assert.equal(packetA.taskSetFingerprint, packetB.taskSetFingerprint);
+  assert.equal(pilot.templates[0]?.annotations.length, 24);
+  assert.equal(pilot.templates[1]?.annotations.length, 24);
+  assert.deepEqual(pilot.templates[0]?.annotations, pilot.templates[1]?.annotations);
+  assert.ok(pilot.templates.every((template) =>
+    template.annotations.every((annotation) => annotation.status === ""),
+  ));
+  assert.ok(pilot.templates.every((template) => template.dataKind === "human-annotation"));
+  assert.ok(pilot.templates.every((template) => !("fixture" in template)));
+
+  const serialized = JSON.stringify({ packets: pilot.packets, templates: pilot.templates });
+  assert.doesNotMatch(serialized, /expectedStatus|expectedDerivedLabel|judgeResult|judgeEvidence/u);
+  assert.doesNotMatch(serialized, /adjudication|providerMetadata|hiddenReasoning/u);
+  assert.doesNotMatch(serialized, /\b(?:PASS|PARTIAL|FAIL)\b/u);
+  invalid(() => parseHumanReferencePilotSubmission(pilot.templates[0]));
 });
 
 test("pilot export derives identical editable templates from both packets", async () => {
@@ -314,6 +424,118 @@ test("pilot import fail-closes on incomplete, duplicate, unexpected, identity, a
   ));
 });
 
+test("Pilot #2 import is complete, independent, and fail-closed across pilot boundaries", async () => {
+  const historical = await makePilot();
+  const pilot = await makeBoundaryPilot();
+  const packetA = pilot.packets[0]!;
+  const packetB = pilot.packets[1]!;
+  const submissionA = submissionFor(packetA);
+  const submissionB = submissionFor(packetB);
+
+  const canonical = mergeHumanReferencePilotSubmissions(
+    pilot.packets,
+    [submissionA, submissionB],
+    pilot.tasks,
+  );
+  assert.equal(canonical.requiredAnnotatorIds.length, 2);
+  assert.equal(canonical.annotations.length, 48);
+  assert.equal(canonical.dataKind, "synthetic-fixture");
+  assert.deepEqual(canonical.fixture, syntheticFixture);
+
+  invalid(() => mergeHumanReferencePilotSubmissions(
+    pilot.packets,
+    [submissionFor(historical.packets[0]!), submissionB],
+    pilot.tasks,
+  ));
+  invalid(() => mergeHumanReferencePilotSubmissions(
+    historical.packets,
+    [submissionA, submissionFor(historical.packets[1]!)],
+    historical.tasks,
+  ));
+
+  const wrongFingerprint = cloneJson(submissionA) as unknown as Record<string, unknown>;
+  wrongFingerprint.taskSetFingerprint = `sha256:${"f".repeat(64)}`;
+  invalid(() => mergeHumanReferencePilotSubmissions(
+    pilot.packets,
+    [wrongFingerprint, submissionB],
+    pilot.tasks,
+  ));
+
+  const wrongGuide = cloneJson(submissionA) as unknown as Record<string, unknown>;
+  wrongGuide.annotationGuideVersion = "0.1.0";
+  invalid(() => parseHumanReferencePilotSubmission(wrongGuide));
+
+  const wrongPacketGuide = cloneJson(packetA) as unknown as Record<string, unknown>;
+  wrongPacketGuide.annotationGuideVersion = "0.1.0";
+  invalid(() => parseHumanReferencePilotPacket(wrongPacketGuide));
+
+  invalid(() => mergeHumanReferencePilotSubmissions(
+    pilot.packets,
+    [submissionA, cloneJson(submissionA)],
+    pilot.tasks,
+  ));
+
+  const wrongOwner = cloneJson(submissionA) as unknown as Record<string, unknown>;
+  (wrongOwner.annotations as Record<string, unknown>[])[0]!.rubricId = "wrong-owner";
+  invalid(() => mergeHumanReferencePilotSubmissions(
+    pilot.packets,
+    [wrongOwner, submissionB],
+    pilot.tasks,
+  ));
+
+  const duplicate = cloneJson(submissionA) as unknown as Record<string, unknown>;
+  duplicate.annotations = [
+    ...(duplicate.annotations as unknown[]),
+    cloneJson((duplicate.annotations as unknown[])[0]),
+  ];
+  invalid(() => mergeHumanReferencePilotSubmissions(
+    pilot.packets,
+    [duplicate, submissionB],
+    pilot.tasks,
+  ));
+
+  const missing = cloneJson(submissionA) as unknown as Record<string, unknown>;
+  missing.annotations = (missing.annotations as unknown[]).slice(1);
+  invalid(() => mergeHumanReferencePilotSubmissions(
+    pilot.packets,
+    [missing, submissionB],
+    pilot.tasks,
+  ));
+
+  const extra = cloneJson(submissionA) as unknown as Record<string, unknown>;
+  extra.annotations = [
+    ...(extra.annotations as unknown[]),
+    {
+      caseId: packetA.tasks[0]!.caseId,
+      rubricId: packetA.tasks[0]!.rubrics[0]!.id,
+      requirementId: "extra-atom",
+      status: "SATISFIED",
+    },
+  ];
+  invalid(() => mergeHumanReferencePilotSubmissions(
+    pilot.packets,
+    [extra, submissionB],
+    pilot.tasks,
+  ));
+});
+
+test("Pilot #2 real submissions retain human provenance without synthetic markers", async () => {
+  const pilot = await makeBoundaryPilot();
+  const realSubmissions = pilot.packets.map((packet) => {
+    const synthetic = submissionFor(packet);
+    const { fixture: _fixture, ...human } = synthetic;
+    return { ...human, dataKind: "human-annotation" as const };
+  });
+  const canonical = mergeHumanReferencePilotSubmissions(
+    pilot.packets,
+    realSubmissions,
+    pilot.tasks,
+  );
+  assert.equal(canonical.dataKind, "human-annotation");
+  assert.equal("fixture" in canonical, false);
+  assert.equal(JSON.stringify(canonical).includes("notHumanCalibrationData"), false);
+});
+
 test("pilot import emits canonical annotations without adjudicating disagreement", async () => {
   const pilot = await makePilot();
   const packetA = pilot.packets[0] as HumanReferencePilotPacket;
@@ -379,6 +601,27 @@ test("pilot CLI exposes separate export and import commands with provider-free o
     "annotator-b",
   ]);
 
+  const boundaryOptions = parseTutorbenchArgs([
+    "human-reference-pilot-export",
+    "--fixture",
+    "word-context-human-boundaries",
+    "--annotator",
+    "annotator-a",
+    "--annotator",
+    "annotator-b",
+  ]);
+  assert.equal(boundaryOptions.help, false);
+  if (!boundaryOptions.help && "humanReferencePilotExport" in boundaryOptions) {
+    assert.equal(
+      boundaryOptions.humanReferencePilotExport.fixture,
+      "word-context-human-boundaries",
+    );
+    assert.equal(
+      boundaryOptions.humanReferencePilotExport.pilotId,
+      "human-reference-word-context-boundaries-002",
+    );
+  }
+
   const importOptions = parseTutorbenchArgs([
     "human-reference-pilot-import",
     "--packet-dir",
@@ -395,6 +638,73 @@ test("pilot CLI exposes separate export and import commands with provider-free o
   }
   assert.equal(importOptions.humanReferencePilotImport.mode, "import");
   assert.equal(importOptions.humanReferencePilotImport.submissionPaths.length, 2);
+});
+
+test("Material Requirement Judge v0.4 prompt remains frozen", async () => {
+  assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.4");
+  const prompt = await loadMaterialRequirementJudgePrompt();
+  assert.equal(
+    createHash("sha256").update(prompt.replace(/\r\n/gu, "\n"), "utf8").digest("hex"),
+    "f39ce3a005a609beae05d6dfab1036132d8d5f43732b840df4238f857aa677ac",
+  );
+});
+
+test("provider-free Pilot #2 CLI export and import binds the clarified guide", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tutorbench-human-reference-boundary-pilot-cli-"));
+  try {
+    const cliPath = resolve(process.cwd(), "dist", "src", "cli", "tutorbench.js");
+    const exportResult = await runCli(cliPath, [
+      "human-reference-pilot-export",
+      "--fixture",
+      "word-context-human-boundaries",
+      "--annotator",
+      "annotator-a",
+      "--annotator",
+      "annotator-b",
+      "--pilot-id",
+      "human-reference-word-context-boundaries-002",
+      "--output-dir",
+      directory,
+    ]);
+    assert.equal(exportResult.exitCode, 0, exportResult.stderr);
+    assert.match(exportResult.stdout, /Tasks: 6/u);
+    assert.match(exportResult.stdout, /Atomic requirements: 24/u);
+
+    const packetA = parseHumanReferencePilotPacket(JSON.parse(
+      await readFile(join(directory, "annotator-a.packet.json"), "utf8"),
+    ) as unknown);
+    const packetB = parseHumanReferencePilotPacket(JSON.parse(
+      await readFile(join(directory, "annotator-b.packet.json"), "utf8"),
+    ) as unknown);
+    assert.equal(packetA.annotationGuideVersion, "0.2.0");
+    assert.deepEqual(packetA.tasks, packetB.tasks);
+    assert.equal(
+      await readFile(join(directory, "ANNOTATION_GUIDE.md"), "utf8"),
+      HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE,
+    );
+
+    const submissionAPath = join(directory, "annotator-a.completed.json");
+    const submissionBPath = join(directory, "annotator-b.completed.json");
+    await writeFile(submissionAPath, `${JSON.stringify(submissionFor(packetA), null, 2)}\n`, "utf8");
+    await writeFile(submissionBPath, `${JSON.stringify(submissionFor(packetB), null, 2)}\n`, "utf8");
+    const outputPath = join(directory, "human-reference-annotations.json");
+    const importResult = await runCli(cliPath, [
+      "human-reference-pilot-import",
+      "--packet-dir",
+      directory,
+      "--submission",
+      submissionAPath,
+      "--submission",
+      submissionBPath,
+      "--output",
+      outputPath,
+    ]);
+    assert.equal(importResult.exitCode, 0, importResult.stderr);
+    const output = JSON.parse(await readFile(outputPath, "utf8")) as Record<string, unknown>;
+    assert.equal((output.annotations as unknown[]).length, 48);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("provider-free CLI export and import smoke uses synthetic submissions only", async () => {
