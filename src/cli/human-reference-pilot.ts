@@ -13,24 +13,31 @@ import {
 } from "../calibration/human-reference-pilot-io.js";
 import {
   HUMAN_REFERENCE_PILOT_DEFAULT_ID,
+  HUMAN_REFERENCE_PILOT_BOUNDARY_DEFAULT_ID,
+  HUMAN_REFERENCE_PILOT_BOUNDARY_FIXTURE_ID,
   HUMAN_REFERENCE_PILOT_FIXTURE_ID,
+  type HumanReferencePilotFixtureId,
 } from "../calibration/human-reference-pilot.js";
 import type { HumanReferencePilotExport } from "../calibration/human-reference-pilot.js";
 import { TutorbenchCliUsageError, nextTutorbenchValue, tutorbenchOptionValue } from "./tutorbench-common.js";
 
-const defaultExportDirectory = resolve(
-  process.cwd(),
-  "artifacts",
-  "human-reference-pilot",
-  "word-context-001",
-);
+function defaultExportDirectory(fixture: HumanReferencePilotFixtureId): string {
+  return resolve(
+    process.cwd(),
+    "artifacts",
+    "human-reference-pilot",
+    fixture === HUMAN_REFERENCE_PILOT_FIXTURE_ID
+      ? "word-context-001"
+      : "word-context-boundaries-002",
+  );
+}
 
 export type HumanReferencePilotCliOptions =
   | { readonly help: true; readonly mode?: "export" | "import" }
   | {
       readonly help: false;
       readonly mode: "export";
-      readonly fixture: typeof HUMAN_REFERENCE_PILOT_FIXTURE_ID;
+      readonly fixture: HumanReferencePilotFixtureId;
       readonly annotatorIds: readonly [string, string];
       readonly outputDirectory: string;
       readonly pilotId: string;
@@ -57,9 +64,14 @@ function isOpaqueId(value: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u.test(value) && !value.includes("@");
 }
 
-function parseFixture(value: string): typeof HUMAN_REFERENCE_PILOT_FIXTURE_ID {
-  if (value !== HUMAN_REFERENCE_PILOT_FIXTURE_ID) {
-    throw new TutorbenchCliUsageError("--fixture currently supports only word-context.");
+function parseFixture(value: string): HumanReferencePilotFixtureId {
+  if (
+    value !== HUMAN_REFERENCE_PILOT_FIXTURE_ID &&
+    value !== HUMAN_REFERENCE_PILOT_BOUNDARY_FIXTURE_ID
+  ) {
+    throw new TutorbenchCliUsageError(
+      "--fixture must be word-context or word-context-human-boundaries.",
+    );
   }
   return value;
 }
@@ -74,9 +86,9 @@ function parseOpaqueId(value: string, option: string): string {
 export function parseHumanReferencePilotExportArgs(
   args: readonly string[],
 ): HumanReferencePilotExportCliOptions {
-  let fixture: typeof HUMAN_REFERENCE_PILOT_FIXTURE_ID = HUMAN_REFERENCE_PILOT_FIXTURE_ID;
-  let outputDirectory = defaultExportDirectory;
-  let pilotId: string = HUMAN_REFERENCE_PILOT_DEFAULT_ID;
+  let fixture: HumanReferencePilotFixtureId = HUMAN_REFERENCE_PILOT_FIXTURE_ID;
+  let outputDirectory: string | undefined;
+  let pilotId: string | undefined;
   const annotatorIds: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -136,8 +148,10 @@ export function parseHumanReferencePilotExportArgs(
     mode: "export",
     fixture,
     annotatorIds: [annotatorIds[0] as string, annotatorIds[1] as string],
-    outputDirectory,
-    pilotId,
+    outputDirectory: outputDirectory ?? defaultExportDirectory(fixture),
+    pilotId: pilotId ?? (fixture === HUMAN_REFERENCE_PILOT_FIXTURE_ID
+      ? HUMAN_REFERENCE_PILOT_DEFAULT_ID
+      : HUMAN_REFERENCE_PILOT_BOUNDARY_DEFAULT_ID),
   };
 }
 
@@ -206,13 +220,13 @@ export function printHumanReferencePilotExportHelp(): void {
   console.log(`Tutor Benchmark human-reference blind pilot export
 
 Usage:
-  tutorbench human-reference-pilot-export --fixture word-context \\
+  tutorbench human-reference-pilot-export --fixture <fixture-id> \\
     --annotator <opaque-id> --annotator <opaque-id> --output-dir <path>
 
 Options:
-  --fixture <id>          word-context (the only supported pilot fixture)
+  --fixture <id>          word-context or word-context-human-boundaries
   --annotator <id>        Repeat exactly twice; opaque ID, not a name/email
-  --pilot-id <id>         Stable pilot identity (default: ${HUMAN_REFERENCE_PILOT_DEFAULT_ID})
+  --pilot-id <id>         Stable pilot identity (fixture-specific default)
   --output-dir <path>     Directory for packets, templates, and the shared guide
   --help                  Show this help
 
@@ -255,10 +269,11 @@ function atomicRequirementCount(exported: HumanReferencePilotExport): number {
 export async function runHumanReferencePilotExport(
   options: Extract<HumanReferencePilotCliOptions, { readonly mode: "export"; readonly help: false }>,
 ): Promise<void> {
-  const exported = await createHumanReferencePilotExport(options.annotatorIds, options.pilotId);
-  if (options.fixture !== HUMAN_REFERENCE_PILOT_FIXTURE_ID) {
-    throw new TutorbenchCliUsageError("--fixture currently supports only word-context.");
-  }
+  const exported = await createHumanReferencePilotExport(
+    options.annotatorIds,
+    options.pilotId,
+    options.fixture,
+  );
   await Promise.all([
     ...exported.packets.map((packet) =>
       writeHumanReferencePilotJson(
@@ -274,6 +289,7 @@ export async function runHumanReferencePilotExport(
     ),
     writeHumanReferencePilotAnnotationGuide(
       resolve(options.outputDirectory, "ANNOTATION_GUIDE.md"),
+      exported.annotationGuide,
     ),
   ]);
   console.log([
@@ -298,7 +314,7 @@ export async function runHumanReferencePilotImport(
   const canonical = mergeHumanReferencePilotSubmissions(
     packets,
     submissions,
-    await loadHumanReferencePilotTasks(),
+    await loadHumanReferencePilotTasks(packets[0]?.source.fixtureId),
   );
   await writeHumanReferencePilotJson(canonical, options.outputPath);
   const plannedAtomicAssessments = canonical.tasks.reduce(

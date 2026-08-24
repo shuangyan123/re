@@ -13,6 +13,9 @@ import {
 import { parseHumanReferenceAnnotationTask } from "./human-reference-calibration-validation.js";
 import {
   HUMAN_REFERENCE_PILOT_PACKET_KIND,
+  HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE_ID,
+  HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE_VERSION,
+  HUMAN_REFERENCE_PILOT_BOUNDARY_PROTOCOL_VERSION,
   HUMAN_REFERENCE_PILOT_PROTOCOL_ID,
   HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION,
   HUMAN_REFERENCE_PILOT_SCHEMA_VERSION,
@@ -21,6 +24,7 @@ import {
   type HumanReferencePilotPacket,
   type HumanReferencePilotSource,
   type HumanReferencePilotSubmission,
+  type HumanReferencePilotProtocolVersion,
 } from "./human-reference-pilot.js";
 
 type UnknownRecord = Record<string, unknown>;
@@ -201,6 +205,28 @@ function parsePacketTasks(value: unknown): HumanReferenceAnnotationTask[] | null
   return tasks as HumanReferenceAnnotationTask[];
 }
 
+function isBoundaryProtocol(record: UnknownRecord): boolean {
+  return record.pilotProtocolVersion === HUMAN_REFERENCE_PILOT_BOUNDARY_PROTOCOL_VERSION;
+}
+
+function hasValidPilotProtocol(record: UnknownRecord): boolean {
+  return record.pilotProtocolId === HUMAN_REFERENCE_PILOT_PROTOCOL_ID &&
+    (record.pilotProtocolVersion === HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION ||
+      (isBoundaryProtocol(record) &&
+        record.annotationGuideId === HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE_ID &&
+        record.annotationGuideVersion === HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE_VERSION));
+}
+
+function protocolKeys(record: UnknownRecord): readonly string[] {
+  return isBoundaryProtocol(record)
+    ? ["annotationGuideId", "annotationGuideVersion"]
+    : [];
+}
+
+function parsedProtocolVersion(record: UnknownRecord): HumanReferencePilotProtocolVersion {
+  return record.pilotProtocolVersion as HumanReferencePilotProtocolVersion;
+}
+
 export function parseHumanReferencePilotPacket(
   value: unknown,
 ): HumanReferencePilotPacket {
@@ -222,11 +248,11 @@ export function parseHumanReferencePilotPacket(
       "taskSetFingerprint",
       "annotatorId",
       "tasks",
+      ...protocolKeys(record),
     ]) ||
     record.schemaVersion !== HUMAN_REFERENCE_PILOT_SCHEMA_VERSION ||
     record.packetKind !== HUMAN_REFERENCE_PILOT_PACKET_KIND ||
-    record.pilotProtocolId !== HUMAN_REFERENCE_PILOT_PROTOCOL_ID ||
-    record.pilotProtocolVersion !== HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION ||
+    !hasValidPilotProtocol(record) ||
     !opaqueId(record.pilotId) ||
     !opaqueId(record.batchId) ||
     record.calibrationProtocolId !== HUMAN_REFERENCE_PROTOCOL_ID ||
@@ -244,7 +270,11 @@ export function parseHumanReferencePilotPacket(
     schemaVersion: HUMAN_REFERENCE_PILOT_SCHEMA_VERSION,
     packetKind: HUMAN_REFERENCE_PILOT_PACKET_KIND,
     pilotProtocolId: HUMAN_REFERENCE_PILOT_PROTOCOL_ID,
-    pilotProtocolVersion: HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION,
+    pilotProtocolVersion: parsedProtocolVersion(record),
+    ...(isBoundaryProtocol(record) ? {
+      annotationGuideId: HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE_ID,
+      annotationGuideVersion: HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE_VERSION,
+    } : {}),
     pilotId: record.pilotId,
     batchId: record.batchId,
     calibrationProtocolId: HUMAN_REFERENCE_PROTOCOL_ID,
@@ -306,11 +336,11 @@ export function parseHumanReferencePilotSubmission(
       "dataKind",
       "fixture",
       "annotations",
+      ...protocolKeys(record),
     ]) ||
     record.schemaVersion !== HUMAN_REFERENCE_PILOT_SCHEMA_VERSION ||
     record.packetKind !== HUMAN_REFERENCE_PILOT_SUBMISSION_KIND ||
-    record.pilotProtocolId !== HUMAN_REFERENCE_PILOT_PROTOCOL_ID ||
-    record.pilotProtocolVersion !== HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION ||
+    !hasValidPilotProtocol(record) ||
     !opaqueId(record.pilotId) ||
     !opaqueId(record.batchId) ||
     record.calibrationProtocolId !== HUMAN_REFERENCE_PROTOCOL_ID ||
@@ -330,7 +360,11 @@ export function parseHumanReferencePilotSubmission(
     schemaVersion: HUMAN_REFERENCE_PILOT_SCHEMA_VERSION,
     packetKind: HUMAN_REFERENCE_PILOT_SUBMISSION_KIND,
     pilotProtocolId: HUMAN_REFERENCE_PILOT_PROTOCOL_ID,
-    pilotProtocolVersion: HUMAN_REFERENCE_PILOT_PROTOCOL_VERSION,
+    pilotProtocolVersion: parsedProtocolVersion(record),
+    ...(isBoundaryProtocol(record) ? {
+      annotationGuideId: HUMAN_REFERENCE_PILOT_ANNOTATION_GUIDE_ID,
+      annotationGuideVersion: HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE_VERSION,
+    } : {}),
     pilotId: record.pilotId,
     batchId: record.batchId,
     calibrationProtocolId: HUMAN_REFERENCE_PROTOCOL_ID,
