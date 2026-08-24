@@ -16,6 +16,7 @@ import {
   mergeHumanReferencePilotSubmissions,
 } from "../src/calibration/index.js";
 import {
+  humanReferencePilotTaskSetFingerprint,
   parseHumanReferencePilotPacket,
   parseHumanReferencePilotSubmission,
 } from "../src/contracts/index.js";
@@ -216,6 +217,30 @@ test("Pilot #2 guide preserves the clarified atomic boundary semantics", () => {
     guide,
     /material-word-context-[ABC]|human-word-context-boundary-[A-F]|DeepSeek|MiniMax|OpenAI|\bR[1-4]\b/u,
   );
+});
+
+test("Pilot #2 canonical guide and visible task material are reproducibility locked", async () => {
+  // Any semantic or non-semantic guide text change requires review and an
+  // explicit guide-version bump; never silently replace same-version material.
+  assert.equal(
+    createHash("sha256")
+      .update(HUMAN_REFERENCE_PILOT_BOUNDARY_ANNOTATION_GUIDE, "utf8")
+      .digest("hex"),
+    "dcf8ebba67250311a134788919984f13777a51516cb6294ed4c24742be65ff3a",
+  );
+
+  const boundary = await createHumanReferencePilotExport(
+    ["annotator-a", "annotator-b"],
+    undefined,
+    HUMAN_REFERENCE_PILOT_BOUNDARY_FIXTURE_ID,
+  );
+  // Any visible Pilot #2 task-material change requires explicit review of the
+  // fixture/protocol identity; never silently replace same-version experiment material.
+  assert.equal(
+    humanReferencePilotTaskSetFingerprint(boundary.tasks),
+    "sha256:2e73aa96062b00908fe9f329e744cf91cb3f127865bce02ea33356069bb09285",
+  );
+  assert.equal(boundary.taskSetFingerprint, humanReferencePilotTaskSetFingerprint(boundary.tasks));
 });
 
 test("Pilot #2 packets are blind allowlist projections with 24 empty template atoms", async () => {
