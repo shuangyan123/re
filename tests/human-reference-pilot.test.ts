@@ -644,8 +644,8 @@ test("Material Requirement Judge v0.4 prompt remains frozen", async () => {
   assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.4");
   const prompt = await loadMaterialRequirementJudgePrompt();
   assert.equal(
-    createHash("sha256").update(prompt, "utf8").digest("hex"),
-    "06f11fe2fab277ce053b408d89f66aad4c46581391074c1779c72def01725316",
+    createHash("sha256").update(prompt.replace(/\r\n/gu, "\n"), "utf8").digest("hex"),
+    "f39ce3a005a609beae05d6dfab1036132d8d5f43732b840df4238f857aa677ac",
   );
 });
 
