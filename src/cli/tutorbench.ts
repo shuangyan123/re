@@ -79,6 +79,18 @@ import {
   type HumanReferenceJudgeComparisonCliOptions,
 } from "./human-reference-judge-comparison.js";
 import {
+  parseHumanReferenceSemanticAuditArgs,
+  parseHumanReferenceSemanticAuditExportArgs,
+  parseHumanReferenceSemanticAuditImportArgs,
+  printHumanReferenceSemanticAuditExportHelp,
+  printHumanReferenceSemanticAuditHelp,
+  printHumanReferenceSemanticAuditImportHelp,
+  runHumanReferenceSemanticAudit,
+  runHumanReferenceSemanticAuditExport,
+  runHumanReferenceSemanticAuditImport,
+  type HumanReferenceSemanticAuditCliOptions,
+} from "./human-reference-semantic-audit.js";
+import {
   nextTutorbenchValue,
   positiveTutorbenchInteger,
   tutorbenchOptionValue,
@@ -102,7 +114,7 @@ export interface TutorbenchRunOptions {
 }
 
 export type TutorbenchCliOptions =
-  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" | "judge-material-requirement-discrimination" | "human-reference-calibration" | "human-reference-pilot-export" | "human-reference-pilot-import" | "human-reference-judge-comparison" }
+  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" | "judge-material-requirement-discrimination" | "human-reference-calibration" | "human-reference-pilot-export" | "human-reference-pilot-import" | "human-reference-judge-comparison" | "human-reference-semantic-audit-export" | "human-reference-semantic-audit-import" | "human-reference-semantic-audit" }
   | { readonly help: false; readonly run: TutorbenchRunOptions }
   | { readonly help: false; readonly collect: TutorbenchCollectCliOptions }
   | { readonly help: false; readonly collectModel: TutorbenchCollectModelCliOptions }
@@ -114,7 +126,8 @@ export type TutorbenchCliOptions =
   | { readonly help: false; readonly humanReferenceCalibration: HumanReferenceCalibrationCliOptions }
   | { readonly help: false; readonly humanReferencePilotExport: Extract<HumanReferencePilotCliOptions, { readonly mode: "export" }> }
   | { readonly help: false; readonly humanReferencePilotImport: Extract<HumanReferencePilotCliOptions, { readonly mode: "import" }> }
-  | { readonly help: false; readonly humanReferenceJudgeComparison: HumanReferenceJudgeComparisonCliOptions };
+  | { readonly help: false; readonly humanReferenceJudgeComparison: HumanReferenceJudgeComparisonCliOptions }
+  | { readonly help: false; readonly humanReferenceSemanticAudit: HumanReferenceSemanticAuditCliOptions };
 
 export function parseTutorbenchArgs(
   args: readonly string[],
@@ -187,6 +200,24 @@ export function parseTutorbenchArgs(
     return comparison.help
       ? { help: true, helpCommand: "human-reference-judge-comparison" }
       : { help: false, humanReferenceJudgeComparison: comparison };
+  }
+  if (args[0] === "human-reference-semantic-audit-export") {
+    const audit = parseHumanReferenceSemanticAuditExportArgs(args.slice(1));
+    return audit.help
+      ? { help: true, helpCommand: "human-reference-semantic-audit-export" }
+      : { help: false, humanReferenceSemanticAudit: audit };
+  }
+  if (args[0] === "human-reference-semantic-audit-import") {
+    const audit = parseHumanReferenceSemanticAuditImportArgs(args.slice(1));
+    return audit.help
+      ? { help: true, helpCommand: "human-reference-semantic-audit-import" }
+      : { help: false, humanReferenceSemanticAudit: audit };
+  }
+  if (args[0] === "human-reference-semantic-audit") {
+    const audit = parseHumanReferenceSemanticAuditArgs(args.slice(1));
+    return audit.help
+      ? { help: true, helpCommand: "human-reference-semantic-audit" }
+      : { help: false, humanReferenceSemanticAudit: audit };
   }
   if (args[0] !== "run") {
     throw new TutorbenchCliUsageError(
@@ -342,6 +373,9 @@ Usage:
   tutorbench human-reference-pilot-export [options]
   tutorbench human-reference-pilot-import [options]
   tutorbench human-reference-judge-comparison [options]
+  tutorbench human-reference-semantic-audit-export [options]
+  tutorbench human-reference-semantic-audit-import [options]
+  tutorbench human-reference-semantic-audit [options]
 
 Commands:
   run                   Quick local evaluation; responses are not frozen
@@ -363,6 +397,12 @@ Commands:
                          Strictly merge two completed pilot submissions
   human-reference-judge-comparison
                          Run frozen Material Requirement Judge @0.4 against rebuilt Human Reference tasks
+  human-reference-semantic-audit-export
+                         Export one full-task blind packet for an independent reviewer
+  human-reference-semantic-audit-import
+                         Strictly import one completed semantic-audit submission
+  human-reference-semantic-audit
+                         Compare independent audit statuses with frozen Human Reference
 
 Run options:
   --http <url>          POST TutorTurnInput JSON to this http(s) endpoint
@@ -477,6 +517,12 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       printHumanReferencePilotImportHelp();
     } else if (options.helpCommand === "human-reference-judge-comparison") {
       printHumanReferenceJudgeComparisonHelp();
+    } else if (options.helpCommand === "human-reference-semantic-audit-export") {
+      printHumanReferenceSemanticAuditExportHelp();
+    } else if (options.helpCommand === "human-reference-semantic-audit-import") {
+      printHumanReferenceSemanticAuditImportHelp();
+    } else if (options.helpCommand === "human-reference-semantic-audit") {
+      printHumanReferenceSemanticAuditHelp();
     } else {
       printHelp();
     }
@@ -544,6 +590,17 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       return;
     }
     await runHumanReferenceJudgeComparisonCli(options.humanReferenceJudgeComparison);
+  } else if ("humanReferenceSemanticAudit" in options) {
+    if (options.humanReferenceSemanticAudit.help) {
+      return;
+    }
+    if (options.humanReferenceSemanticAudit.mode === "export") {
+      await runHumanReferenceSemanticAuditExport(options.humanReferenceSemanticAudit);
+    } else if (options.humanReferenceSemanticAudit.mode === "import") {
+      await runHumanReferenceSemanticAuditImport(options.humanReferenceSemanticAudit);
+    } else {
+      await runHumanReferenceSemanticAudit(options.humanReferenceSemanticAudit);
+    }
   } else {
     if (options.evaluate.help) {
       printBenchmarkCorpusHelp();
