@@ -381,6 +381,151 @@ The optional audit may be conducted before or after a Judge comparison, but
 packet selection and reviewer annotation must remain full-task, Judge-blind,
 and independent in either order.
 
+### Qualified localized semantic audit @0.2.0
+
+Protocol `human-reference-semantic-audit@0.2.0` adds formal localization
+provenance and a reviewer-comprehension eligibility gate. It does not
+reinterpret or replace `@0.1.0`: historical packets, submissions, annotations,
+and reports remain accepted under their frozen identity.
+
+The first official localization is:
+
+```text
+locale: zh-CN
+localization: human-reference-semantic-audit-localization-zh-CN@0.1.0
+localized guide: human-reference-material-annotation-guide-zh-CN@0.1.0
+qualification: human-reference-semantic-audit-reviewer-comprehension@0.1.0
+```
+
+The first release locks these exact SHA-256 identities:
+
+```text
+source task: sha256:2e73aa96062b00908fe9f329e744cf91cb3f127865bce02ea33356069bb09285
+localized tasks: sha256:c8d5343fc1d41d42c1d1ad928967dd44de03afd8fc5fcc1dbc6328edabb53a18
+localized presentation: sha256:e92fbc2182bfc544b2499e17673b9e1c2cf902eab8dc555388b6ee6fb3e1f661
+source guide: sha256:dcf8ebba67250311a134788919984f13777a51516cb6294ed4c24742be65ff3a
+localized guide: sha256:346a18d21cfdf6989081456481cdce7d257060c7ff8f1ff9d4e1d2a4f94d624f
+qualification fixture: sha256:65f43e191a04301ef83b796af5395ffb46f3a6ae143bf4ea983d8a2439cdb291
+```
+
+Localization provenance binds the canonical English task fingerprint, the
+localized task fingerprint, the rendered reviewer-document fingerprint, the
+frozen English guide identity and hash, and the independent zh-CN guide
+identity and hash. A translation is a reviewer presentation, not canonical
+source bytes; its fingerprint must never masquerade as the source task or
+source guide fingerprint.
+
+First export the localized, synthetic comprehension check:
+
+```text
+node dist/src/cli/tutorbench.js human-reference-semantic-audit-qualification-export \
+  --annotations artifacts/human-reference-pilot/word-context-boundaries-002/human-reference-annotations.json \
+  --reviewer <opaque-reviewer-id> \
+  --output-dir artifacts/human-reference-pilot/word-context-boundaries-002/semantic-audit-v2/qualification
+```
+
+The export writes a human-readable `QUALIFICATION_REVIEW.zh-CN.md`, a strict
+machine packet, and an empty-status submission template. Its neutral synthetic
+items exercise omission versus explicit conflict, support versus sufficiency,
+atomic independence, contextual correction, unsupported direct verdicts, and
+negative-prohibition semantics. Neither the packet nor the reviewer document
+contains the answer key or any real audit answer.
+
+After the reviewer completes every synthetic atomic, evaluate it locally:
+
+```text
+node dist/src/cli/tutorbench.js human-reference-semantic-audit-qualification-import \
+  --packet <qualification.packet.json> \
+  --submission <qualification.completed.json> \
+  --output <qualification.result.json>
+```
+
+All synthetic atomics are pass/fail qualification items and all must conform
+to the frozen semantic rules. There is no percentage threshold. A result is
+either `qualified` or `not_qualified`; missing, incomplete, stale, cross-reviewer,
+or cross-localization evidence is invalid. Qualification is a comprehension
+and eligibility check for this instrument only:
+
+```text
+qualification != calibration
+```
+
+A qualified result owned by the same opaque reviewer then authorizes export of
+the full localized audit:
+
+```text
+node dist/src/cli/tutorbench.js human-reference-semantic-audit-localized-export \
+  --annotations <human-reference-annotations.json> \
+  --reviewer <same-opaque-reviewer-id> \
+  --qualification <qualification.result.json> \
+  --output-dir <semantic-audit-v2-directory>
+```
+
+This writes `SEMANTIC_AUDIT_REVIEW.zh-CN.md` as the normal human review
+interface, `ANNOTATION_GUIDE.zh-CN.md`, a strict machine packet, and an editable
+machine submission template. Technical identities remain in the envelope and
+hidden Markdown bindings, but the reviewer-facing document presents cases,
+student/context evidence, Tutor responses, and atomic requirements directly.
+The export always covers the complete task set supplied by the frozen source;
+the implementation does not assume fixed case, rubric, requirement, or atomic
+counts.
+
+Import and compare only after all statuses are complete:
+
+```text
+node dist/src/cli/tutorbench.js human-reference-semantic-audit-localized-import \
+  --packet <localized.packet.json> \
+  --submission <localized.completed.json> \
+  --qualification <qualification.result.json> \
+  --output <qualified-audit-annotations.json>
+
+node dist/src/cli/tutorbench.js human-reference-semantic-audit-localized \
+  --annotations <human-reference-annotations.json> \
+  --adjudications <human-reference-adjudications.json> \
+  --audit <qualified-audit-annotations.json> \
+  --qualification <qualification.result.json> \
+  --output <qualified-semantic-audit-report.json>
+```
+
+Both stages fail closed on protocol, reviewer, locale, localization, source or
+localized fingerprints, guide identities, source batch, qualification result,
+task ownership, completeness, duplicate/extra atomics, and unknown or injected
+fields. An unqualified or mismatched reviewer cannot produce an interpretable
+`@0.2.0` comparison.
+
+Comparison still rebuilds the frozen `HumanReferenceSet` from strict source
+annotations plus adjudications. It retains the directional frozen-reference
+row / reviewer column matrix, provenance slices, per-requirement and per-case
+slices, disagreement candidates, and separately aggregated derived-label
+agreement. The method boundaries are:
+
+```text
+semanticAuditAgreement != accuracy
+qualification != calibration
+localization != canonical source bytes
+semanticAuditDisagreement != automatic reference error
+```
+
+Reviewer feedback is intentionally minimal: `reviewLocale` and
+`instructionsClear` record whether the presented instrument was usable, but do
+not change any atomic status. No PII, provider call, Judge output, real-reviewer
+artifact, or hidden reasoning belongs in the repository.
+
+The expanded lifecycle is:
+
+```text
+blind annotation
+→ human-human agreement
+→ disagreement adjudication
+→ frozen Human Reference
+→ optional semantic audit
+    → formal localization when needed
+    → reviewer comprehension qualification
+    → full-task independent audit
+    → diagnostic comparison
+→ frozen Judge comparison / interpretation
+```
+
 ## Human-human agreement
 
 `calculateHumanPairwiseAgreement()` compares two explicitly named annotator

@@ -19,3 +19,5 @@ export * from "./human-reference-pilot.js";
 export * from "./human-reference-pilot-io.js";
 export * from "./human-reference-semantic-audit.js";
 export * from "./human-reference-semantic-audit-io.js";
+export * from "./human-reference-semantic-audit-v2.js";
+export * from "./human-reference-semantic-audit-v2-io.js";
