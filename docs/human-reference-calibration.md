@@ -294,6 +294,93 @@ calibrated. Real packets, submissions, reports, adjudications, and provider
 comparison artifacts remain local, private, and ignored; no real human
 annotation values are committed.
 
+## Optional independent post-pilot semantic audit
+
+After a Human Reference has been frozen, a separate reviewer may independently
+annotate the complete visible task set using protocol:
+
+```text
+human-reference-semantic-audit@0.1.0
+```
+
+This is methodology QA for possible reference-construction anomalies. It is
+not another adjudication round, a correction pass, a Judge-tuning input, or a
+gold/accuracy measurement. Human-human agreement does not establish semantic
+correctness, consensus does not guarantee correctness, and adjudication does
+not create gold. Conversely, one independent audit disagreement identifies a
+`referenceReviewCandidate`; it does not prove that the frozen reference is
+wrong and never replaces it automatically.
+
+Export one full-task packet for an opaque third reviewer:
+
+```text
+node dist/src/cli/tutorbench.js human-reference-semantic-audit-export \
+  --annotations artifacts/human-reference-pilot/word-context-boundaries-002/human-reference-annotations.json \
+  --reviewer reviewer-c \
+  --guide artifacts/human-reference-pilot/word-context-boundaries-002/ANNOTATION_GUIDE.md \
+  --output-dir artifacts/human-reference-pilot/word-context-boundaries-002/semantic-audit
+```
+
+The export binds the source calibration batch, visible-task fingerprint, and
+the frozen `human-reference-material-annotation-guide@0.2.0` byte hash. It
+writes `reviewer-c.packet.json`, an empty-status
+`reviewer-c.submission-template.json`, and workflow-only
+`AUDIT_INSTRUCTIONS.md`. It does not create a new semantic guide. The packet
+contains every visible task and atomic requirement, selected without reference
+or Judge results. It contains no A/B identity or status, consensus/adjudicated
+status, disagreement history, adjudication, derived label, developer expected
+status, Judge output/evidence/reasoning, provider output, or comparison result.
+The reviewer therefore assigns statuses independently instead of reviewing an
+existing answer.
+
+After every template status has been completed, import it strictly:
+
+```text
+node dist/src/cli/tutorbench.js human-reference-semantic-audit-import \
+  --packet artifacts/human-reference-pilot/word-context-boundaries-002/semantic-audit/reviewer-c.packet.json \
+  --submission artifacts/human-reference-pilot/word-context-boundaries-002/semantic-audit/reviewer-c.completed.json \
+  --output artifacts/human-reference-pilot/word-context-boundaries-002/semantic-audit/reviewer-c.audit-annotations.json
+```
+
+Import fails closed for wrong protocol, reviewer, guide, task fingerprint,
+source batch, case/rubric/requirement ownership, invalid status, unknown field,
+or missing, duplicate, and extra atomics. It reads no frozen reference status
+and only canonicalizes the independent reviewer stream.
+
+Comparison is the first stage allowed to rebuild and inspect the frozen Human
+Reference:
+
+```text
+node dist/src/cli/tutorbench.js human-reference-semantic-audit \
+  --annotations artifacts/human-reference-pilot/word-context-boundaries-002/human-reference-annotations.json \
+  --adjudications artifacts/human-reference-pilot/word-context-boundaries-002/human-reference-adjudications.json \
+  --audit artifacts/human-reference-pilot/word-context-boundaries-002/semantic-audit/reviewer-c.audit-annotations.json \
+  --output artifacts/human-reference-pilot/word-context-boundaries-002/semantic-audit/reviewer-c.semantic-audit-report.json
+```
+
+The provider-free report uses `semanticAuditAgreement`, never accuracy. It
+contains the directional frozen-reference-row/audit-reviewer-column 3 x 3
+matrix, disagreement candidates, dynamic per-requirement and per-case slices,
+separate `human_consensus` and `human_adjudicated` slices, and derived-label
+agreement after reusing `aggregateMaterialRequirementAssessments()`. It does
+not read a Judge comparison artifact. The original experiment, annotations,
+adjudications, reports, and frozen `HumanReferenceSet` remain immutable.
+
+The lifecycle is therefore:
+
+```text
+blind annotation
+→ human-human agreement
+→ disagreement adjudication
+→ frozen Human Reference
+→ optional independent semantic audit
+→ frozen Judge comparison / interpretation
+```
+
+The optional audit may be conducted before or after a Judge comparison, but
+packet selection and reviewer annotation must remain full-task, Judge-blind,
+and independent in either order.
+
 ## Human-human agreement
 
 `calculateHumanPairwiseAgreement()` compares two explicitly named annotator
@@ -386,6 +473,7 @@ blind human annotation
 → human-human agreement
 → explicit adjudication
 → complete Human Reference
+→ optional independent semantic audit
 → frozen Judge comparison
 ```
 

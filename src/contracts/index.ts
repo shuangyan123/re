@@ -19,6 +19,8 @@ export * from "./human-reference-calibration-validation.js";
 export * from "./human-reference-judge-comparison.js";
 export * from "./human-reference-pilot.js";
 export * from "./human-reference-pilot-validation.js";
+export * from "./human-reference-semantic-audit.js";
+export * from "./human-reference-semantic-audit-validation.js";
 export * from "./critical-failure-calibration.js";
 export * from "./critical-failure-calibration-validation.js";
 export * from "./tutor-eval-result-validation.js";

@@ -17,3 +17,5 @@ export * from "./human-reference-io.js";
 export * from "./human-reference-report.js";
 export * from "./human-reference-pilot.js";
 export * from "./human-reference-pilot-io.js";
+export * from "./human-reference-semantic-audit.js";
+export * from "./human-reference-semantic-audit-io.js";
