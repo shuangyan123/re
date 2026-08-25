@@ -371,10 +371,50 @@ disagreement, directional reference-row/Judge-column confusion matrix, and
 disagreement records. Its derived section separately compares rubric labels
 after both sides use the existing aggregator.
 
-The report does not call this metric `accuracy`. A calibration protocol with
+The report does not call this metric `accuracy`: `referenceAgreement != accuracy`.
+A calibration protocol with
 independent human reference data must be established before stronger claims
 are considered. Judge execution availability is an upstream concern and is
 not mixed into this semantic comparison denominator.
+
+## Frozen Judge comparison lifecycle
+
+The final lifecycle stage is now a formal batch comparison:
+
+```text
+blind human annotation
+→ human-human agreement
+→ explicit adjudication
+→ complete Human Reference
+→ frozen Judge comparison
+```
+
+Run the comparison only after the annotation and adjudication files have been
+strictly parsed. The command rebuilds `HumanReferenceSet` from those two source
+files; it never guesses a reference from a persisted post-adjudication report:
+
+```text
+node dist/src/cli/tutorbench.js human-reference-judge-comparison \
+  --annotations artifacts/human-reference-pilot/word-context-boundaries-002/human-reference-annotations.json \
+  --adjudications artifacts/human-reference-pilot/word-context-boundaries-002/human-reference-adjudications.json \
+  --judge-deepseek \
+  --output artifacts/human-reference-pilot/word-context-boundaries-002/material-requirement-judge-v0.4.reference-comparison.deepseek.json
+```
+
+`--judge-deepseek` is an explicit live/paid opt-in. Without an explicitly
+selected provider the command stops with a usage error and makes no network
+request. The runner calls the frozen Material Requirement Judge `@0.4` exactly
+once for each Human Reference task. Each input is the task's visible Material
+Requirement evidence only; human status, provenance, annotator identity,
+adjudication, and expected labels stay outside the Judge boundary.
+
+The persisted report uses `referenceAgreement` for atomic comparison and also
+shows derived-label agreement, dynamic per-requirement slices, separate
+`human_consensus` and `human_adjudicated` provenance slices, per-case status,
+and safe token-usage coverage when available. Execution or availability errors
+are reported separately and never enter a semantic denominator. A complete
+reference is not calibration, Judge agreement is not calibration, and this
+small pilot is not a gold standard.
 
 ## Synthetic regression fixture
 
