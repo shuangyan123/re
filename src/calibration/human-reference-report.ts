@@ -73,20 +73,8 @@ export function buildHumanReferenceCalibrationReport(
   annotationValue: HumanReferenceAnnotationFile,
   adjudicationValue?: HumanReferenceAdjudicationFile,
 ): HumanReferenceCalibrationReport {
+  const referenceSet = buildHumanReferenceSetFromFiles(annotationValue, adjudicationValue);
   const annotationFile = parsedAnnotationFile(annotationValue);
-  const adjudicationFile = adjudicationValue === undefined
-    ? undefined
-    : parsedAdjudicationFile(adjudicationValue);
-  assertFileIdentity(annotationFile, adjudicationFile);
-
-  const referenceSet: HumanReferenceSet = parseHumanReferenceSet(buildHumanReferenceSet({
-    tasks: annotationFile.tasks,
-    annotations: annotationFile.annotations,
-    requiredAnnotatorIds: annotationFile.requiredAnnotatorIds,
-    ...(adjudicationFile === undefined ? {} : { adjudications: adjudicationFile.adjudications }),
-    dataKind: annotationFile.dataKind === "synthetic-fixture" ? "synthetic-fixture" : "human-reference",
-    ...(annotationFile.fixture === undefined ? {} : { fixture: annotationFile.fixture }),
-  }));
   const [annotatorA, annotatorB] = annotationFile.requiredAnnotatorIds;
   if (annotatorA === undefined || annotatorB === undefined) {
     return invalid();
@@ -111,4 +99,28 @@ export function buildHumanReferenceCalibrationReport(
     derivedReferenceLabels: deriveHumanReferenceRubricLabels(referenceSet),
   };
   return report;
+}
+
+/**
+ * Rebuilds the canonical reference from the two strict source files. The
+ * source-file identity check stays shared with the calibration report so a
+ * comparison cannot accidentally trust a persisted post-adjudication report.
+ */
+export function buildHumanReferenceSetFromFiles(
+  annotationValue: HumanReferenceAnnotationFile,
+  adjudicationValue?: HumanReferenceAdjudicationFile,
+): HumanReferenceSet {
+  const annotationFile = parsedAnnotationFile(annotationValue);
+  const adjudicationFile = adjudicationValue === undefined
+    ? undefined
+    : parsedAdjudicationFile(adjudicationValue);
+  assertFileIdentity(annotationFile, adjudicationFile);
+  return parseHumanReferenceSet(buildHumanReferenceSet({
+    tasks: annotationFile.tasks,
+    annotations: annotationFile.annotations,
+    requiredAnnotatorIds: annotationFile.requiredAnnotatorIds,
+    ...(adjudicationFile === undefined ? {} : { adjudications: adjudicationFile.adjudications }),
+    dataKind: annotationFile.dataKind === "synthetic-fixture" ? "synthetic-fixture" : "human-reference",
+    ...(annotationFile.fixture === undefined ? {} : { fixture: annotationFile.fixture }),
+  }));
 }

@@ -73,6 +73,12 @@ import {
   type HumanReferencePilotCliOptions,
 } from "./human-reference-pilot.js";
 import {
+  parseHumanReferenceJudgeComparisonArgs,
+  printHumanReferenceJudgeComparisonHelp,
+  runHumanReferenceJudgeComparisonCli,
+  type HumanReferenceJudgeComparisonCliOptions,
+} from "./human-reference-judge-comparison.js";
+import {
   nextTutorbenchValue,
   positiveTutorbenchInteger,
   tutorbenchOptionValue,
@@ -96,7 +102,7 @@ export interface TutorbenchRunOptions {
 }
 
 export type TutorbenchCliOptions =
-  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" | "judge-material-requirement-discrimination" | "human-reference-calibration" | "human-reference-pilot-export" | "human-reference-pilot-import" }
+  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" | "judge-material-requirement-discrimination" | "human-reference-calibration" | "human-reference-pilot-export" | "human-reference-pilot-import" | "human-reference-judge-comparison" }
   | { readonly help: false; readonly run: TutorbenchRunOptions }
   | { readonly help: false; readonly collect: TutorbenchCollectCliOptions }
   | { readonly help: false; readonly collectModel: TutorbenchCollectModelCliOptions }
@@ -107,7 +113,8 @@ export type TutorbenchCliOptions =
   | { readonly help: false; readonly judgeMaterialRequirement: JudgeMaterialRequirementCliOptions }
   | { readonly help: false; readonly humanReferenceCalibration: HumanReferenceCalibrationCliOptions }
   | { readonly help: false; readonly humanReferencePilotExport: Extract<HumanReferencePilotCliOptions, { readonly mode: "export" }> }
-  | { readonly help: false; readonly humanReferencePilotImport: Extract<HumanReferencePilotCliOptions, { readonly mode: "import" }> };
+  | { readonly help: false; readonly humanReferencePilotImport: Extract<HumanReferencePilotCliOptions, { readonly mode: "import" }> }
+  | { readonly help: false; readonly humanReferenceJudgeComparison: HumanReferenceJudgeComparisonCliOptions };
 
 export function parseTutorbenchArgs(
   args: readonly string[],
@@ -174,6 +181,12 @@ export function parseTutorbenchArgs(
     return pilotImport.help
       ? { help: true, helpCommand: "human-reference-pilot-import" }
       : { help: false, humanReferencePilotImport: pilotImport };
+  }
+  if (args[0] === "human-reference-judge-comparison") {
+    const comparison = parseHumanReferenceJudgeComparisonArgs(args.slice(1));
+    return comparison.help
+      ? { help: true, helpCommand: "human-reference-judge-comparison" }
+      : { help: false, humanReferenceJudgeComparison: comparison };
   }
   if (args[0] !== "run") {
     throw new TutorbenchCliUsageError(
@@ -328,6 +341,7 @@ Usage:
   tutorbench human-reference-calibration --annotations <path> [options]
   tutorbench human-reference-pilot-export [options]
   tutorbench human-reference-pilot-import [options]
+  tutorbench human-reference-judge-comparison [options]
 
 Commands:
   run                   Quick local evaluation; responses are not frozen
@@ -347,6 +361,8 @@ Commands:
                          Export two identical blind Material Requirement packets
   human-reference-pilot-import
                          Strictly merge two completed pilot submissions
+  human-reference-judge-comparison
+                         Run frozen Material Requirement Judge @0.4 against rebuilt Human Reference tasks
 
 Run options:
   --http <url>          POST TutorTurnInput JSON to this http(s) endpoint
@@ -459,6 +475,8 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       printHumanReferencePilotExportHelp();
     } else if (options.helpCommand === "human-reference-pilot-import") {
       printHumanReferencePilotImportHelp();
+    } else if (options.helpCommand === "human-reference-judge-comparison") {
+      printHumanReferenceJudgeComparisonHelp();
     } else {
       printHelp();
     }
@@ -520,6 +538,12 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       return;
     }
     await runHumanReferencePilotImport(options.humanReferencePilotImport);
+  } else if ("humanReferenceJudgeComparison" in options) {
+    if (options.humanReferenceJudgeComparison.help) {
+      printHumanReferenceJudgeComparisonHelp();
+      return;
+    }
+    await runHumanReferenceJudgeComparisonCli(options.humanReferenceJudgeComparison);
   } else {
     if (options.evaluate.help) {
       printBenchmarkCorpusHelp();
