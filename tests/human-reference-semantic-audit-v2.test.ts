@@ -377,9 +377,11 @@ test("Pilot and guide source bytes plus Material Requirement Judge @0.4 remain f
     "dcf8ebba67250311a134788919984f13777a51516cb6294ed4c24742be65ff3a");
   assert.equal(MATERIAL_REQUIREMENT_JUDGE_PROMPT_VERSION, "0.4");
   assert.ok((await loadMaterialRequirementJudgePrompt()).length > 0);
-  assert.equal(createHash("sha256").update(await readFile(
+  const canonicalJudgePromptBytes = (await readFile(
     resolve("prompts/tutor-eval-material-requirement-judge-system-v0.4.md"), "utf8",
-  )).digest("hex"), "06f11fe2fab277ce053b408d89f66aad4c46581391074c1779c72def01725316");
+  )).replace(/\r\n/gu, "\n");
+  assert.equal(createHash("sha256").update(canonicalJudgePromptBytes).digest("hex"),
+    "f39ce3a005a609beae05d6dfab1036132d8d5f43732b840df4238f857aa677ac");
 });
 
 test("@0.2.0 CLI completes the provider-free qualification and localized audit lifecycle", async () => {
