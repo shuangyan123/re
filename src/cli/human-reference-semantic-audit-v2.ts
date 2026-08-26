@@ -2,23 +2,23 @@ import { resolve } from "node:path";
 
 import {
   buildOfficialZhCnSemanticAuditLocalization,
-  buildQualifiedLocalizedSemanticAuditReport,
+  buildQualifiedLocalizedSemanticAuditReportV21,
   buildSemanticAuditLocalizationIdentity,
-  createQualifiedLocalizedSemanticAuditExport,
-  createReviewerQualificationExport,
-  evaluateReviewerQualification,
-  importQualifiedLocalizedSemanticAuditSubmission,
-} from "../calibration/human-reference-semantic-audit-v2.js";
+  createQualifiedLocalizedSemanticAuditExportV21,
+  createReviewerQualificationExportV21,
+  evaluateReviewerQualificationV21,
+  importQualifiedLocalizedSemanticAuditSubmissionV21,
+} from "../calibration/human-reference-semantic-audit-v2-1.js";
 import {
-  loadQualifiedSemanticAuditAnnotations,
-  loadQualifiedSemanticAuditPacket,
-  loadQualifiedSemanticAuditSubmission,
-  loadReviewerQualificationPacket,
-  loadReviewerQualificationResult,
-  loadReviewerQualificationSubmission,
-  writeHumanReferenceSemanticAuditV2Json,
-  writeHumanReferenceSemanticAuditV2Markdown,
-} from "../calibration/human-reference-semantic-audit-v2-io.js";
+  loadQualifiedSemanticAuditAnnotationsV21,
+  loadQualifiedSemanticAuditPacketV21,
+  loadQualifiedSemanticAuditSubmissionV21,
+  loadReviewerQualificationPacketV21,
+  loadReviewerQualificationResultV21,
+  loadReviewerQualificationSubmissionV21,
+  writeHumanReferenceSemanticAuditV21Json,
+  writeHumanReferenceSemanticAuditV21Markdown,
+} from "../calibration/human-reference-semantic-audit-v2-1-io.js";
 import {
   loadHumanReferenceAdjudicationFile,
   loadHumanReferenceAnnotationFile,
@@ -118,7 +118,7 @@ export function printHumanReferenceSemanticAuditV2Help(mode: Mode): void {
     "localized-compare": "--annotations <path> --adjudications <path> --audit <path> --qualification <path> --output <path>",
   };
   console.log(`Tutor Benchmark qualified localized Human Reference semantic audit\n\nUsage:\n  ${usages[mode]}\n\n` +
-    "The @0.2.0 workflow is provider-free, zh-CN localized, qualification-gated, full-task, and Judge-blind.");
+    "The @0.2.1 workflow is provider-free, zh-CN localized, qualification-definition-bound, full-task, and Judge-blind.");
 }
 
 export async function runHumanReferenceSemanticAuditV2(options: Exclude<HumanReferenceSemanticAuditV2CliOptions,
@@ -127,63 +127,63 @@ export async function runHumanReferenceSemanticAuditV2(options: Exclude<HumanRef
     const annotations = await loadHumanReferenceAnnotationFile(options.annotationPath);
     const definition = buildOfficialZhCnSemanticAuditLocalization(annotations.tasks);
     const localization = buildSemanticAuditLocalizationIdentity(annotations.tasks, definition);
-    const exported = createReviewerQualificationExport(options.reviewerId, localization);
+    const exported = createReviewerQualificationExportV21(options.reviewerId, localization);
     await Promise.all([
-      writeHumanReferenceSemanticAuditV2Json(exported.packet,
+      writeHumanReferenceSemanticAuditV21Json(exported.packet,
         resolve(options.outputDirectory, `${options.reviewerId}.qualification.packet.json`)),
-      writeHumanReferenceSemanticAuditV2Json(exported.template,
+      writeHumanReferenceSemanticAuditV21Json(exported.template,
         resolve(options.outputDirectory, `${options.reviewerId}.qualification.submission-template.json`)),
-      writeHumanReferenceSemanticAuditV2Markdown(exported.reviewDocument,
+      writeHumanReferenceSemanticAuditV21Markdown(exported.reviewDocument,
         resolve(options.outputDirectory, "QUALIFICATION_REVIEW.zh-CN.md")),
-      writeHumanReferenceSemanticAuditV2Markdown(definition.localizedGuide,
+      writeHumanReferenceSemanticAuditV21Markdown(definition.localizedGuide,
         resolve(options.outputDirectory, "ANNOTATION_GUIDE.zh-CN.md")),
     ]);
     console.log(`Reviewer qualification export\n  Reviewer: ${options.reviewerId}\n  Locale: zh-CN\n  Output directory: ${options.outputDirectory}`);
     return;
   }
   if (options.mode === "qualification-import") {
-    const result = evaluateReviewerQualification(
-      await loadReviewerQualificationPacket(options.packetPath),
-      await loadReviewerQualificationSubmission(options.submissionPath),
+    const result = evaluateReviewerQualificationV21(
+      await loadReviewerQualificationPacketV21(options.packetPath),
+      await loadReviewerQualificationSubmissionV21(options.submissionPath),
     );
-    await writeHumanReferenceSemanticAuditV2Json(result, options.outputPath);
+    await writeHumanReferenceSemanticAuditV21Json(result, options.outputPath);
     console.log(`Reviewer qualification import\n  Reviewer: ${result.reviewerId}\n  Status: ${result.qualificationStatus}\n  Output: ${options.outputPath}`);
     return;
   }
   if (options.mode === "localized-export") {
     const annotations = await loadHumanReferenceAnnotationFile(options.annotationPath);
-    const exported = createQualifiedLocalizedSemanticAuditExport(annotations, options.reviewerId,
-      await loadReviewerQualificationResult(options.qualificationPath),
+    const exported = createQualifiedLocalizedSemanticAuditExportV21(annotations, options.reviewerId,
+      await loadReviewerQualificationResultV21(options.qualificationPath),
       buildOfficialZhCnSemanticAuditLocalization(annotations.tasks));
     await Promise.all([
-      writeHumanReferenceSemanticAuditV2Json(exported.packet,
+      writeHumanReferenceSemanticAuditV21Json(exported.packet,
         resolve(options.outputDirectory, `${options.reviewerId}.localized.packet.json`)),
-      writeHumanReferenceSemanticAuditV2Json(exported.template,
+      writeHumanReferenceSemanticAuditV21Json(exported.template,
         resolve(options.outputDirectory, `${options.reviewerId}.localized.submission-template.json`)),
-      writeHumanReferenceSemanticAuditV2Markdown(exported.reviewDocument,
+      writeHumanReferenceSemanticAuditV21Markdown(exported.reviewDocument,
         resolve(options.outputDirectory, "SEMANTIC_AUDIT_REVIEW.zh-CN.md")),
-      writeHumanReferenceSemanticAuditV2Markdown(exported.localizedGuide,
+      writeHumanReferenceSemanticAuditV21Markdown(exported.localizedGuide,
         resolve(options.outputDirectory, "ANNOTATION_GUIDE.zh-CN.md")),
     ]);
     console.log(`Qualified localized semantic-audit export\n  Reviewer: ${options.reviewerId}\n  Locale: zh-CN\n  Atomic requirements: ${exported.template.annotations.length}\n  Output directory: ${options.outputDirectory}`);
     return;
   }
   if (options.mode === "localized-import") {
-    const audit = importQualifiedLocalizedSemanticAuditSubmission(
-      await loadQualifiedSemanticAuditPacket(options.packetPath),
-      await loadQualifiedSemanticAuditSubmission(options.submissionPath),
-      await loadReviewerQualificationResult(options.qualificationPath),
+    const audit = importQualifiedLocalizedSemanticAuditSubmissionV21(
+      await loadQualifiedSemanticAuditPacketV21(options.packetPath),
+      await loadQualifiedSemanticAuditSubmissionV21(options.submissionPath),
+      await loadReviewerQualificationResultV21(options.qualificationPath),
     );
-    await writeHumanReferenceSemanticAuditV2Json(audit, options.outputPath);
+    await writeHumanReferenceSemanticAuditV21Json(audit, options.outputPath);
     console.log(`Qualified localized semantic-audit import\n  Reviewer: ${audit.reviewerId}\n  Atomic annotations: ${audit.annotations.length}\n  Output: ${options.outputPath}`);
     return;
   }
-  const report = buildQualifiedLocalizedSemanticAuditReport(
+  const report = buildQualifiedLocalizedSemanticAuditReportV21(
     await loadHumanReferenceAnnotationFile(options.annotationPath),
     await loadHumanReferenceAdjudicationFile(options.adjudicationPath),
-    await loadQualifiedSemanticAuditAnnotations(options.auditPath),
-    await loadReviewerQualificationResult(options.qualificationPath),
+    await loadQualifiedSemanticAuditAnnotationsV21(options.auditPath),
+    await loadReviewerQualificationResultV21(options.qualificationPath),
   );
-  await writeHumanReferenceSemanticAuditV2Json(report, options.outputPath);
+  await writeHumanReferenceSemanticAuditV21Json(report, options.outputPath);
   console.log(`Qualified localized semantic-audit comparison\n  Reviewer: ${report.reviewerId}\n  Qualification: ${report.qualificationStatus}\n  Comparable atomics: ${report.comparableAtomicCount}\n  Reference review candidates: ${report.disagreementCount}\n  Output: ${options.outputPath}`);
 }

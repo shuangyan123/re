@@ -49,7 +49,6 @@ import {
   type HumanReferenceSemanticAuditLocalizationIdentity,
   type ReviewerQualificationAtomicAssessment,
   type ReviewerQualificationBinding,
-  type ReviewerQualificationItem,
   type ReviewerQualificationPacket,
   type ReviewerQualificationResult,
   type ReviewerQualificationSubmission,
@@ -72,6 +71,10 @@ import {
 } from "../contracts/human-reference-semantic-audit-v2-validation.js";
 import { humanAtomicIdentityKey } from "./human-reference-agreement.js";
 import { buildHumanReferenceSemanticAuditReport } from "./human-reference-semantic-audit.js";
+import {
+  HUMAN_REFERENCE_SEMANTIC_AUDIT_QUALIFICATION_EXPECTED_ASSESSMENTS,
+  HUMAN_REFERENCE_SEMANTIC_AUDIT_QUALIFICATION_ITEMS,
+} from "./human-reference-semantic-audit-qualification-fixture.js";
 
 export const HUMAN_REFERENCE_SEMANTIC_AUDIT_PILOT_2_SOURCE_TASK_FINGERPRINT =
   "sha256:2e73aa96062b00908fe9f329e744cf91cb3f127865bce02ea33356069bb09285" as const;
@@ -129,59 +132,12 @@ export const HUMAN_REFERENCE_SEMANTIC_AUDIT_ZH_CN_GUIDE = `# Human Reference 语
 请独立完成提交。不要查阅其他标注者、开发者预期状态、Judge 输出、Judge 证据或推理、基准标签或裁决信息。
 ` as const;
 
-const qualificationItems: readonly ReviewerQualificationItem[] = Object.freeze([
-  {
-    itemId: "qualification-omission-negative",
-    evidence: "护理说明写明：幼苗每天需要浇水，也需要充足日照。",
-    response: "请把幼苗放在有充足日照的位置。",
-    requirements: [
-      { requirementId: "Q1", description: "说明幼苗每天需要浇水。" },
-      { requirementId: "Q2", description: "不要声称每周浇水一次就足够。" },
-    ],
-  },
-  {
-    itemId: "qualification-support-sufficiency",
-    evidence: "打开加热器后，室温从 18°C 升到 20°C；同时没有记录窗户和日照变化。",
-    response: "升温支持加热器可能使房间变暖，而且这已经证明升温只能由加热器造成。",
-    requirements: [
-      { requirementId: "Q1", description: "说明观测到的升温支持加热器可能使房间变暖。" },
-      { requirementId: "Q2", description: "说明仅凭这次观测不足以确定升温只能由加热器造成。" },
-    ],
-  },
-  {
-    itemId: "qualification-contextual-correction",
-    evidence: "路线图标明：过桥后小径向东转。学生猜测应向西走。",
-    response: "路线图写的是过桥后向东转，所以向西的猜测不符合图中线索；这里应向东走。",
-    requirements: [
-      { requirementId: "Q1", description: "把学生提出的方向与路线图证据联系起来评估。" },
-      { requirementId: "Q2", description: "不要在没有上下文评估的情况下直接判定学生错误。" },
-    ],
-  },
-  {
-    itemId: "qualification-unsupported-verdict",
-    evidence: "路线图标明：过桥后小径向东转。学生猜测应向西走。",
-    response: "错了，应该向东走。",
-    requirements: [
-      { requirementId: "Q1", description: "把学生提出的方向与路线图证据联系起来评估。" },
-      { requirementId: "Q2", description: "不要在没有上下文评估的情况下直接判定学生错误。" },
-    ],
-  },
-] as const);
-
-const qualificationExpected = new Map<string, HumanAtomicStatus>([
-  [JSON.stringify(["qualification-omission-negative", "qualification-omission-negative", "Q1"]),
-    "OMITTED_OR_INCOMPLETE"],
-  [JSON.stringify(["qualification-omission-negative", "qualification-omission-negative", "Q2"]), "SATISFIED"],
-  [JSON.stringify(["qualification-support-sufficiency", "qualification-support-sufficiency", "Q1"]), "SATISFIED"],
-  [JSON.stringify(["qualification-support-sufficiency", "qualification-support-sufficiency", "Q2"]),
-    "EXPLICIT_CONFLICT"],
-  [JSON.stringify(["qualification-contextual-correction", "qualification-contextual-correction", "Q1"]), "SATISFIED"],
-  [JSON.stringify(["qualification-contextual-correction", "qualification-contextual-correction", "Q2"]), "SATISFIED"],
-  [JSON.stringify(["qualification-unsupported-verdict", "qualification-unsupported-verdict", "Q1"]),
-    "OMITTED_OR_INCOMPLETE"],
-  [JSON.stringify(["qualification-unsupported-verdict", "qualification-unsupported-verdict", "Q2"]),
-    "EXPLICIT_CONFLICT"],
-]);
+const qualificationItems = HUMAN_REFERENCE_SEMANTIC_AUDIT_QUALIFICATION_ITEMS;
+const qualificationExpected = new Map<string, HumanAtomicStatus>(
+  HUMAN_REFERENCE_SEMANTIC_AUDIT_QUALIFICATION_EXPECTED_ASSESSMENTS.map((assessment) => [
+    humanAtomicIdentityKey(assessment), assessment.status,
+  ]),
+);
 
 const localizedResponses = new Map<string, string>([
   ["You proposed that reluctant means unsure. The pause before agreeing supports hesitation, so your interpretation fits the context, although that clue alone cannot distinguish unwillingness, uncertainty, or thinking.",
