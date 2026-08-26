@@ -381,12 +381,13 @@ The optional audit may be conducted before or after a Judge comparison, but
 packet selection and reviewer annotation must remain full-task, Judge-blind,
 and independent in either order.
 
-### Qualified localized semantic audit @0.2.0
+### Qualified localized semantic audit @0.2.0 and @0.2.1
 
-Protocol `human-reference-semantic-audit@0.2.0` adds formal localization
-provenance and a reviewer-comprehension eligibility gate. It does not
-reinterpret or replace `@0.1.0`: historical packets, submissions, annotations,
-and reports remain accepted under their frozen identity.
+Protocol `human-reference-semantic-audit@0.2.0` added formal localization
+provenance and a reviewer-comprehension eligibility gate. Protocol `@0.2.1`
+closes the qualification-definition provenance gap without reinterpreting
+`@0.1.0` or `@0.2.0`: historical packets, submissions, results, annotations,
+and reports remain accepted only under their original frozen identities.
 
 The first official localization is:
 
@@ -394,7 +395,8 @@ The first official localization is:
 locale: zh-CN
 localization: human-reference-semantic-audit-localization-zh-CN@0.1.0
 localized guide: human-reference-material-annotation-guide-zh-CN@0.1.0
-qualification: human-reference-semantic-audit-reviewer-comprehension@0.1.0
+historical qualification: human-reference-semantic-audit-reviewer-comprehension@0.1.0
+current qualification: human-reference-semantic-audit-reviewer-comprehension@0.1.1
 ```
 
 The first release locks these exact SHA-256 identities:
@@ -405,8 +407,36 @@ localized tasks: sha256:c8d5343fc1d41d42c1d1ad928967dd44de03afd8fc5fcc1dbc6328ed
 localized presentation: sha256:e92fbc2182bfc544b2499e17673b9e1c2cf902eab8dc555388b6ee6fb3e1f661
 source guide: sha256:dcf8ebba67250311a134788919984f13777a51516cb6294ed4c24742be65ff3a
 localized guide: sha256:346a18d21cfdf6989081456481cdce7d257060c7ff8f1ff9d4e1d2a4f94d624f
-qualification fixture: sha256:65f43e191a04301ef83b796af5395ffb46f3a6ae143bf4ea983d8a2439cdb291
+qualification presentation: sha256:65f43e191a04301ef83b796af5395ffb46f3a6ae143bf4ea983d8a2439cdb291
+qualification definition: sha256:3a86b044b7f7f5d06536092e649095512a7e983bb94a899d175b0dd77ba9dec7
 ```
+
+The two qualification fingerprints prove different things:
+
+```text
+qualificationPresentationFingerprint != qualificationDefinitionFingerprint
+```
+
+`qualificationPresentationFingerprint` hashes exactly the synthetic exercise
+rendered for the reviewer. `qualificationDefinitionFingerprint` hashes a
+canonical, identity-sorted semantic definition containing the qualification ID
+and version, the presentation fingerprint, every hidden expected atomic status,
+and the exact pass rule `all_expected_atomics_exact`.
+
+The definition is therefore:
+
+```text
+reviewer-visible qualification fixture
++ hidden expected atomic statuses
++ all-atomics-exact qualification rule
+```
+
+The definition fingerprint may appear in machine envelopes and bindings, but it
+does not disclose the answer key. Expected statuses and the definition object
+itself never enter reviewer-facing packets, templates, or Markdown. The same
+visible exercise may be reused by a later qualification version only when the
+semantic-definition identity is explicitly versioned. Historical `@0.1.0`
+qualification results are never migrated or reinterpreted as `@0.1.1` results.
 
 Localization provenance binds the canonical English task fingerprint, the
 localized task fingerprint, the rendered reviewer-document fingerprint, the
@@ -488,10 +518,12 @@ node dist/src/cli/tutorbench.js human-reference-semantic-audit-localized \
 ```
 
 Both stages fail closed on protocol, reviewer, locale, localization, source or
-localized fingerprints, guide identities, source batch, qualification result,
+localized fingerprints, guide identities, source batch, qualification batch,
+qualification presentation and definition fingerprints, qualification result,
 task ownership, completeness, duplicate/extra atomics, and unknown or injected
 fields. An unqualified or mismatched reviewer cannot produce an interpretable
-`@0.2.0` comparison.
+`@0.2.1` comparison. A merely `qualified` status is insufficient: the result
+fingerprint and every provenance binding must match exactly.
 
 Comparison still rebuilds the frozen `HumanReferenceSet` from strict source
 annotations plus adjudications. It retains the directional frozen-reference

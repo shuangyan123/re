@@ -182,6 +182,16 @@ function items(value: unknown): ReviewerQualificationItem[] | null {
   return new Set(output.map((item) => item.itemId)).size === output.length ? output : null;
 }
 
+export function parseHumanReferenceSemanticAuditLocalizationIdentity(
+  value: unknown,
+): HumanReferenceSemanticAuditLocalizationIdentity {
+  return localization(value) ?? invalid();
+}
+
+export function parseReviewerQualificationItems(value: unknown): ReviewerQualificationItem[] {
+  return items(value) ?? invalid();
+}
+
 function qualificationEnvelope(parsed: UnknownRecord | null): {
   reviewerId: string;
   qualificationBatchId: string;

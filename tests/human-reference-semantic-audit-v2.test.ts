@@ -30,18 +30,26 @@ import {
   parseHumanReferenceAdjudicationFile,
   parseHumanReferenceAnnotationFile,
   parseHumanReferenceQualifiedSemanticAuditPacket,
+  parseHumanReferenceQualifiedSemanticAuditPacketV21,
   parseHumanReferenceQualifiedSemanticAuditSubmission,
+  parseHumanReferenceQualifiedSemanticAuditSubmissionV21,
   parseReviewerQualificationPacket,
+  parseReviewerQualificationPacketV21,
   parseReviewerQualificationSubmission,
+  parseReviewerQualificationSubmissionV21,
   renderLocalizedSemanticAuditReview,
   type HumanAtomicAnnotation,
   type HumanReferenceAdjudicationFile,
   type HumanReferenceAnnotationFile,
   type HumanReferenceQualifiedSemanticAuditPacket,
   type HumanReferenceQualifiedSemanticAuditSubmission,
+  type HumanReferenceQualifiedSemanticAuditPacketV21,
+  type HumanReferenceQualifiedSemanticAuditSubmissionV21,
   type HumanReferenceSemanticAuditLocalizationDefinition,
   type ReviewerQualificationPacket,
   type ReviewerQualificationSubmission,
+  type ReviewerQualificationPacketV21,
+  type ReviewerQualificationSubmissionV21,
 } from "../src/contracts/index.js";
 import { BenchmarkConfigurationError } from "../src/contracts/errors.js";
 import {
@@ -137,6 +145,40 @@ function completedAuditSubmission(
         rubricId: rubric.id,
         requirementId: requirement.id,
         status: "SATISFIED",
+      })),
+    )),
+  });
+}
+
+function qualificationSubmissionV21(packet: ReviewerQualificationPacketV21): ReviewerQualificationSubmissionV21 {
+  const { items, ...envelope } = packet;
+  const historical = qualificationSubmission({ ...envelope,
+    auditProtocolVersion: "0.2.0", qualificationVersion: "0.1.0",
+    qualificationFingerprint: packet.qualificationPresentationFingerprint, items } as ReviewerQualificationPacket);
+  return parseReviewerQualificationSubmissionV21({ ...envelope,
+    packetKind: "human-reference-semantic-audit-qualification-submission",
+    assessments: historical.assessments,
+  });
+}
+
+function completedAuditSubmissionV21(
+  packet: HumanReferenceQualifiedSemanticAuditPacketV21,
+): HumanReferenceQualifiedSemanticAuditSubmissionV21 {
+  return parseHumanReferenceQualifiedSemanticAuditSubmissionV21({
+    schemaVersion: packet.schemaVersion,
+    packetKind: "human-reference-semantic-audit-localized-submission",
+    auditProtocolId: packet.auditProtocolId,
+    auditProtocolVersion: packet.auditProtocolVersion,
+    auditBatchId: packet.auditBatchId,
+    reviewerId: packet.reviewerId,
+    sourceCalibration: packet.sourceCalibration,
+    localization: packet.localization,
+    reviewerQualification: packet.reviewerQualification,
+    reviewLocale: "zh-CN",
+    instructionsClear: true,
+    annotations: packet.localizedTasks.flatMap((task) => task.rubrics.flatMap((rubric) =>
+      rubric.requirements.map((requirement) => ({
+        caseId: task.caseId, rubricId: rubric.id, requirementId: requirement.id, status: "SATISFIED",
       })),
     )),
   });
@@ -347,7 +389,7 @@ test("generic functions cover an arbitrary source task set without count or ID a
   assert.equal(exported.template.annotations.length, task.rubrics[0]!.requirements.length);
 });
 
-test("strict parsers reject hidden qualification fields and CLI routes all @0.2.0 lifecycle commands", async () => {
+test("strict @0.2.0 parsers reject hidden qualification fields and CLI routes lifecycle commands", async () => {
   const source = await pilot2Source();
   const localization = buildSemanticAuditLocalizationIdentity(source.tasks,
     buildOfficialZhCnSemanticAuditLocalization(source.tasks));
@@ -384,7 +426,7 @@ test("Pilot and guide source bytes plus Material Requirement Judge @0.4 remain f
     "f39ce3a005a609beae05d6dfab1036132d8d5f43732b840df4238f857aa677ac");
 });
 
-test("@0.2.0 CLI completes the provider-free qualification and localized audit lifecycle", async () => {
+test("@0.2.1 CLI completes the provider-free qualification and localized audit lifecycle", async () => {
   const directory = await mkdtemp(join(tmpdir(), "tutorbench-qualified-audit-"));
   try {
     const source = await pilot2Source();
@@ -408,11 +450,11 @@ test("@0.2.0 CLI completes the provider-free qualification and localized audit l
     await main(["human-reference-semantic-audit-qualification-export", "--annotations", annotationsPath,
       "--reviewer", "reviewer-cli", "--output-dir", qualificationDirectory]);
     const qualificationPacketPath = join(qualificationDirectory, "reviewer-cli.qualification.packet.json");
-    const qualificationPacket = parseReviewerQualificationPacket(JSON.parse(
+    const qualificationPacket = parseReviewerQualificationPacketV21(JSON.parse(
       await readFile(qualificationPacketPath, "utf8"),
     ));
     const qualificationSubmissionPath = join(qualificationDirectory, "reviewer-cli.qualification.completed.json");
-    await writeFile(qualificationSubmissionPath, JSON.stringify(qualificationSubmission(qualificationPacket)), "utf8");
+    await writeFile(qualificationSubmissionPath, JSON.stringify(qualificationSubmissionV21(qualificationPacket)), "utf8");
     const qualificationResultPath = join(qualificationDirectory, "reviewer-cli.qualification.result.json");
     await main(["human-reference-semantic-audit-qualification-import", "--packet", qualificationPacketPath,
       "--submission", qualificationSubmissionPath, "--output", qualificationResultPath]);
@@ -421,11 +463,11 @@ test("@0.2.0 CLI completes the provider-free qualification and localized audit l
       "--reviewer", "reviewer-cli", "--qualification", qualificationResultPath,
       "--output-dir", auditDirectory]);
     const auditPacketPath = join(auditDirectory, "reviewer-cli.localized.packet.json");
-    const auditPacket = parseHumanReferenceQualifiedSemanticAuditPacket(JSON.parse(
+    const auditPacket = parseHumanReferenceQualifiedSemanticAuditPacketV21(JSON.parse(
       await readFile(auditPacketPath, "utf8"),
     ));
     const auditSubmissionPath = join(auditDirectory, "reviewer-cli.localized.completed.json");
-    await writeFile(auditSubmissionPath, JSON.stringify(completedAuditSubmission(auditPacket)), "utf8");
+    await writeFile(auditSubmissionPath, JSON.stringify(completedAuditSubmissionV21(auditPacket)), "utf8");
     const auditAnnotationsPath = join(auditDirectory, "reviewer-cli.localized.annotations.json");
     await main(["human-reference-semantic-audit-localized-import", "--packet", auditPacketPath,
       "--submission", auditSubmissionPath, "--qualification", qualificationResultPath,
