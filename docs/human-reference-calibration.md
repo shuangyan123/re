@@ -517,6 +517,15 @@ node dist/src/cli/tutorbench.js human-reference-semantic-audit-localized \
   --output <qualified-semantic-audit-report.json>
 ```
 
+New qualification exports use semantic-audit protocol `@0.2.1` and reviewer
+qualification `@0.1.1`. Historical `@0.2.0` / qualification `@0.1.0`
+artifacts remain readable through the same qualification import, localized
+export/import, and localized comparison CLI commands. The CLI dispatches from
+the controlling persisted protocol identity and then applies that version's
+strict frozen parser and implementation. Cross-version packet, submission,
+qualification, or audit combinations fail closed; historical artifacts are
+never upgraded, migrated, or reinterpreted as `@0.2.1` evidence.
+
 Both stages fail closed on protocol, reviewer, locale, localization, source or
 localized fingerprints, guide identities, source batch, qualification batch,
 qualification presentation and definition fingerprints, qualification result,
