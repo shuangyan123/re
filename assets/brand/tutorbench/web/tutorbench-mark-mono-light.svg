@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TutorBench mark">
+
+  <path d="M 92 384 C 148 384 170 382 206 354 C 246 323 262 296 316 285 C 350 278 382 276 400 276" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 92 336 C 148 336 170 334 206 306 C 246 275 262 248 316 237 C 350 230 382 228 400 228" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 92 288 C 148 288 170 286 206 258 C 246 227 262 200 316 189 C 350 182 382 180 400 180" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 92 240 C 148 240 170 238 206 210 C 246 179 262 152 316 141 C 350 134 382 132 400 132" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="416" cy="276" r="18" fill="#FFFFFF"/>
+  <circle cx="416" cy="228" r="18" fill="#FFFFFF"/>
+  <circle cx="416" cy="180" r="18" fill="#FFFFFF"/>
+  <circle cx="416" cy="132" r="18" fill="#FFFFFF"/>
+</svg>

@@ -14,6 +14,17 @@ import {
 } from "./i18n.js";
 
 export const SITE_GITHUB_URL = "https://github.com/shuangyan123/re";
+export const TUTORBENCH_BRAND_ASSET_BASE_PATH = "/assets/brand/tutorbench";
+export const TUTORBENCH_BRAND_ASSET_PATHS = [
+  "web/tutorbench-mark.svg",
+  "web/tutorbench-mark-mono-dark.svg",
+  "web/tutorbench-mark-mono-light.svg",
+  "web/tutorbench-mark-small.svg",
+  "web/tutorbench-app-icon.svg",
+  "raster/favicon-16.png",
+  "raster/favicon-32.png",
+  "raster/favicon.ico",
+] as const;
 
 type SiteFooterBenchmark = Pick<PublicBenchmarkArtifact, "statusLabel"> & {
   readonly dataset: Pick<PublicBenchmarkArtifact["dataset"], "id" | "version">;
@@ -58,6 +69,10 @@ function sitePath(basePath: string, route: string): string {
     return route;
   }
   return `${basePath}${route}`;
+}
+
+function brandAssetPath(basePath: string, assetPath: string): string {
+  return sitePath(basePath, `${TUTORBENCH_BRAND_ASSET_BASE_PATH}/${assetPath}`);
 }
 
 /** Prefixes generated internal href/src attributes without touching external URLs or code text. */
@@ -164,9 +179,12 @@ function renderHeader(
 ): string {
   return `<header class="site-header">
     <div class="shell header-inner">
-      <a class="wordmark" href="${escapeHtml(sitePath(basePath, "/"))}" aria-label="Tutor Benchmark home">
-        <span class="wordmark-mark" aria-hidden="true">TB</span>
-        <span>Tutor Benchmark</span>
+      <a class="wordmark" href="${escapeHtml(sitePath(basePath, "/"))}" aria-label="TutorBench home">
+        <img class="wordmark-mark" src="${escapeHtml(brandAssetPath(basePath, "web/tutorbench-mark-small.svg"))}" width="32" height="32" alt="">
+        <span class="wordmark-copy">
+          <span class="wordmark-name">TutorBench</span>
+          <span class="wordmark-descriptor">AI Tutor 评测基准</span>
+        </span>
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">Menu</button>
       <nav id="primary-navigation" class="nav-links" aria-label="Primary navigation">
@@ -192,7 +210,7 @@ function renderFooter(benchmark: SiteFooterBenchmark, locale: SiteLocale): strin
   return `<footer class="site-footer">
     <div class="shell footer-grid">
       <div>
-        <p class="footer-title">Tutor Benchmark</p>
+        <p class="footer-title">TutorBench</p>
         <p class="muted">A public, provider-independent explorer for observable tutoring behavior.</p>
       </div>
       <div>
@@ -225,6 +243,9 @@ export function renderPage(page: SitePage, context: SiteRenderContext = {}): str
     <meta property="og:title" content="${escapeHtml(page.title)}">
     <meta property="og:description" content="${escapeHtml(page.description)}">
     ${canonicalUrl === undefined ? "" : `<meta property="og:url" content="${escapeHtml(canonicalUrl)}"><link rel="canonical" href="${escapeHtml(canonicalUrl)}">`}
+    <link rel="icon" href="${escapeHtml(brandAssetPath(basePath, "raster/favicon.ico"))}" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="${escapeHtml(brandAssetPath(basePath, "raster/favicon-32.png"))}">
+    <link rel="icon" type="image/png" sizes="16x16" href="${escapeHtml(brandAssetPath(basePath, "raster/favicon-16.png"))}">
     <link rel="stylesheet" href="${escapeHtml(sitePath(basePath, "/assets/styles.css"))}">
     <script src="${escapeHtml(sitePath(basePath, "/assets/site.js"))}" defer></script>
   </head>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="TutorBench small-size mark">
+  <defs>
+    <linearGradient id="tbSmall" gradientUnits="userSpaceOnUse" x1="0" y1="8" x2="0" y2="55">
+      <stop offset="0%" stop-color="#1A3CFF"/>
+      <stop offset="48%" stop-color="#2D7BFF"/>
+      <stop offset="100%" stop-color="#8A5CFF"/>
+    </linearGradient>
+  </defs>
+  <path d="M 8 43 C 17 43 20 43 26 38 C 32 33 35 29 43 27 C 48 26 52 26 57 26" fill="none" stroke="url(#tbSmall)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 8 35 C 17 35 20 35 26 30 C 32 25 35 21 43 19 C 48 18 52 18 57 18" fill="none" stroke="url(#tbSmall)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 8 27 C 17 27 20 27 26 22 C 32 17 35 13 43 11 C 48 10 52 10 57 10" fill="none" stroke="url(#tbSmall)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 8 51 C 17 51 20 51 26 46 C 32 41 35 37 43 35 C 48 34 52 34 57 34" fill="none" stroke="url(#tbSmall)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

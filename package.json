@@ -32,6 +32,8 @@
     "dist/src/",
     "scenarios/",
     "prompts/",
+    "assets/brand/tutorbench/web/",
+    "assets/brand/tutorbench/raster/",
     "README.md"
   ],
   "engines": {

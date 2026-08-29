@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TutorBench app icon">
+  <defs>
+    <linearGradient id="tbGradient" gradientUnits="userSpaceOnUse" x1="0" y1="130" x2="0" y2="415">
+      <stop offset="0%" stop-color="#1A3CFF"/>
+      <stop offset="48%" stop-color="#2D7BFF"/>
+      <stop offset="100%" stop-color="#8A5CFF"/>
+    </linearGradient>
+  </defs>
+  <defs>
+    <linearGradient id="panel" gradientUnits="userSpaceOnUse" x1="48" y1="32" x2="464" y2="488">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F3F6FF"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#111827" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+  <rect x="28" y="28" width="456" height="456" rx="112" fill="url(#panel)" filter="url(#softShadow)"/>
+  <rect x="28.5" y="28.5" width="455" height="455" rx="111.5" fill="none" stroke="#DCE4FF"/>
+  <path d="M 92 384 C 148 384 170 382 206 354 C 246 323 262 296 316 285 C 350 278 382 276 400 276" fill="none" stroke="url(#tbGradient)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 92 336 C 148 336 170 334 206 306 C 246 275 262 248 316 237 C 350 230 382 228 400 228" fill="none" stroke="url(#tbGradient)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 92 288 C 148 288 170 286 206 258 C 246 227 262 200 316 189 C 350 182 382 180 400 180" fill="none" stroke="url(#tbGradient)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 92 240 C 148 240 170 238 206 210 C 246 179 262 152 316 141 C 350 134 382 132 400 132" fill="none" stroke="url(#tbGradient)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="416" cy="276" r="18" fill="url(#tbGradient)"/>
+  <circle cx="416" cy="228" r="18" fill="url(#tbGradient)"/>
+  <circle cx="416" cy="180" r="18" fill="url(#tbGradient)"/>
+  <circle cx="416" cy="132" r="18" fill="url(#tbGradient)"/>
+</svg>

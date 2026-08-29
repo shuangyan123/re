@@ -1,5 +1,5 @@
 import { lstat, readdir, readFile } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { extname, resolve, join } from "node:path";
 
 const outputDirectory = resolve(process.cwd(), process.argv[2] ?? "website/dist");
 const requiredFiles = [
@@ -15,6 +15,14 @@ const requiredFiles = [
   "about/index.html",
   "assets/styles.css",
   "assets/site.js",
+  "assets/brand/tutorbench/web/tutorbench-mark.svg",
+  "assets/brand/tutorbench/web/tutorbench-mark-mono-dark.svg",
+  "assets/brand/tutorbench/web/tutorbench-mark-mono-light.svg",
+  "assets/brand/tutorbench/web/tutorbench-mark-small.svg",
+  "assets/brand/tutorbench/web/tutorbench-app-icon.svg",
+  "assets/brand/tutorbench/raster/favicon-16.png",
+  "assets/brand/tutorbench/raster/favicon-32.png",
+  "assets/brand/tutorbench/raster/favicon.ico",
   "public-data/benchmark.json",
   "public-data/cases.json",
   "public-data/models.json",
@@ -66,18 +74,21 @@ async function main() {
 
   let checkedBytes = 0;
   for (const file of files) {
-    const content = await readFile(file.absolutePath, "utf8");
-    checkedBytes += Buffer.byteLength(content, "utf8");
-    for (const pattern of forbiddenContent) {
+    const content = await readFile(file.absolutePath);
+    checkedBytes += content.byteLength;
+    if ([".css", ".html", ".js", ".json", ".svg"].includes(extname(file.relativePath).toLowerCase())) {
+      const textContent = content.toString("utf8");
+      for (const pattern of forbiddenContent) {
+        assertCondition(
+          !pattern.test(textContent),
+          `Website artifact contains forbidden public data (${pattern}): ${file.relativePath}`,
+        );
+      }
       assertCondition(
-        !pattern.test(content),
-        `Website artifact contains forbidden public data (${pattern}): ${file.relativePath}`,
+        !/(?:href|src)=["']https?:\/\/(?:localhost|127\.0\.0\.1)(?::|\/)/i.test(textContent),
+        `Website artifact contains an absolute local asset reference: ${file.relativePath}`,
       );
     }
-    assertCondition(
-      !/(?:href|src)=["']https?:\/\/(?:localhost|127\.0\.0\.1)(?::|\/)/i.test(content),
-      `Website artifact contains an absolute local asset reference: ${file.relativePath}`,
-    );
   }
 
   console.log(
