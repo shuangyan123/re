@@ -1,7 +1,16 @@
-# Tutor Benchmark
+<p align="center">
+  <img src="assets/brand/tutorbench/web/tutorbench-mark.svg" alt="TutorBench T1 trajectory mark" width="128">
+</p>
+
+# TutorBench
+
+AI Tutor 评测基准
 
 Tutor Benchmark measures how well AI models teach, not just whether they know
 the answer.
+
+The approved T1 trajectory mark and its usage rules are documented in
+[`assets/brand/tutorbench/README.md`](assets/brand/tutorbench/README.md).
 
 - 48 synthetic TutorEval cases (24 English + 24 zh-CN)
 - 5 subjects

@@ -14,6 +14,7 @@ import {
   type PublicBenchmarkArtifacts,
 } from "../src/datasets/index.js";
 import { TUTOR_EVAL_DATASET_ID } from "../src/contracts/index.js";
+import { TUTORBENCH_BRAND_ASSET_PATHS } from "../src/site/html.js";
 
 async function loadDataset() {
   return loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
@@ -123,6 +124,18 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(homeHtml, /href="\/leaderboard\//);
     assert.match(homeHtml, /href="\/assets\/styles\.css"/);
     assert.match(homeHtml, /src="\/assets\/site\.js"/);
+    assert.match(homeHtml, /src="\/assets\/brand\/tutorbench\/web\/tutorbench-mark-small\.svg"/);
+    assert.match(homeHtml, /TutorBench/);
+    assert.match(homeHtml, /AI Tutor 评测基准/);
+    assert.match(homeHtml, /rel="icon" href="\/assets\/brand\/tutorbench\/raster\/favicon\.ico"/);
+    assert.match(homeHtml, /rel="icon" type="image\/png" sizes="32x32" href="\/assets\/brand\/tutorbench\/raster\/favicon-32\.png"/);
+    for (const assetPath of TUTORBENCH_BRAND_ASSET_PATHS) {
+      assert.deepEqual(
+        await readFile(join(outputDirectory, "assets", "brand", "tutorbench", assetPath)),
+        await readFile(join(process.cwd(), "assets", "brand", "tutorbench", assetPath)),
+        `Generated brand asset differs from its repository source: ${assetPath}`,
+      );
+    }
     assert.match(leaderboardHtml, /Leaderboard coming soon/);
     assert.match(runHtml, /tutor:export-execution/);
     assert.match(runHtml, /TutorExecutionPacket/);
@@ -158,6 +171,8 @@ test("static website build prefixes project-site paths without changing local de
     assert.match(homeHtml, /href="\/re\/leaderboard\//);
     assert.match(homeHtml, /href="\/re\/assets\/styles\.css"/);
     assert.match(homeHtml, /src="\/re\/assets\/site\.js"/);
+    assert.match(homeHtml, /src="\/re\/assets\/brand\/tutorbench\/web\/tutorbench-mark-small\.svg"/);
+    assert.match(homeHtml, /href="\/re\/assets\/brand\/tutorbench\/raster\/favicon\.ico"/);
     assert.match(homeHtml, /<link rel="canonical" href="https:\/\/shuangyan123\.github\.io\/re\//);
     assert.match(casesHtml, /href="\/re\/data\/cases\/fraction-misconception-001\//);
     assert.match(casesHtml, /data-case-filter="locale"/);
@@ -165,6 +180,7 @@ test("static website build prefixes project-site paths without changing local de
     assert.match(casesHtml, /English/);
     assert.match(casesHtml, /Chinese/);
     assert.doesNotMatch(homeHtml, /(?:href|src)="\/(?:leaderboard|assets)\//);
+    assert.doesNotMatch(homeHtml, /(?:href|src)="\/assets\/brand\/tutorbench\//);
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });
   }

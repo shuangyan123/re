@@ -3,6 +3,11 @@
 The website is a static, read-only Developer Preview generated from the
 canonical TutorEval 0.2A dataset.
 
+The public header uses the approved TutorBench T1 trajectory mark and the
+`AI Tutor 评测基准` descriptor. The website build copies the canonical SVG
+variants and supplied favicon files into `assets/brand/tutorbench/`; it does
+not redraw or rasterize the primary mark.
+
 ```text
 benchmark core
   -> public serializer

@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,7 +21,11 @@ import {
   type ReviewTranslationArtifact,
   type ReviewTranslationLookup,
 } from "../review-translation/index.js";
-import { renderPage, type SitePage } from "../site/html.js";
+import {
+  renderPage,
+  TUTORBENCH_BRAND_ASSET_PATHS,
+  type SitePage,
+} from "../site/html.js";
 import { resolveSiteLocale, type SiteLocale } from "../site/i18n.js";
 import {
   renderDataIndexPage,
@@ -52,6 +56,7 @@ import {
 const websiteRoot = resolve(process.cwd(), "website");
 const defaultOutputDirectory = resolve(websiteRoot, "dist");
 const privateOutputDirectory = resolve(websiteRoot, "private-dist");
+const brandAssetRoot = resolve(process.cwd(), "assets", "brand", "tutorbench");
 
 function requestedDatasetVersion(datasetId: string, datasetVersion: string): string | undefined {
   return datasetId === TUTOR_EVAL_DATASET_ID && datasetVersion === "0.2a"
@@ -113,6 +118,16 @@ async function writePage(
     }),
     "utf8",
   );
+}
+
+async function copyBrandAssets(outputDirectory: string): Promise<void> {
+  const outputBrandRoot = join(outputDirectory, "assets", "brand", "tutorbench");
+  for (const relativePath of TUTORBENCH_BRAND_ASSET_PATHS) {
+    const sourcePath = join(brandAssetRoot, relativePath);
+    const outputPath = join(outputBrandRoot, relativePath);
+    await mkdir(dirname(outputPath), { recursive: true });
+    await copyFile(sourcePath, outputPath);
+  }
 }
 
 interface LocalAuditBuildData {
@@ -228,6 +243,7 @@ export async function buildWebsite(options: BuildOptions = {}): Promise<number> 
   await mkdir(join(outputDirectory, "assets"), { recursive: true });
   await writeFile(join(outputDirectory, "assets", "styles.css"), stylesheet, "utf8");
   await writeFile(join(outputDirectory, "assets", "site.js"), clientScript, "utf8");
+  await copyBrandAssets(outputDirectory);
   await writeJson(outputDirectory, "benchmark.json", artifacts.benchmark);
   await writeJson(outputDirectory, "cases.json", artifacts.cases);
   await writeJson(outputDirectory, "models.json", artifacts.models);

@@ -154,15 +154,28 @@ code {
 }
 
 .wordmark-mark {
+  display: block;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.wordmark-copy {
   display: grid;
-  width: 31px;
-  height: 31px;
-  place-items: center;
-  border: 1px solid var(--accent);
-  border-radius: 7px;
-  color: var(--accent);
+  gap: 2px;
+}
+
+.wordmark-name {
+  line-height: 1.1;
+}
+
+.wordmark-descriptor {
+  color: var(--muted);
   font-size: 10px;
-  letter-spacing: 0.03em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
 }
 
 .nav-links {

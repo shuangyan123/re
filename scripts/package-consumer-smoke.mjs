@@ -120,6 +120,8 @@ async function main() {
       "scenarios/tutor-eval-v0.2a/cases.json",
       "scenarios/tutor-eval-v0.2a/cases.zh-CN.json",
       "prompts/tutor-baseline-system-v0.1.md",
+      "assets/brand/tutorbench/web/tutorbench-mark.svg",
+      "assets/brand/tutorbench/raster/favicon-32.png",
     ]) {
       assertCondition(files.has(required), `Package is missing ${required}.`);
     }

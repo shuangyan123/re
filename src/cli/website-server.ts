@@ -10,6 +10,9 @@ const contentTypes: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".ico": "image/x-icon",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
 };
 
 async function resolveAsset(requestPath: string): Promise<string | null> {
