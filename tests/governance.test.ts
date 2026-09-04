@@ -59,15 +59,15 @@ const requiredGovernanceFiles = [
 
 const frozenFileHashes = {
   "scenarios/tutor-eval-v0.2a/cases.json":
-    "c15ad221b4d536ea8b843093bb51c0c75ce4e04b739b42ddbf04bf4d29655b67",
+    "455cc1a7fcdff3adad33ca7b07708f62061082c6cdeb4ada4c5c93727cbe2b9e",
   "scenarios/tutor-eval-v0.2a/cases.zh-CN.json":
-    "b053d79ea20c4e03eee75dcc6a403cd69989ce04e530ccd71de7275568a21db6",
+    "8386c24dbf5dfba392bf78698097496a24efbb39fa86e6268419fee67b73babf",
   "prompts/tutor-eval-pedagogy-judge-system-v0.9.md":
-    "75c3382942b4858f6e77513d68760cf2e99a7a8b22d9dc032d38261049842012",
+    "173883ec928a639b35c9ff6465619e0986225146fa6199eff6aed59cb1314602",
   "prompts/tutor-eval-material-requirement-judge-system-v0.4.md":
-    "06f11fe2fab277ce053b408d89f66aad4c46581391074c1779c72def01725316",
+    "f39ce3a005a609beae05d6dfab1036132d8d5f43732b840df4238f857aa677ac",
   "src/calibration/human-reference-semantic-audit-qualification-fixture.ts":
-    "d013c84b650906b044ec09e487c11dcd102026e7a702ea92e1f3db2f1e77e7f9",
+    "93d2a8379968c60340f0454823156a1a7ad7c76553841464fe8e446e068bb591",
 } as const;
 
 async function readRepositoryFile(relativePath: string): Promise<string> {
@@ -75,7 +75,8 @@ async function readRepositoryFile(relativePath: string): Promise<string> {
 }
 
 function sha256(value: Uint8Array): string {
-  return createHash("sha256").update(value).digest("hex");
+  const normalizedText = Buffer.from(value).toString("utf8").replaceAll("\r\n", "\n");
+  return createHash("sha256").update(normalizedText).digest("hex");
 }
 
 test("public governance files, package metadata, and issue entry points are explicit", async () => {
