@@ -226,6 +226,10 @@ multi-license policy:
 
 See [`docs/licensing.md`](licensing.md) for scope, mixed-file, generated
 artifact, and attribution rules. This closes the licensing blocker only. The
-project remains a public Developer Preview; community review infrastructure,
-public verified model submissions, a calibrated leaderboard, and a five-minute
-first-run happy path are still future work.
+project remains a public Developer Preview. Its five-minute first-run path is
+the separate `tutorbench quickstart` demonstration: it wraps the existing
+legacy deterministic smoke dataset, TutorUnderTest boundary, runner, and
+deterministic evaluators, and emits an independent non-official summary. It is
+not a new Benchmark Core, does not alter the canonical `0.2a.5` cohort, and
+does not make community review infrastructure, public verified model
+submissions, or a calibrated leaderboard available.

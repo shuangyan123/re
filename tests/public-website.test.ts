@@ -123,6 +123,7 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(homeHtml, /Developer Preview/);
     assert.match(homeHtml, /No calibrated public model runs yet\./);
     assert.match(homeHtml, /href="\/leaderboard\//);
+    assert.match(homeHtml, /Try the Quickstart/);
     assert.match(homeHtml, /href="\/assets\/styles\.css"/);
     assert.match(homeHtml, /src="\/assets\/site\.js"/);
     assert.match(homeHtml, /src="\/assets\/brand\/tutorbench\/web\/tutorbench-mark-small\.svg"/);
@@ -141,6 +142,11 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(runHtml, /tutor:export-execution/);
     assert.match(runHtml, /TutorExecutionPacket/);
     assert.match(runHtml, /baseline-native-default/);
+    assert.match(runHtml, /Run the provider-free demo/);
+    assert.match(runHtml, /npm run quickstart/);
+    assert.match(runHtml, /tutor-eval-v0\.1@0\.1/);
+    assert.match(runHtml, /Full benchmark/);
+    assert.match(runHtml, /Leaderboard.*Not eligible/s);
     assert.match(runHtml, /Controlled optional generation parameters: none/);
     assert.match(runHtml, /Use any language/);
     assert.match(runHtml, /tutorbench run/);

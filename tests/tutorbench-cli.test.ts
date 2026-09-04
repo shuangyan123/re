@@ -94,6 +94,22 @@ test("tutorbench parser supports the small run option set", () => {
     assert.equal(reviewTranslate.reviewTranslate.existingTranslationPath, resolve(process.cwd(), "artifacts/review.previous.json"));
   }
   assert.deepEqual(parseTutorbenchArgs(["--help"]), { help: true });
+  const quickstart = parseTutorbenchArgs([
+    "quickstart",
+    "--output",
+    "artifacts/quickstart.json",
+  ]);
+  assert.equal(quickstart.help, false);
+  if (!quickstart.help && "quickstart" in quickstart) {
+    assert.equal(
+      quickstart.quickstart.outputPath,
+      resolve(process.cwd(), "artifacts/quickstart.json"),
+    );
+  }
+  assert.deepEqual(parseTutorbenchArgs(["quickstart", "--help"]), {
+    help: true,
+    helpCommand: "quickstart",
+  });
   assert.throws(
     () => parseTutorbenchArgs(["unknown"]),
     /Unknown command/,
@@ -278,12 +294,40 @@ test("tutorbench executable supports help and rejects invalid commands", async (
   const help = await runCli(["--help"]);
   assert.equal(help.exitCode, 0);
   assert.match(help.stdout, /tutorbench run --http <url>/);
+  assert.match(help.stdout, /tutorbench quickstart \[options\]/);
   assert.match(help.stdout, /tutorbench collect-model --http <url>/);
   assert.match(help.stdout, /tutorbench review-translate --evaluation <path>/);
 
   const invalid = await runCli(["unknown"]);
   assert.equal(invalid.exitCode, 1);
   assert.match(invalid.stderr, /Unknown command/);
+});
+
+test("tutorbench quickstart prints a non-official deterministic demo", async () => {
+  const outputDirectory = await mkdtemp(join(tmpdir(), "tutorbench-quickstart-cli-"));
+  const outputPath = join(outputDirectory, "quickstart.json");
+  try {
+    const result = await runCli(["quickstart", "--output", outputPath]);
+    assert.equal(result.exitCode, 0);
+    assert.match(result.stdout, /Quickstart completed/);
+    assert.match(result.stdout, /Dataset: tutor-eval-v0\.1@0\.1/);
+    assert.match(result.stdout, /Official benchmark score: no/);
+    assert.match(result.stdout, /Leaderboard eligible: no/);
+    assert.match(result.stdout, /Passed demo cases: 3/);
+    assert.match(result.stdout, /Failed demo cases: 1/);
+    assert.match(result.stdout, /Errors: 0/);
+    assert.doesNotMatch(result.stdout, /TutorBench Score|Overall/);
+    const summary = JSON.parse(await readFile(outputPath, "utf8")) as {
+      readonly mode: string;
+      readonly officialBenchmarkScore: boolean;
+      readonly publicLeaderboardEligible: boolean;
+    };
+    assert.equal(summary.mode, "quickstart-demo");
+    assert.equal(summary.officialBenchmarkScore, false);
+    assert.equal(summary.publicLeaderboardEligible, false);
+  } finally {
+    await rm(outputDirectory, { recursive: true, force: true });
+  }
 });
 
 test("tutorbench run maps HTTP Tutor output to TutorEvalRunResult and --output", async () => {
