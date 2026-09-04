@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Contribution and benchmark-content guide
+    url: https://github.com/shuangyan123/re/blob/main/CONTRIBUTING.md
+    about: Read contribution categories, semantic-change rules, licensing, and privacy requirements.
+  - name: Licensing and scope
+    url: https://github.com/shuangyan123/re/blob/main/docs/licensing.md
+    about: Check the Apache-2.0, CC BY 4.0, and Brand Policy boundaries before reusing content or assets.
+  - name: Security Policy
+    url: https://github.com/shuangyan123/re/blob/main/SECURITY.md
+    about: Do not report secrets or sensitive vulnerabilities in a public issue.

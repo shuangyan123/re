@@ -117,6 +117,7 @@ test("static website build emits the public artifact files and route shell", asy
       join(outputDirectory, "leaderboard", "index.html"),
       "utf8",
     );
+    const docsHtml = await readFile(join(outputDirectory, "docs", "index.html"), "utf8");
 
     assert.equal(routeCount, 61);
     assert.match(homeHtml, /Developer Preview/);
@@ -148,6 +149,10 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(methodologyHtml, /Case, spec, packet, corpus/);
     assert.match(methodologyHtml, /provider-native/);
     assert.match(leaderboardHtml, /GenerationSpecId/);
+    assert.match(docsHtml, /Software.*Apache-2\.0/s);
+    assert.match(docsHtml, /Benchmark content.*CC BY 4\.0/s);
+    assert.match(docsHtml, /TutorBench Brand Policy/);
+    assert.match(docsHtml, /CONTRIBUTING\.md/);
     assert.doesNotMatch(casesJson, /evaluatorOnly|groundTruth|knownMisconception|rubrics|misconceptions/);
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });

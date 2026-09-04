@@ -43,6 +43,8 @@ jobs:
       - name: Check tag and package version
         if: startsWith(github.ref, 'refs/tags/')
         run: node scripts/validate-release-version.mjs "$GITHUB_REF_NAME"
+      - name: Validate license and governance boundary
+        run: npm run test:governance
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

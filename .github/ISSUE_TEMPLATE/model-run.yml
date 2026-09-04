@@ -1,0 +1,53 @@
+name: Model run record
+description: Propose or document a reproducible model/Tutor run without requesting official leaderboard placement.
+title: "[Model run]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Filing this issue does not place a model on an official TutorBench leaderboard. Public ranking requires separately reviewed, reproducible, and calibrated artifacts.
+        Never include API keys, raw provider payloads, private prompts, hidden reasoning, or private result files.
+  - type: input
+    id: model-provider
+    attributes:
+      label: Model and provider identity
+      description: Include the exact provider and model identifiers, without credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: generation-profile
+    attributes:
+      label: Generation profile
+      description: Include the TutorGenerationSpec/profile, prompt identity, and material controls actually used.
+    validations:
+      required: true
+  - type: textarea
+    id: corpus-provenance
+    attributes:
+      label: Corpus provenance
+      description: State how responses were collected, the corpus identity, coverage, and whether the evidence is Product Tutor or canonical model evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: version-identities
+    attributes:
+      label: Dataset/evaluator/Judge versions
+      description: Include dataset, case, evaluator, Judge prompt/schema, and relevant protocol identities.
+    validations:
+      required: true
+  - type: textarea
+    id: reproducibility
+    attributes:
+      label: Reproducibility evidence
+      description: Link sanitized commands, checksums, or public artifacts. Do not upload private evidence or provider secrets.
+    validations:
+      required: true
+  - type: checkboxes
+    id: leaderboard-boundary
+    attributes:
+      label: Public status
+      options:
+        - label: I understand that this issue is not an official leaderboard submission and that preliminary or uncalibrated results must not be presented as official rankings.
+          required: true
+        - label: I confirm that the issue contains no secrets, private artifacts, hidden reasoning, or identifiable user data.
+          required: true
