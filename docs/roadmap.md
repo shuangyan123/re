@@ -95,6 +95,7 @@ artifact boundaries and does not change the methodology phases above.
 - [x] Coverage-backed case explorer and responsive route layout
 - [x] Empty leaderboard, model, heatmap, and trial contracts without fake runs
 - [x] Local adapter/corpus run guide and methodology limitations
+- [x] Provider-free five-minute Quickstart with a fixed deterministic smoke subset
 - [ ] Public result artifact pipeline for reproducible model runs
 - [ ] Public submission/review workflow (separate phase)
 - [ ] First intentional npm package publication

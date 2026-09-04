@@ -33,6 +33,8 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+      - name: Run provider-free Quickstart
+        run: npm run quickstart
       - name: Run synthetic benchmark
         run: npm run benchmark
       - name: Build public website

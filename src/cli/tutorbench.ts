@@ -101,6 +101,12 @@ import {
   type HumanReferenceSemanticAuditV2CliOptions,
 } from "./human-reference-semantic-audit-v2.js";
 import {
+  parseTutorbenchQuickstartArgs,
+  printTutorbenchQuickstartHelp,
+  runTutorbenchQuickstart,
+  type TutorbenchQuickstartCliOptions,
+} from "./quickstart.js";
+import {
   nextTutorbenchValue,
   positiveTutorbenchInteger,
   tutorbenchOptionValue,
@@ -124,7 +130,8 @@ export interface TutorbenchRunOptions {
 }
 
 export type TutorbenchCliOptions =
-  | { readonly help: true; readonly helpCommand?: "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" | "judge-material-requirement-discrimination" | "human-reference-calibration" | "human-reference-pilot-export" | "human-reference-pilot-import" | "human-reference-judge-comparison" | "human-reference-semantic-audit-export" | "human-reference-semantic-audit-import" | "human-reference-semantic-audit" | "human-reference-semantic-audit-qualification-export" | "human-reference-semantic-audit-qualification-import" | "human-reference-semantic-audit-localized-export" | "human-reference-semantic-audit-localized-import" | "human-reference-semantic-audit-localized" }
+  | { readonly help: true; readonly helpCommand?: "quickstart" | "collect" | "collect-model" | "evaluate" | "review-translate" | "judge-word-context-discrimination" | "judge-candidate-comparison" | "judge-material-requirement-discrimination" | "human-reference-calibration" | "human-reference-pilot-export" | "human-reference-pilot-import" | "human-reference-judge-comparison" | "human-reference-semantic-audit-export" | "human-reference-semantic-audit-import" | "human-reference-semantic-audit" | "human-reference-semantic-audit-qualification-export" | "human-reference-semantic-audit-qualification-import" | "human-reference-semantic-audit-localized-export" | "human-reference-semantic-audit-localized-import" | "human-reference-semantic-audit-localized" }
+  | { readonly help: false; readonly quickstart: TutorbenchQuickstartCliOptions }
   | { readonly help: false; readonly run: TutorbenchRunOptions }
   | { readonly help: false; readonly collect: TutorbenchCollectCliOptions }
   | { readonly help: false; readonly collectModel: TutorbenchCollectModelCliOptions }
@@ -259,6 +266,12 @@ export function parseTutorbenchArgs(
     return audit.help
       ? { help: true, helpCommand: "human-reference-semantic-audit" }
       : { help: false, humanReferenceSemanticAudit: audit };
+  }
+  if (args[0] === "quickstart") {
+    const quickstart = parseTutorbenchQuickstartArgs(args.slice(1));
+    return quickstart.help
+      ? { help: true, helpCommand: "quickstart" }
+      : { help: false, quickstart };
   }
   if (args[0] !== "run") {
     throw new TutorbenchCliUsageError(
@@ -399,9 +412,10 @@ function parseReportLocale(value: string): TutorEvalReportLocale {
 }
 
 function printHelp(): void {
-  console.log(`Tutor Benchmark external Tutor runner
+  console.log(`Tutor Benchmark CLI
 
 Usage:
+  tutorbench quickstart [options]
   tutorbench run --http <url> [options]
   tutorbench collect --http <url> --provider <id> --model <id> --prompt-version <id> --provenance <value> [options]
   tutorbench collect-model --http <url> --provider <id> --model <id> [options]
@@ -424,6 +438,7 @@ Usage:
   tutorbench human-reference-semantic-audit-localized [options]
 
 Commands:
+  quickstart            Run a local provider-free deterministic demonstration
   run                   Quick local evaluation; responses are not frozen
   collect               Freeze Product Tutor responses from TutorTurnInput
   collect-model         Freeze canonical model responses from ExecutionPacket
@@ -551,7 +566,9 @@ async function runTutorbenchEvaluate(
 export async function main(args = process.argv.slice(2)): Promise<void> {
   const options = parseTutorbenchArgs(args);
   if (options.help) {
-    if (options.helpCommand === "collect") {
+    if (options.helpCommand === "quickstart") {
+      printTutorbenchQuickstartHelp();
+    } else if (options.helpCommand === "collect") {
       printTutorbenchCollectHelp();
     } else if (options.helpCommand === "collect-model") {
       printTutorbenchCollectModelHelp();
@@ -594,7 +611,9 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     }
     return;
   }
-  if ("run" in options) {
+  if ("quickstart" in options) {
+    await runTutorbenchQuickstart(options.quickstart);
+  } else if ("run" in options) {
     await runTutorbench(options.run);
   } else if ("collect" in options) {
     if (options.collect.help) {
@@ -694,7 +713,8 @@ async function runAsExecutable(): Promise<void> {
         error.name === "MiniMaxJudgeConfigurationError" ||
         error.name === "ChatCompletionsJudgeConfigurationError" ||
         error.name === "ReviewTranslationArtifactError" ||
-        error.name === "ReviewTranslationConfigurationError"
+        error.name === "ReviewTranslationConfigurationError" ||
+        error.name === "QuickstartInvariantError"
       ))
         ? error.message
         : "Tutor Benchmark CLI failed.",

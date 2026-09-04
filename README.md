@@ -32,13 +32,41 @@ path is a repository clone:
 git clone https://github.com/shuangyan123/re.git
 cd re
 npm ci
+npm run quickstart
+```
+
+Quickstart is a provider-free, network-free deterministic demonstration. It
+needs no API key or Judge, prints four fixed development/smoke cases, and
+shows case-level checks without producing an official benchmark score. One
+bundled example response is intentionally weak so the output includes a clear
+pedagogical `FAIL`; that expected demo outcome still exits successfully. The
+default path prints only a concise summary. Use `--output <path>` if you also
+want an explicitly marked local `QuickstartSummary` JSON artifact.
+
+The installed package exposes the same first-run command:
+
+```bash
+npm install tutor-benchmark
+tutorbench quickstart
+```
+
+See [`docs/quickstart.md`](docs/quickstart.md) for the exact subset identity,
+eligibility boundary, and failure semantics.
+
+## Run the full benchmark
+
+The canonical full benchmark remains a separate path:
+
+```bash
 npm run benchmark
 ```
 
-The built-in command runs a synthetic Tutor against the checked-in dataset,
-prints a summary, and writes an ignored JSON result under `artifacts/`.
-Judge-required rubrics remain explicitly unresolved when no Judge is supplied;
-the runner never turns missing evidence into a passing score.
+It runs the current `tutor-eval-v0.2a@0.2a.5` dataset with the existing
+`0.3a.4` evaluator semantics. The canonical cases include Judge-required
+semantic rubrics. Without an explicitly configured Judge, those criteria stay
+unresolved and the normal run reports Judge-unavailable errors with no score;
+it never silently turns missing evidence into a pass. Quickstart does not
+replace or weaken this full-benchmark behavior.
 
 When distributed as a package, the intended install command is:
 

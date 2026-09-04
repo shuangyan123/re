@@ -113,7 +113,7 @@ export function renderHomePage(artifacts: PublicBenchmarkArtifacts): SitePage {
           <div class="button-row">
             <a class="button button-primary" href="/leaderboard/">Explore leaderboard</a>
             <a class="button button-secondary" href="/data/cases/">Browse cases</a>
-            <a class="button button-quiet" href="/run/">Run the benchmark</a>
+            <a class="button button-quiet" href="/run/">Try the Quickstart</a>
           </div>
           <p class="hero-note">${escapeHtml(benchmark.notice)}</p>
         </div>

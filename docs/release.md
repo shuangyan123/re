@@ -9,7 +9,7 @@ to npm or claim a stable, scientifically validated benchmark release.
 The maintainer smoke command builds the package, creates a local tarball,
 installs it into a temporary empty consumer without the optional OpenAI peer,
 imports the package-root API, loads the canonical dataset asset, and runs the
-installed `tutorbench --help` command:
+installed `tutorbench --help` and `tutorbench quickstart` commands:
 
 ```bash
 npm run test:package
@@ -26,7 +26,8 @@ manual or tag-triggered and also runs the typecheck, lint, tests, build,
 synthetic benchmark, website build, package smoke, and artifact checks.
 
 The installed `tutorbench` executable also exposes `collect` and `evaluate`.
-Package smoke checks the collection help path without making a live Tutor call.
+Package smoke checks the collection help paths and the provider-free Quickstart
+without making a live Tutor or Judge call.
 Real-model response files remain local/ignored evidence until they pass a
 separate privacy, license, provider-terms, and publication review.
 

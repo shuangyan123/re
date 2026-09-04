@@ -65,9 +65,17 @@ function packageFiles(packInfo) {
 
 function packageEnvironment() {
   const environment = { ...process.env };
-  delete environment.OPENAI_API_KEY;
-  delete environment.NPM_TOKEN;
-  delete environment.NODE_AUTH_TOKEN;
+  for (const key of [
+    "OPENAI_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "MINIMAX_API_KEY",
+    "TUTOR_MODEL_API_KEY",
+    "CHAT_COMPLETIONS_JUDGE_API_KEY",
+    "NPM_TOKEN",
+    "NODE_AUTH_TOKEN",
+  ]) {
+    delete environment[key];
+  }
   return environment;
 }
 
@@ -123,6 +131,7 @@ async function main() {
       "dist/src/cli/tutorbench.js",
       "scenarios/tutor-eval-v0.2a/cases.json",
       "scenarios/tutor-eval-v0.2a/cases.zh-CN.json",
+      "scenarios/tutor-eval-v0.1/cases.json",
       "prompts/tutor-baseline-system-v0.1.md",
       "assets/brand/tutorbench/web/tutorbench-mark.svg",
       "assets/brand/tutorbench/raster/favicon-32.png",
@@ -132,6 +141,7 @@ async function main() {
       "LICENSES/BRAND-POLICY.md",
       "NOTICE",
       "docs/licensing.md",
+      "docs/quickstart.md",
     ]) {
       assertCondition(files.has(required), `Package is missing ${required}.`);
     }
@@ -262,6 +272,28 @@ console.log("consumer API smoke passed");
     assertCondition(
       /tutorbench collect-model --http <url>/.test(help.stdout),
       "Installed tutorbench executable did not expose canonical model collection help.",
+    );
+    assertCondition(
+      /tutorbench quickstart \[options\]/.test(help.stdout),
+      "Installed tutorbench executable did not expose Quickstart help.",
+    );
+    const quickstart = await run(
+      executable,
+      ["quickstart"],
+      consumerRoot,
+      environment,
+      { shell: process.platform === "win32" },
+    );
+    assertCondition(
+      /Quickstart completed/.test(quickstart.stdout) &&
+        /Official benchmark score: no/.test(quickstart.stdout) &&
+        /Leaderboard eligible: no/.test(quickstart.stdout) &&
+        /Errors: 0/.test(quickstart.stdout),
+      "Installed tutorbench quickstart did not complete as a non-official deterministic demo.",
+    );
+    assertCondition(
+      !/TutorBench Score|Overall/.test(quickstart.stdout),
+      "Installed tutorbench quickstart printed an ambiguous overall score.",
     );
     const collectHelp = await run(
       executable,

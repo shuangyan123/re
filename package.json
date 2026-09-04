@@ -41,6 +41,7 @@
     "LICENSES/BRAND-POLICY.md",
     "NOTICE",
     "docs/licensing.md",
+    "docs/quickstart.md",
     "README.md"
   ],
   "engines": {
@@ -51,6 +52,7 @@
     "lint": "eslint .",
     "test": "npm run build && node --test dist/tests/*.test.js",
     "build": "tsc -p tsconfig.json",
+    "quickstart": "npm run build && node dist/src/cli/tutorbench.js quickstart",
     "benchmark": "npm run build && node dist/src/cli/benchmark.js",
     "judge:openai": "npm run build && node dist/src/cli/judge-openai.js",
     "coverage": "npm run build && node dist/src/cli/dataset-coverage.js",
