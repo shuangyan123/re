@@ -1,0 +1,54 @@
+name: Bug report
+description: Report a reproducible problem in the software, CLI, package, or website.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not include API keys, tokens, cookies, private artifacts, or real student data.
+        For a security vulnerability, follow [SECURITY.md](https://github.com/shuangyan123/re/blob/main/SECURITY.md).
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: What exact steps, command, fixture, or URL reproduce the problem?
+      placeholder: |
+        1. Run ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Include package/project version, dataset/evaluator identity when relevant, and commit or tag.
+      placeholder: "0.1.0; tutor-eval-v0.2a@0.2a.5; evaluator 0.3a.4"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Node version, browser, install mode, and relevant configuration without secrets.
+    validations:
+      required: true
+  - type: checkboxes
+    id: no-secrets
+    attributes:
+      label: Privacy check
+      options:
+        - label: I confirm that this report contains no secrets, credentials, cookies, private artifacts, or identifiable student data.
+          required: true

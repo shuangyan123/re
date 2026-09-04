@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+title: "TutorBench"
+type: software
+version: "0.1.0"
+authors:
+  - name: "shuangyan123"
+    website: "https://github.com/shuangyan123"
+repository-code: "https://github.com/shuangyan123/re"
+url: "https://github.com/shuangyan123/re"
+license: "other"
+license-url: "https://github.com/shuangyan123/re/blob/main/LICENSES.md"
+keywords:
+  - "AI tutoring"
+  - "benchmark"
+  - "evaluation"
+  - "Apache-2.0 software"
+  - "CC-BY-4.0 benchmark content"

@@ -1,0 +1,57 @@
+name: Methodology proposal
+description: Propose a benchmark, rubric, Judge, scoring, calibration, or comparability change.
+title: "[Methodology]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A methodology disagreement is not automatically a software bug. Explain the evidence and versioning consequences before proposing semantic changes.
+  - type: input
+    id: benchmark-component
+    attributes:
+      label: Benchmark component
+      description: Identify the dataset, rubric, Judge, evaluator, scoring, critical-failure, leakage, Human Reference, or leaderboard-comparability component.
+    validations:
+      required: true
+  - type: textarea
+    id: current-semantics
+    attributes:
+      label: Current semantics
+      description: Describe the behavior and identity that currently apply.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-change
+    attributes:
+      label: Proposed change
+      description: State the exact semantic change, including what must remain unchanged.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and rationale
+      description: Explain why the current benchmark is wrong or insufficient, independently of whether a score increases.
+    validations:
+      required: true
+  - type: textarea
+    id: versioning-impact
+    attributes:
+      label: Versioning impact
+      description: Identify required dataset, rubric, prompt, evaluator, protocol, or schema version changes and how historical identities remain readable.
+    validations:
+      required: true
+  - type: textarea
+    id: reproducibility-impact
+    attributes:
+      label: Reproducibility impact
+      description: Explain fixture, fingerprint, replay, calibration, or public-comparability effects.
+    validations:
+      required: true
+  - type: checkboxes
+    id: disagreement-boundary
+    attributes:
+      label: Scope acknowledgement
+      options:
+        - label: I understand that disagreement with a benchmark outcome is not by itself an automatic bug report or permission to silently change expected answers.
+          required: true

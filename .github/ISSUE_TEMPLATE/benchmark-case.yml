@@ -1,0 +1,71 @@
+name: Benchmark case proposal
+description: Propose a synthetic, public, or properly licensed TutorBench case.
+title: "[Case]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A case proposal is a benchmark-content change, not an ordinary typo fix.
+        Read [CONTRIBUTING.md](https://github.com/shuangyan123/re/blob/main/CONTRIBUTING.md) and [docs/licensing.md](https://github.com/shuangyan123/re/blob/main/docs/licensing.md) first.
+  - type: textarea
+    id: proposed-construct
+    attributes:
+      label: Proposed pedagogical construct
+      description: What observable tutoring construct should this case test?
+    validations:
+      required: true
+  - type: input
+    id: locale
+    attributes:
+      label: Locale
+      description: State the explicit learner/content locale, for example en or zh-CN.
+    validations:
+      required: true
+  - type: textarea
+    id: learner-state
+    attributes:
+      label: Learner state
+      description: Describe the learner's visible context, known concepts, misconception, level, and goal.
+    validations:
+      required: true
+  - type: input
+    id: subject
+    attributes:
+      label: Subject
+    validations:
+      required: true
+  - type: textarea
+    id: pedagogical-purpose
+    attributes:
+      label: Pedagogical purpose
+      description: Explain what a good Tutor response should make observable.
+    validations:
+      required: true
+  - type: textarea
+    id: disclosure-policy
+    attributes:
+      label: Disclosure policy
+      description: State whether the answer is disallowed, allowed, or required and why.
+    validations:
+      required: true
+  - type: textarea
+    id: existing-cases
+    attributes:
+      label: Why existing cases are insufficient
+      description: Identify the closest case and the meaningful gap this proposal fills.
+    validations:
+      required: true
+  - type: textarea
+    id: licensing-privacy
+    attributes:
+      label: Licensing and privacy declaration
+      description: State provenance and confirm the proposal is synthetic, public, or properly licensed and contains no identifiable student data.
+    validations:
+      required: true
+  - type: textarea
+    id: versioning-tests
+    attributes:
+      label: Versioning and tests
+      description: Describe identity/version impact, historical preservation, and proposed regression tests.
+    validations:
+      required: true

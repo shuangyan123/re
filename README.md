@@ -468,6 +468,16 @@ See [the roadmap](docs/roadmap.md), [release notes](docs/release.md), and the
 versioned TutorEval guides under `docs/` for delivery and methodology phase
 boundaries.
 
-## License
+## License and governance
 
-License: not specified yet. This is a public Developer Preview.
+TutorBench is a multi-licensed public Developer Preview:
+
+- Software code — [Apache-2.0](LICENSE).
+- Benchmark, dataset, and authored evaluation content — [CC BY 4.0](LICENSES/CC-BY-4.0.txt).
+- TutorBench name and brand assets — [TutorBench Brand Policy](LICENSES/BRAND-POLICY.md).
+
+The [licensing scope](docs/licensing.md) explains mixed files, generated
+artifacts, and attribution. Contribution and safety entry points are the
+[contribution guide](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md),
+and [Security Policy](SECURITY.md). The short machine-readable scope map is
+[`LICENSES.md`](LICENSES.md).

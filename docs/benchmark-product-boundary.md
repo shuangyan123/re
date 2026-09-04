@@ -217,6 +217,15 @@ corpus, but it belongs outside this repository's core contracts.
 ## Public adoption status
 
 The technical boundary is provider-neutral and the default runner is available.
-The repository still has a genuine public-adoption blocker: no license has
-been specified. This note does not choose a license on the maintainer's
-behalf.
+The former licensing blocker has been resolved by the project's explicit
+multi-license policy:
+
+- Software implementation is under Apache-2.0.
+- Authored benchmark, dataset, and evaluation content is under CC BY 4.0.
+- TutorBench names and brand assets follow the separate Brand Policy.
+
+See [`docs/licensing.md`](licensing.md) for scope, mixed-file, generated
+artifact, and attribution rules. This closes the licensing blocker only. The
+project remains a public Developer Preview; community review infrastructure,
+public verified model submissions, a calibrated leaderboard, and a five-minute
+first-run happy path are still future work.

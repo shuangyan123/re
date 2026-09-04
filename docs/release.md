@@ -30,6 +30,27 @@ Package smoke checks the collection help path without making a live Tutor call.
 Real-model response files remain local/ignored evidence until they pass a
 separate privacy, license, provider-terms, and publication review.
 
+## License and governance artifacts
+
+Every package or release validation must retain the project's public
+governance boundary:
+
+- `LICENSE` — complete Apache License 2.0 text for software scope.
+- `LICENSES/CC-BY-4.0.txt` — CC BY 4.0 canonical legal-code pointer for
+  authored benchmark content.
+- `LICENSES/BRAND-POLICY.md` — separate TutorBench brand policy.
+- `LICENSES.md`, `NOTICE`, and `docs/licensing.md` — the machine-readable,
+  informational, and detailed scope maps.
+- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and `SECURITY.md` — contribution,
+  conduct, and security entry points.
+
+`npm run test:governance` validates the required repository files, the
+multi-license package metadata, and the README governance links. The package
+smoke additionally verifies that the applicable license, notice, scope, and
+brand-policy files are present in the tarball. The release workflow runs both
+checks before retaining a package artifact. Tag/version validation semantics
+remain unchanged.
+
 ## Version and tags
 
 Package versions follow Semantic Versioning intent while the project remains a
@@ -66,3 +87,11 @@ secret.
 The website continues to show no calibrated public model runs. Public result
 submission, verification, ingestion, and reproducible real-model results are
 future work.
+
+## Repository settings follow-up
+
+This P0 task does not change GitHub repository administration or branch
+protection. Before a broader public launch, maintainers should verify that
+`main` requires the Tutor Benchmark CI status check while preserving a
+practical solo-maintainer workflow; an arbitrary external reviewer count is
+not required by this policy.

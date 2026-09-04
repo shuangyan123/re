@@ -1,0 +1,14 @@
+TutorBench
+
+TutorBench is distributed with three distinct public boundaries:
+
+- Software implementation is under Apache-2.0; see `LICENSE`.
+- Authored benchmark, dataset, and evaluation content is under CC BY 4.0;
+  see `LICENSES/CC-BY-4.0.txt` and `docs/licensing.md`.
+- TutorBench names and brand assets follow `LICENSES/BRAND-POLICY.md` and are
+  not granted unrestricted branding permission by the software or content
+  licenses.
+
+This NOTICE is informational and does not modify any license. Any confirmed
+third-party material remains under its own applicable terms; no additional
+third-party attribution is asserted here.

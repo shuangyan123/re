@@ -109,6 +109,10 @@ async function main() {
       packInfo.filename === expectedFilename,
       `Unexpected package filename: ${packInfo.filename ?? ""}`,
     );
+    assertCondition(
+      packageJson.license === "SEE LICENSE IN LICENSES.md",
+      "Package metadata does not point to the multi-license scope manifest.",
+    );
 
     const files = packageFiles(packInfo);
     for (const required of [
@@ -122,6 +126,12 @@ async function main() {
       "prompts/tutor-baseline-system-v0.1.md",
       "assets/brand/tutorbench/web/tutorbench-mark.svg",
       "assets/brand/tutorbench/raster/favicon-32.png",
+      "LICENSE",
+      "LICENSES.md",
+      "LICENSES/CC-BY-4.0.txt",
+      "LICENSES/BRAND-POLICY.md",
+      "NOTICE",
+      "docs/licensing.md",
     ]) {
       assertCondition(files.has(required), `Package is missing ${required}.`);
     }
@@ -162,6 +172,21 @@ async function main() {
       consumerRoot,
       environment,
       { shell: process.platform === "win32" },
+    );
+
+    const installedPackageRoot = join(consumerRoot, "node_modules", packageJson.name);
+    const installedLicenseMap = await readFile(join(installedPackageRoot, "LICENSES.md"), "utf8");
+    assertCondition(
+      /Apache-2\.0/.test(installedLicenseMap) && /CC-BY-4\.0/.test(installedLicenseMap),
+      "Installed package did not expose its multi-license scope map.",
+    );
+    const installedBrandPolicy = await readFile(
+      join(installedPackageRoot, "LICENSES", "BRAND-POLICY.md"),
+      "utf8",
+    );
+    assertCondition(
+      /TutorBench Brand Policy/.test(installedBrandPolicy),
+      "Installed package did not expose the TutorBench Brand Policy.",
     );
 
     await writeFile(

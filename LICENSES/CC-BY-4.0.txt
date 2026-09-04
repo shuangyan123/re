@@ -1,0 +1,13 @@
+Creative Commons Attribution 4.0 International
+
+TutorBench authored benchmark content is licensed under the Creative
+Commons Attribution 4.0 International License (CC BY 4.0).
+
+The complete, unmodified legal code is available at:
+https://creativecommons.org/licenses/by/4.0/legalcode
+
+A human-readable summary is available at:
+https://creativecommons.org/licenses/by/4.0/
+
+This file is a normative pointer to the canonical license text. It does not
+add, remove, or change any license term.
