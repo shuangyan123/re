@@ -98,8 +98,45 @@ artifact boundaries and does not change the methodology phases above.
 - [x] Provider-free five-minute Quickstart with a fixed deterministic smoke subset
 - [ ] Public result artifact pipeline for reproducible model runs
 - [ ] Public submission/review workflow (separate phase)
-- [ ] First intentional npm package publication
+- [x] First intentional npm package publication
 - [ ] Reproducible real-model response collection
+
+## Community Review track
+
+This track is intentionally separate from the historical Human Reference
+calibration artifacts and from the later real-review and statistical phases.
+
+### P3 Community Review Protocol — COMPLETE
+
+- [x] Provider-independent `community-review-protocol@0.1.0` contracts
+- [x] Strict qualification receipt, instrument, locale, packet, submission,
+      close, freeze, and public-artifact validators
+- [x] Deterministic SHA-256 identity for protocol, guide, localization,
+      qualification, task set, batch, assignment, packet, submission, close,
+      pool, and public evidence
+- [x] Positive-allowlist blindness firewall and exact atomic coverage
+- [x] Late/replacement rejection, explicit incomplete/pilot marking, and
+      disagreement-preserving human-human agreement evidence
+- [x] Synthetic-only regression fixtures and protocol boundary documentation
+
+P3 status: **READY FOR P4 COMMUNITY REVIEW SERVICE**. This does not mean that
+the service exists, that real reviewers have qualified, that a batch has been
+reviewed, or that any calibration or leaderboard claim is available.
+
+### P4 Community Review Service — NOT STARTED
+
+- [ ] Authenticated issuer and server-side qualification receipts
+- [ ] Sealed assignment delivery, reviewer consent, withdrawal, retention, and
+      anti-replay state
+- [ ] Real reviewer intake and operational abuse controls
+- [ ] Fresh sealed community batches and review service APIs
+
+### Later Community Review phases — NOT STARTED
+
+- [ ] P5 Community calibration
+- [ ] P6 Verified model submission
+- [ ] P7 Calibrated leaderboard
+- [ ] P8 Video launch
 
 ## 0.5 Statistical Evaluation — NOT STARTED
 

@@ -20,6 +20,7 @@ export {
 } from "./contracts/index.js";
 export { runTutorBenchmark, runTutorEval } from "./runner/index.js";
 export { createHttpTutor } from "./adapters/http-tutor.js";
+export * from "./community-review/index.js";
 
 export type {
   StudentState,

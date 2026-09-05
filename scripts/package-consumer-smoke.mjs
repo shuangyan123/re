@@ -202,10 +202,19 @@ async function main() {
     await writeFile(
       join(consumerRoot, "consumer.mjs"),
       `import {
+  communityReviewFingerprint,
   createHttpTutor,
   loadTutorEvalDataset,
   runTutorBenchmark,
 } from "tutor-benchmark";
+
+const protocolFingerprint = communityReviewFingerprint({
+  protocolId: "community-review-protocol",
+  protocolVersion: "0.1.0",
+});
+if (!/^sha256:[0-9a-f]{64}$/.test(protocolFingerprint)) {
+  throw new Error("Installed package did not expose the Community Review fingerprint API.");
+}
 
 const dataset = await loadTutorEvalDataset();
 if (dataset.id !== "tutor-eval-v0.2a" || dataset.cases.length !== 48) {

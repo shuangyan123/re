@@ -154,6 +154,11 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(runHtml, /preliminary, uncalibrated/);
     assert.match(methodologyHtml, /Case, spec, packet, corpus/);
     assert.match(methodologyHtml, /provider-native/);
+    assert.match(methodologyHtml, /Community Review protocol/);
+    assert.match(methodologyHtml, /P3 is defined; P4 is not deployed/);
+    assert.match(methodologyHtml, /Protocol defined/);
+    assert.match(methodologyHtml, /Community Review service not yet open/);
+    assert.match(docsHtml, /Community Review protocol/);
     assert.match(leaderboardHtml, /GenerationSpecId/);
     assert.match(docsHtml, /Software.*Apache-2\.0/s);
     assert.match(docsHtml, /Benchmark content.*CC BY 4\.0/s);
