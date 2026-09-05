@@ -42,6 +42,10 @@ test("release version check rejects mismatched and malformed tags", async () => 
   assert.equal(mismatch.exitCode, 1);
   assert.match(mismatch.stderr, /does not match package version 0\.1\.0/);
 
+  const prerelease = await runVersionCheck("v0.1.0-beta.1");
+  assert.equal(prerelease.exitCode, 1);
+  assert.match(prerelease.stderr, /does not match package version 0\.1\.0/);
+
   const malformed = await runVersionCheck("release-0.1.0");
   assert.equal(malformed.exitCode, 1);
   assert.match(malformed.stderr, /must match vX\.Y\.Z/);

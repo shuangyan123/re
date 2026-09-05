@@ -56,9 +56,10 @@ summary. To write the independent, explicitly non-official report contract:
 npm run quickstart -- --output artifacts/quickstart.json
 ```
 
-Or, after installing the package:
+Or, after npm publication in P2B and installing the package:
 
 ```bash
+# After npm publication only:
 npm install tutor-benchmark
 tutorbench quickstart
 ```
