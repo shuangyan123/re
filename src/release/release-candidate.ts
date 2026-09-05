@@ -1,9 +1,10 @@
 export const RELEASE_CANDIDATE_SCHEMA_VERSION = 1 as const;
 export const RELEASE_CANDIDATE_REPORT_KIND = "TutorBenchReleaseCandidateReport" as const;
 export const RELEASE_CANDIDATE_PACKAGE_NAME = "tutor-benchmark" as const;
-export const RELEASE_CANDIDATE_PACKAGE_VERSION = "0.1.0" as const;
-export const RELEASE_CANDIDATE_TAG = "v0.1.0" as const;
 export const RELEASE_CANDIDATE_STATUS = "Developer Preview" as const;
+
+// Keep this grammar aligned with scripts/validate-release-version.mjs.
+const RELEASE_PACKAGE_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
 
 export interface ReleaseCandidatePackageFile {
   readonly path: string;
@@ -15,8 +16,8 @@ export interface ReleaseCandidateReport {
   readonly schemaVersion: typeof RELEASE_CANDIDATE_SCHEMA_VERSION;
   readonly reportKind: typeof RELEASE_CANDIDATE_REPORT_KIND;
   readonly packageName: typeof RELEASE_CANDIDATE_PACKAGE_NAME;
-  readonly packageVersion: typeof RELEASE_CANDIDATE_PACKAGE_VERSION;
-  readonly proposedTag: typeof RELEASE_CANDIDATE_TAG;
+  readonly packageVersion: string;
+  readonly proposedTag: string;
   readonly releaseStatus: typeof RELEASE_CANDIDATE_STATUS;
   readonly sourceCommit: string;
   readonly nodeVersion: string;
@@ -127,6 +128,10 @@ function fingerprint(value: unknown, label: string): void {
   }
 }
 
+function isReleasePackageVersion(value: unknown): value is string {
+  return typeof value === "string" && RELEASE_PACKAGE_VERSION_PATTERN.test(value);
+}
+
 /**
  * Validates the machine-readable RC report without accepting mutable paths,
  * release timestamps, credentials, or benchmark identity drift.
@@ -138,8 +143,11 @@ export function assertReleaseCandidateReport(
   exactNumber(report.schemaVersion, RELEASE_CANDIDATE_SCHEMA_VERSION, "schemaVersion");
   exactString(report.reportKind, RELEASE_CANDIDATE_REPORT_KIND, "reportKind");
   exactString(report.packageName, RELEASE_CANDIDATE_PACKAGE_NAME, "packageName");
-  exactString(report.packageVersion, RELEASE_CANDIDATE_PACKAGE_VERSION, "packageVersion");
-  exactString(report.proposedTag, RELEASE_CANDIDATE_TAG, "proposedTag");
+  const packageVersion = report.packageVersion;
+  if (!isReleasePackageVersion(packageVersion)) {
+    throw new Error("packageVersion must match X.Y.Z or X.Y.Z-prerelease.");
+  }
+  exactString(report.proposedTag, `v${packageVersion}`, "proposedTag");
   exactString(report.releaseStatus, RELEASE_CANDIDATE_STATUS, "releaseStatus");
   if (typeof report.sourceCommit !== "string" || !/^[0-9a-f]{40}$/u.test(report.sourceCommit)) {
     throw new Error("sourceCommit must be a 40-character lowercase commit SHA.");
@@ -147,7 +155,7 @@ export function assertReleaseCandidateReport(
   if (typeof report.nodeVersion !== "string" || typeof report.npmVersion !== "string") {
     throw new Error("Runtime versions must be strings.");
   }
-  exactString(report.packageFilename, "tutor-benchmark-0.1.0.tgz", "packageFilename");
+  exactString(report.packageFilename, `tutor-benchmark-${packageVersion}.tgz`, "packageFilename");
   fingerprint(report.packagePayloadFingerprint, "packagePayloadFingerprint");
   if (
     typeof report.packageFileCount !== "number" ||
