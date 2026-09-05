@@ -9,10 +9,10 @@ interface ProcessResult {
   readonly stderr: string;
 }
 
-function runVersionCheck(tag: string): Promise<ProcessResult> {
+function runVersionCheck(...args: string[]): Promise<ProcessResult> {
   const scriptPath = resolve(process.cwd(), "scripts", "validate-release-version.mjs");
   return new Promise((resolveResult, reject) => {
-    const child = spawn(process.execPath, [scriptPath, tag], {
+    const child = spawn(process.execPath, [scriptPath, ...args], {
       cwd: process.cwd(),
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -49,4 +49,10 @@ test("release version check rejects mismatched and malformed tags", async () => 
   const malformed = await runVersionCheck("release-0.1.0");
   assert.equal(malformed.exitCode, 1);
   assert.match(malformed.stderr, /must match vX\.Y\.Z/);
+});
+
+test("release version syntax check accepts future prerelease tags before checkout", async () => {
+  const result = await runVersionCheck("--syntax-only", "v0.2.0-beta.1");
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /syntax check passed/);
 });

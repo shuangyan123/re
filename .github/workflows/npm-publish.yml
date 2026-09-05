@@ -1,0 +1,207 @@
+name: TutorBench npm Staged Publication
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Annotated release tag to validate and stage"
+        required: true
+        type: string
+      expected_commit:
+        description: "Exact 40-character peeled release commit"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-staged-publication-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    name: Validate and stage exact release artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository for input validation
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate dispatch inputs
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/validate-release-version.mjs --syntax-only "$RELEASE_TAG"
+          if [[ ! "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "expected_commit must be a 40-character lowercase commit SHA." >&2
+            exit 1
+          fi
+
+      - name: Check out exact annotated release tag
+        uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Verify exact annotated tag and expected commit
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag_ref="refs/tags/$RELEASE_TAG"
+          tag_type="$(git cat-file -t "$tag_ref")"
+          if [[ "$tag_type" != "tag" ]]; then
+            echo "Release tag must be an annotated tag; found $tag_type." >&2
+            exit 1
+          fi
+          tag_commit="$(git rev-list -n 1 "$tag_ref")"
+          if [[ "$tag_commit" != "$EXPECTED_COMMIT" ]]; then
+            echo "Annotated tag does not point to expected_commit." >&2
+            exit 1
+          fi
+          checkout_commit="$(git rev-parse HEAD)"
+          if [[ "$checkout_commit" != "$EXPECTED_COMMIT" ]]; then
+            echo "Checked-out commit does not match expected_commit." >&2
+            exit 1
+          fi
+
+      - name: Set up Node 22.23.2
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.23.2
+          cache: npm
+
+      - name: Install pinned npm CLI
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.1
+          test "$(npm --version)" = "11.19.1"
+          case "$(node --version)" in
+            v22.*) ;;
+            *) echo "The publication job requires Node 22." >&2; exit 1 ;;
+          esac
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate checked-out tag and package version
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node scripts/validate-release-version.mjs "$RELEASE_TAG"
+
+      - name: Read checked-out package identity
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_name="$(node -p "require('./package.json').name")"
+          package_version="$(node -p "require('./package.json').version")"
+          if [[ "$package_name" != "tutor-benchmark" ]]; then
+            echo "Unexpected package name: $package_name" >&2
+            exit 1
+          fi
+          package_filename="tutor-benchmark-${package_version}.tgz"
+          printf 'name=%s\n' "$package_name" >> "$GITHUB_OUTPUT"
+          printf 'version=%s\n' "$package_version" >> "$GITHUB_OUTPUT"
+          printf 'filename=%s\n' "$package_filename" >> "$GITHUB_OUTPUT"
+
+      - name: Check live registry version absence
+        env:
+          PACKAGE_NAME: ${{ steps.package.outputs.name }}
+          PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          registry_output="$(npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --json --registry=https://registry.npmjs.org/ 2>&1)"
+          registry_status=$?
+          set -e
+          if [[ "$registry_status" -eq 0 ]]; then
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already live on npm; refusing to stage." >&2
+            exit 1
+          fi
+          if grep -Eqi 'E404|404 Not Found|not found' <<< "$registry_output"; then
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is absent from the live npm registry."
+            exit 0
+          fi
+          echo "Could not prove live registry absence; refusing to stage." >&2
+          echo "$registry_output" >&2
+          exit 1
+
+      - name: Run repository release gates
+        run: |
+          set -euo pipefail
+          npm run test:governance
+          npm run typecheck
+          npm run lint
+          npm test
+          npm run build
+          npm run quickstart
+          npm run benchmark
+          npm run website:build
+          node scripts/website-artifact-smoke.mjs
+
+      - name: Verify release candidate and retain exact tarball
+        run: npm run release:verify
+
+      - name: Verify retained artifact identity
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+          PACKAGE_FILENAME: ${{ steps.package.outputs.filename }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { readFile } from "node:fs/promises";
+
+          const report = JSON.parse(await readFile("artifacts/release/release-candidate-report.json", "utf8"));
+          const packageVersion = process.env.PACKAGE_VERSION;
+          const packageFilename = process.env.PACKAGE_FILENAME;
+          const tarballPath = `artifacts/release/${packageFilename}`;
+          const tarball = await readFile(tarballPath);
+          const tarballFingerprint = `sha256:${createHash("sha256").update(tarball).digest("hex")}`;
+          const expected = {
+            packageName: "tutor-benchmark",
+            packageVersion,
+            proposedTag: `v${packageVersion}`,
+            packageFilename,
+            sourceCommit: process.env.EXPECTED_COMMIT,
+          };
+          for (const [field, value] of Object.entries(expected)) {
+            if (report[field] !== value) {
+              throw new Error(`Release report ${field} does not match the checked-out release identity.`);
+            }
+          }
+          if (report.rawTarballFingerprint !== tarballFingerprint) {
+            throw new Error("Retained tarball fingerprint does not match the release report.");
+          }
+          console.log(`Validated exact tarball: ${tarballPath}`);
+          NODE
+
+      - name: Stage exact retained tarball with npm Trusted Publishing
+        env:
+          PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+          PACKAGE_FILENAME: ${{ steps.package.outputs.filename }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$PACKAGE_VERSION" == *-* ]]; then
+            npm_tag="next"
+          else
+            npm_tag="latest"
+          fi
+          npm stage publish "artifacts/release/${PACKAGE_FILENAME}" --tag "$npm_tag"
+          echo "PACKAGE STAGED — AWAITING MAINTAINER 2FA APPROVAL"

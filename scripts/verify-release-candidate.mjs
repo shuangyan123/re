@@ -22,9 +22,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const repositoryRoot = resolve(fileURLToPath(new URL("../", import.meta.url)));
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const expectedPackageName = "tutor-benchmark";
-const expectedPackageVersion = "0.1.0";
-const expectedPackageFilename = `${expectedPackageName}-${expectedPackageVersion}.tgz`;
-const expectedTag = "v0.1.0";
 
 function run(command, args, cwd, environment = process.env, options = {}) {
   return new Promise((resolveResult, reject) => {
@@ -329,7 +326,14 @@ function executablePath(consumerRoot) {
   );
 }
 
-async function verifyInstalledConsumer(tarballPath, packageJson, temporaryRoot, environment, expectedPayload) {
+async function verifyInstalledConsumer(
+  tarballPath,
+  packageJson,
+  packageVersion,
+  temporaryRoot,
+  environment,
+  expectedPayload,
+) {
   const consumerRoot = join(temporaryRoot, "consumer");
   await mkdir(consumerRoot, { recursive: true });
   await writeFile(
@@ -350,7 +354,7 @@ async function verifyInstalledConsumer(tarballPath, packageJson, temporaryRoot, 
   assertCondition(canonicalJson(installedPayload) === canonicalJson(expectedPayload), "Installed package payload differs from the audited npm pack payload.");
   const installedPackageJson = JSON.parse(await readFile(join(installedPackageRoot, "package.json"), "utf8"));
   assertCondition(installedPackageJson.name === expectedPackageName, "Installed package name changed.");
-  assertCondition(installedPackageJson.version === expectedPackageVersion, "Installed package version changed.");
+  assertCondition(installedPackageJson.version === packageVersion, "Installed package version changed.");
   const packageLicenseMap = await readFile(join(installedPackageRoot, "LICENSES.md"), "utf8");
   assertCondition(/Apache-2\.0/.test(packageLicenseMap) && /CC-BY-4\.0/.test(packageLicenseMap), "Installed license map is incomplete.");
   const brandPolicy = await readFile(join(installedPackageRoot, "LICENSES", "BRAND-POLICY.md"), "utf8");
@@ -396,7 +400,11 @@ async function main() {
   const commit = await sourceCommit();
   const packageJson = await readPackageJson();
   assertCondition(packageJson.name === expectedPackageName, `Expected package ${expectedPackageName}.`);
-  assertCondition(packageJson.version === expectedPackageVersion, `Expected package version ${expectedPackageVersion}.`);
+  assertCondition(typeof packageJson.version === "string" && packageJson.version.length > 0, "Package version must be a non-empty string.");
+  const expectedPackageVersion = packageJson.version;
+  const expectedPackageFilename = `${expectedPackageName}-${expectedPackageVersion}.tgz`;
+  const expectedTag = `v${expectedPackageVersion}`;
+  await run(process.execPath, [join(repositoryRoot, "scripts", "validate-release-version.mjs"), expectedTag], repositoryRoot);
   assertCondition(packageJson.engines?.node === ">=22 <23", "Package must retain the Node 22 engine range.");
   assertCondition(packageJson.private !== true, "Release candidate package must not be private.");
   assertCondition(packageJson.license === "SEE LICENSE IN LICENSES.md", "Package license metadata is not multi-license aware.");
@@ -442,7 +450,14 @@ async function main() {
     const websiteFiles = await collectFileManifest(join(repositoryRoot, "website", "dist"));
     const websiteByteCount = websiteFiles.reduce((total, file) => total + file.size, 0);
 
-    const installed = await verifyInstalledConsumer(consumerTarballPath, packageJson, temporaryRoot, environment, firstPack.payload);
+    const installed = await verifyInstalledConsumer(
+      consumerTarballPath,
+      packageJson,
+      expectedPackageVersion,
+      temporaryRoot,
+      environment,
+      firstPack.payload,
+    );
     const quickstartSummary = installed.quickstartSummary;
     const report = {
       schemaVersion: 1,
