@@ -43,9 +43,11 @@ pedagogical `FAIL`; that expected demo outcome still exits successfully. The
 default path prints only a concise summary. Use `--output <path>` if you also
 want an explicitly marked local `QuickstartSummary` JSON artifact.
 
-The installed package exposes the same first-run command:
+After the future v0.1.0 npm publication, the installed package will expose the
+same first-run command:
 
 ```bash
+# After npm publication only:
 npm install tutor-benchmark
 tutorbench quickstart
 ```
@@ -68,14 +70,16 @@ unresolved and the normal run reports Judge-unavailable errors with no score;
 it never silently turns missing evidence into a pass. Quickstart does not
 replace or weaken this full-benchmark behavior.
 
-When distributed as a package, the intended install command is:
+After npm publication, the intended package install command is:
 
 ```bash
+# After npm publication only:
 npm install tutor-benchmark
 ```
 
-Package artifacts are release-ready, but npm registry availability and package
-publication are intentionally separate maintainer decisions.
+The repository is preparing the first `tutor-benchmark@0.1.0` Developer Preview
+release. npm registry availability and package publication are intentionally
+separate maintainer decisions; the package is not published yet.
 
 ## Use your Tutor
 
@@ -489,8 +493,13 @@ npm run benchmark
 npm run website:build
 npm run test:package
 npm run test:website
+npm run release:verify
 git diff --check
 ```
+
+`release:verify` requires a clean checkout and writes only ignored
+`artifacts/release/` outputs. It binds the package payload and website artifact
+to the resolved source commit for later maintainer review; it does not publish.
 
 See [the roadmap](docs/roadmap.md), [release notes](docs/release.md), and the
 versioned TutorEval guides under `docs/` for delivery and methodology phase

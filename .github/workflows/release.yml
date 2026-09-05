@@ -62,7 +62,9 @@ jobs:
       - name: Check public website artifact
         run: node scripts/website-artifact-smoke.mjs
       - name: Run package consumer smoke and retain tarball
-        run: npm run test:package -- --output-dir artifacts/release
+        run: node scripts/package-consumer-smoke.mjs --output-dir artifacts/release
+      - name: Verify release candidate and emit report
+        run: npm run release:verify
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
@@ -74,4 +76,10 @@ jobs:
         with:
           name: tutor-benchmark-website-${{ steps.package.outputs.version }}
           path: website/dist
+          if-no-files-found: error
+      - name: Upload release candidate report
+        uses: actions/upload-artifact@v4
+        with:
+          name: tutor-benchmark-release-candidate-${{ steps.package.outputs.version }}
+          path: artifacts/release/release-candidate-report.json
           if-no-files-found: error
