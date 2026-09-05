@@ -18,8 +18,11 @@ Issues and pull requests may propose:
 - Calibration methodology and audit infrastructure.
 
 Use the closest issue form, then link the relevant issue from a pull request.
-Community Human Review infrastructure is planned, but it is not yet accepting
-official public review submissions, reviewer identities, or qualification data.
+The Community Review protocol is defined in P3, but the P4 service is not
+deployed and this repository is not yet accepting official public review
+submissions, reviewer identities, or qualification data. See the
+[Community Review protocol](docs/community-review-protocol.md) for the exact
+boundary.
 
 ## Before opening a pull request
 

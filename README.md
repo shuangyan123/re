@@ -25,8 +25,8 @@ module.
 
 Requirements: Node 22 (`>=22 <23`).
 
-The package is not published to npm yet. The current verified installation
-path is a repository clone:
+The published `tutor-benchmark@0.1.0` Developer Preview and the repository
+clone are both supported installation paths. The clone path is:
 
 ```bash
 git clone https://github.com/shuangyan123/re.git
@@ -43,11 +43,9 @@ pedagogical `FAIL`; that expected demo outcome still exits successfully. The
 default path prints only a concise summary. Use `--output <path>` if you also
 want an explicitly marked local `QuickstartSummary` JSON artifact.
 
-After the future v0.1.0 npm publication, the installed package will expose the
-same first-run command:
+The published package exposes the same first-run command:
 
 ```bash
-# After npm publication only:
 npm install tutor-benchmark
 tutorbench quickstart
 ```
@@ -70,16 +68,15 @@ unresolved and the normal run reports Judge-unavailable errors with no score;
 it never silently turns missing evidence into a pass. Quickstart does not
 replace or weaken this full-benchmark behavior.
 
-After npm publication, the intended package install command is:
+The intended package install command is:
 
 ```bash
-# After npm publication only:
 npm install tutor-benchmark
 ```
 
-The repository is preparing the first `tutor-benchmark@0.1.0` Developer Preview
-release. npm registry availability and package publication are intentionally
-separate maintainer decisions; the package is not published yet.
+The first `tutor-benchmark@0.1.0` Developer Preview is published through the
+documented P2B release path. The package publication, GitHub Release, and
+artifact identity remain separate, read-back-verified release facts.
 
 ## Use your Tutor
 
@@ -147,8 +144,7 @@ example:
 python examples/http-python-tutor/server.py
 ```
 
-In another terminal, use the installed package command when the package has been
-intentionally published:
+In another terminal, use the published package command:
 
 ```bash
 tutorbench run \
@@ -161,7 +157,7 @@ The three CLI paths are deliberately distinct:
 ```text
 Repository clone:       node dist/src/cli/tutorbench.js ...
 Installed package:      tutorbench ...
-After npm publication:  npx tutor-benchmark ...
+npx package runner:     npx tutor-benchmark ...
 ```
 
 From a repository clone, use `node dist/src/cli/tutorbench.js` after
@@ -210,6 +206,23 @@ available under `View original` / `查看原文`. The sidecar is source-hash-bou
 incrementally reusable, provider-neutral, and local-only. See
 [`docs/review-translation.md`](docs/review-translation.md) for the schema,
 isolation boundary, provider contract, and stale-translation behavior.
+
+## Community Review protocol (P3)
+
+`community-review-protocol@0.1.0` defines a provider-independent contract for
+future independent human review: qualification receipt envelopes, sealed blind
+packets, exact atomic submissions, close/freeze semantics, descriptive
+human-human agreement, and explicit-policy public evidence. The protocol is
+implemented. Status: **Protocol defined; Community Review service not yet
+open.** It is **READY FOR P4 COMMUNITY REVIEW SERVICE**; no P4 service is
+deployed, no public reviewer intake is open, and no real qualification or
+review campaign is running.
+
+P3 does not turn the historical Human Reference qualification fixture or Pilot
+artifacts into secure public evidence. Agreement is consistency evidence, not
+correctness, calibration, or a leaderboard result. See
+[`docs/community-review-protocol.md`](docs/community-review-protocol.md) for
+the versioning, privacy, blindness, disclosure, and P4 boundary.
 
 ## What it measures
 
