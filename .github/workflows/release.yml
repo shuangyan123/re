@@ -39,10 +39,20 @@ jobs:
       - name: Read package version
         id: package
         shell: bash
-        run: echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+        run: |
+          version=$(node -p "require('./package.json').version")
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
       - name: Check tag and package version
-        if: startsWith(github.ref, 'refs/tags/')
-        run: node scripts/validate-release-version.mjs "$GITHUB_REF_NAME"
+        if: >-
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+          (github.event_name == 'workflow_dispatch' &&
+            (startsWith(inputs.ref, 'refs/tags/') || startsWith(inputs.ref, 'v')))
+        env:
+          RELEASE_REF: ${{ inputs.ref || github.ref }}
+        shell: bash
+        run: |
+          tag="${RELEASE_REF#refs/tags/}"
+          node scripts/validate-release-version.mjs "$tag"
       - name: Validate license and governance boundary
         run: npm run test:governance
       - name: Typecheck
