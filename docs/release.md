@@ -99,6 +99,11 @@ artifact, and the release-candidate report, and has no publish job, npm token,
 OIDC publish permission, or automatic GitHub Release job. Each Actions run is
 its own evidence source; no mutable `latest` artifact is used.
 
+A release-validation workflow defect does not justify moving an immutable
+release tag. After fixing the validation workflow on `main`, manually dispatch
+the fixed workflow against the existing exact tag and verify its resolved
+source commit.
+
 The package and website artifacts are generated from the resolved checkout
 commit. A future GitHub Release asset must come from the validated workflow
 run, not from a new local `npm pack`. If P2B must repack inside a trusted

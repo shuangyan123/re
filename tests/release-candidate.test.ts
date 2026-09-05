@@ -13,6 +13,13 @@ import {
   RELEASE_CANDIDATE_TAG,
 } from "../src/release/release-candidate.js";
 
+function workflowStep(workflow: string, name: string): string {
+  const start = workflow.indexOf(`- name: ${name}`);
+  assert.ok(start >= 0, `Missing workflow step: ${name}`);
+  const next = workflow.indexOf("\n      - name:", start + 1);
+  return workflow.slice(start, next === -1 ? workflow.length : next);
+}
+
 function validReport() {
   return {
     schemaVersion: RELEASE_CANDIDATE_SCHEMA_VERSION,
@@ -119,4 +126,39 @@ test("release validation workflow stays validation-only", async () => {
   assert.doesNotMatch(workflow, /npm publish|NODE_AUTH_TOKEN|NPM_TOKEN|gh release create/iu);
   assert.match(workflow, /release:verify/);
   assert.match(workflow, /release-candidate-report\.json/);
+});
+
+test("release validation recovers immutable tag checks for push and manual refs", async () => {
+  const workflow = await readFile(resolve(process.cwd(), ".github/workflows/release.yml"), "utf8");
+  const packageStep = workflowStep(workflow, "Read package version");
+  assert.match(packageStep, /run:\s*\|/);
+  assert.ok(
+    packageStep.includes(`version=$(node -p "require('./package.json').version")`),
+  );
+  assert.ok(
+    packageStep.includes(`printf 'version=%s\\n' "$version" >> "$GITHUB_OUTPUT"`),
+  );
+  assert.doesNotMatch(packageStep, /run:\s+echo\s+"version=/);
+
+  const tagStep = workflowStep(workflow, "Check tag and package version");
+  assert.match(tagStep, /github\.event_name == 'push'/);
+  assert.match(tagStep, /startsWith\(github\.ref, 'refs\/tags\/'\)/);
+  assert.match(tagStep, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(tagStep, /startsWith\(inputs\.ref, 'refs\/tags\/'\)/);
+  assert.match(tagStep, /startsWith\(inputs\.ref, 'v'\)/);
+  assert.match(tagStep, /RELEASE_REF:\s+\$\{\{\s*inputs\.ref\s*\|\|\s*github\.ref\s*\}\}/);
+  assert.match(tagStep, /tag="\$\{RELEASE_REF#refs\/tags\/\}"/);
+  assert.match(tagStep, /node scripts\/validate-release-version\.mjs "\$tag"/);
+  assert.doesNotMatch(tagStep, /node scripts\/validate-release-version\.mjs "\$GITHUB_REF_NAME"/);
+
+  for (const artifactName of [
+    "tutor-benchmark-${{ steps.package.outputs.version }}",
+    "tutor-benchmark-website-${{ steps.package.outputs.version }}",
+    "tutor-benchmark-release-candidate-${{ steps.package.outputs.version }}",
+  ]) {
+    assert.ok(workflow.includes(artifactName), artifactName);
+  }
+
+  const tagCondition = tagStep.slice(tagStep.indexOf("if:"), tagStep.indexOf("env:"));
+  assert.doesNotMatch(tagCondition, /inputs\.ref\s*(?:==|!=)\s*['"]main['"]/);
 });
