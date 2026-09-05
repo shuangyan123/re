@@ -106,31 +106,58 @@ workflow, it must compare the new package payload file list and SHA-256
 manifest with the validated report before publishing. Raw gzip bytes do not
 need to be treated as stable when the payload is identical.
 
-## Future P2B sequence
+## P2B bootstrap publication sequence
+
+The first publication of the unscoped `tutor-benchmark` package cannot begin
+with npm Trusted Publishing: the package must already exist before a trusted
+publisher relationship can be configured. The v0.1.0 bootstrap therefore uses
+an explicitly authorized interactive maintainer publish with account-level
+2FA. It does not use a long-lived `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or a
+granular bypass-2FA token, and it does not claim npm provenance for this
+bootstrap release.
 
 P2B requires a separate explicit maintainer authorization and must complete the
 following in order:
 
-1. Confirm npm account, package ownership, public name, and account 2FA.
-2. Configure and verify the npm Trusted Publisher for the exact repository and
-   future publish workflow filename.
-3. Decide whether `main` protection and required Tutor Benchmark CI are ready.
-4. Approve the exact release commit and re-run validation against it.
-5. Create the documented annotated `v0.1.0` tag.
-6. Run the validation workflow and inspect the exact package, website, and
-   report artifacts.
-7. Create the GitHub Release with the reviewed draft notes and validated
-   artifacts.
-8. Publish the exact validated npm payload through npm Trusted Publishing.
-9. Verify the published package with `npm view` and a clean install/Quickstart.
-10. Record the source SHA, workflow run, artifact fingerprints, registry
-    version, GitHub Release, and provenance evidence.
+1. Approve the exact clean `main` source commit, rerun the required repository
+   gates and release verifier, and freeze the source SHA and package payload
+   fingerprint.
+2. Recheck the npm package, `v0.1.0` tag, and GitHub Release identities
+   read-only. Confirm the maintainer account and account-level 2FA without
+   recording credentials or OTPs. Decide whether optional `main` protection
+   and required Tutor Benchmark CI are ready.
+3. After the exact tag authorization, create and push the annotated `v0.1.0`
+   tag without force options.
+4. Wait for the tag-triggered validation workflow, then inspect that specific
+   run's tarball, website, and release-candidate report. The report must bind
+   to the frozen source SHA and the package payload must match; do not use old
+   PR/main artifacts or a mutable `latest` artifact.
+5. Publish the exact validated
+   `tutor-benchmark-0.1.0.tgz` interactively with `npm publish <path> --access
+   public`; let npm present the 2FA challenge and do not put an OTP in command
+   arguments, shell history, logs, or files.
+6. Read back the registry metadata, install `tutor-benchmark@0.1.0` into a
+   fresh temporary directory, run the installed CLI and provider-free
+   Quickstart, and compare the registry payload fingerprint with the validated
+   workflow payload.
+7. Only after the npm readback passes, create the public GitHub Release from
+   the same `v0.1.0` tag, attach the exact validated tarball and report, and
+   verify that the release asset payload matches both the workflow and registry
+   payloads.
+8. Only after the package exists, configure and verify the npm Trusted
+   Publisher for a separate future publish workflow. Keep the current release
+   validation workflow validation-only and record the post-release setup as a
+   separate hardening change.
+9. Record the source SHA, tag workflow run, artifact fingerprints, registry
+   metadata, GitHub Release, Quickstart result, and bootstrap publication
+   method. Mark npm provenance for v0.1.0 as not claimed unless independent
+   registry evidence proves otherwise.
 
-The future npm workflow should prefer OIDC Trusted Publishing and npm
-provenance over a long-lived `NPM_TOKEN`. Only the future publish job should
+Future releases should use OIDC Trusted Publishing and automatic npm
+provenance rather than a long-lived token. Only the future publish job should
 add `id-token: write`; the current validation workflow intentionally remains
 `contents: read` only. See [the P2B npm plan](npm-publishing.md) for the
-current npm requirements and build-once handoff.
+bootstrap boundary, future workflow requirements, and build-once handoff.
 
 ## License and governance artifacts
 
