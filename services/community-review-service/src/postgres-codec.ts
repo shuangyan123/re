@@ -824,7 +824,7 @@ async function persistBatches(
   states: readonly ReviewBatchRecord["state"][],
 ): Promise<void> {
   for (const { record, previous } of changedRecords(before, after, (item) => item.batchId)) {
-    if (previous !== undefined && !states.includes(record.state)) continue;
+    if (!states.includes(record.state)) continue;
     if (previous === undefined) {
       await client.query(
         `INSERT INTO review_batches
