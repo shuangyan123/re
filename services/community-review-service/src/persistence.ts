@@ -121,6 +121,19 @@ export interface ReviewDeliveryAuditEventRecord {
   readonly occurredAt: ServiceTimestamp;
 }
 
+export type ReviewSubmissionAuditEventType = "submission_accepted";
+
+/** Narrow accepted-submission audit metadata; submission contents stay in the submission row. */
+export interface ReviewSubmissionAuditEventRecord {
+  readonly eventId: string;
+  readonly eventType: ReviewSubmissionAuditEventType;
+  readonly batchId: string;
+  readonly assignmentId: string;
+  readonly reviewerId: string;
+  readonly submissionFingerprint: CommunityReviewFingerprint;
+  readonly occurredAt: ServiceTimestamp;
+}
+
 /** OPEN is retained only for P4-A synthetic rows; P4-C uses ACTIVE. */
 export type QualificationPoolState = "DRAFT" | "SEALED" | "ACTIVE" | "RETIRED" | "OPEN";
 
@@ -249,6 +262,8 @@ export interface ReviewBatchCloseRecord {
   /** Exact P3 CLOSED manifest returned by closeCommunityReviewBatch. */
   readonly manifest: CommunityReviewBatchManifest;
   readonly closeRecord: CommunityReviewBatchCloseRecord;
+  /** Exact accepted-submission snapshot used for the close transaction. */
+  readonly acceptedSubmissions: readonly CommunityReviewSubmission[];
   readonly createdAt: ServiceTimestamp;
 }
 
@@ -293,6 +308,11 @@ export interface CommunityReviewPersistenceTransaction {
     record: ReviewDeliveryAuditEventRecord,
   ): ReviewDeliveryAuditEventRecord;
   listReviewDeliveryAuditEvents(batchId?: string): readonly ReviewDeliveryAuditEventRecord[];
+
+  insertReviewSubmissionAuditEvent(
+    record: ReviewSubmissionAuditEventRecord,
+  ): ReviewSubmissionAuditEventRecord;
+  listReviewSubmissionAuditEvents(batchId?: string): readonly ReviewSubmissionAuditEventRecord[];
 
   getQualificationPool(poolId: string, poolVersion: string): QualificationPoolRecord | undefined;
   insertQualificationPool(record: QualificationPoolRecord): QualificationPoolRecord;

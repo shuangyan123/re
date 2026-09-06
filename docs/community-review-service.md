@@ -1,4 +1,4 @@
-# Community Review Service P4-A / P4-B / P4-C / P4-D
+# Community Review Service P4-A / P4-B / P4-C / P4-D / P4-E
 
 Status:
 
@@ -7,6 +7,9 @@ P4-A Service Foundation — PASS
 P4-B Authentication & Reviewer Identity — PASS
 P4-C Sealed Qualification Authority — PASS
 P4-D Blind Delivery / Assignment — PASS
+P4-E Production Submission / Close — PASS
+P4-F Freeze / Operational Evidence — NOT STARTED
+P4-G Deployment / Readiness — NOT STARTED
 ```
 
 The broader status remains:
@@ -39,9 +42,11 @@ P4 owns the private/runtime boundary around those helpers:
 - reviewer/operator separation and account lifecycle;
 - sealed qualification definitions, material references, pool state, attempts,
   server-side evaluation, and authoritative receipt persistence;
-- authenticated blind assignment delivery from sealed review material; and
-- transaction ordering, uniqueness, anti-replay checks, narrow audit metadata,
-  and deterministic in-memory behavior for synthetic tests.
+  - authenticated blind assignment delivery from sealed review material;
+  - authenticated own-assignment submission and operator-only close authority;
+  - exact packet/atomic validation, transaction ordering, uniqueness,
+    anti-replay checks, close snapshots, narrow audit metadata, and
+    deterministic in-memory behavior for synthetic tests.
 
 Qualification is an eligibility mechanism. It is not calibration, correctness
 validation of a tutor, a Human Reference, consensus, adjudication, a Judge
@@ -322,8 +327,8 @@ assignment cannot be silently replaced. Concurrent duplicate requests are
 serialized by the repository and remain subject to the database uniqueness
 constraint. Assignment issuance that loses the OPEN-to-CLOSED/FROZEN race
 fails without leaving a partial assignment. Existing P3 close and freeze
-helpers remain authoritative; P4-D does not productionize submission or
-close orchestration.
+helpers remain authoritative; P4-E adds the service-owned submission and
+close orchestration described below.
 
 Reviewer retrieval and withdrawal are authenticated own-assignment operations.
 The application facade derives ownership from the authentication mapping, so a
@@ -339,6 +344,153 @@ reviewer IDs where needed, a bounded reason code, and a timestamp. They never
 contain packet contents, visible task material, sealed-source data, answer
 keys, credentials, tokens, cookies, auth subjects, evaluator fields, or other
 reviewer information.
+
+## Production submission and close authority (P4-E)
+
+In this phase, “production” means service-level transaction authority and
+replay-safe semantics. It does not mean a deployed endpoint, hosted
+PostgreSQL, a production identity provider, public intake, or a real campaign.
+The P4-E application facade exposes `submitOwnAssignment` and
+`getOwnSubmission` for authenticated reviewers, plus operator-authorized
+`closeBatch` and `getBatchCloseResult`.
+
+### Authenticated own-assignment submission
+
+The reviewer path is:
+
+```text
+authenticated principal
+  -> private opaque reviewer ID
+  -> ACTIVE account and current consent
+  -> existing owned assigned P4-D assignment
+  -> exact persisted P3 packet
+  -> exact complete atomic annotations
+  -> P3 submission builder
+  -> one persisted accepted submission
+```
+
+The caller may identify a batch and assignment operationally, but the service
+derives reviewer identity from the authentication mapping and checks ownership
+against the persisted assignment. An optional packet fingerprint is only a
+consistency hint; the authoritative packet is loaded from service persistence.
+The service verifies assignment, batch, reviewer, protocol, instrument,
+visible-task-set, visible-atomic-ID, qualification-receipt, and packet
+bindings before calling `buildCommunityReviewSubmission`.
+
+P3 remains the source of truth for the atomic payload. An accepted submission
+contains exactly one annotation for every visible atomic, with the unchanged
+status vocabulary:
+
+```text
+SATISFIED
+OMITTED_OR_INCOMPLETE
+EXPLICIT_CONFLICT
+```
+
+Missing, duplicate, extra, cross-assignment, cross-batch, invalid-status, and
+malformed-evidence payloads fail before an accepted row is committed. Existing
+P3 evidence semantics remain in force: optional evidence is non-empty and at
+most 500 characters. No chain-of-thought or hidden task material is requested
+or persisted.
+
+Submission authorization is checked in the same transaction as the OPEN batch
+boundary and accepted-row insert. The account must be `ACTIVE` and have
+current consent. An already-issued qualification receipt remains the
+assignment's provenance; pool retirement does not silently re-score or
+invalidate that assignment during submission. Later account or consent
+changes do not rewrite historical accepted evidence.
+
+The persistence authority is:
+
+```text
+one assignment -> at most one accepted submission
+one batch + reviewer -> at most one accepted submission
+one submission fingerprint -> at most one accepted row
+```
+
+An identical retry returns the stored submission with the same fingerprint. A
+different payload for an already accepted assignment is a
+`replacement_submission` rejection and cannot overwrite evidence. Rejected
+attempts contain only a bounded reason code, candidate fingerprint when
+available, batch/assignment/opaque-reviewer IDs, and a timestamp. Accepted
+submission audit events contain only the event type, the same opaque protocol
+bindings, the submission fingerprint, and a timestamp; they do not duplicate
+annotations or evidence.
+
+### Operator close authority and exact snapshot
+
+Only an authorized operator may close a batch. The close request contains the
+batch ID, not caller-supplied assignments or submissions. Within one
+transaction the service:
+
+```text
+lock the authoritative batch
+  -> require OPEN
+  -> load all persisted assignments
+  -> load all persisted accepted submissions
+  -> validate each stored packet/submission binding
+  -> call closeCommunityReviewBatch(...)
+  -> persist the exact P3 CLOSED manifest and close record
+  -> persist the exact accepted-submission snapshot
+  -> transition the batch to CLOSED
+  -> commit
+```
+
+The stored close snapshot is set-checked against the authoritative accepted
+rows by assignment ID, opaque reviewer ID, and submission fingerprint. The
+P3 close record's coverage and accepted arrays must match that same set. The
+service cannot omit an accepted row, inject a caller-created row, or recompute
+the result from mutable current input. If P3 rejects incomplete interpretable
+coverage or any stored record is inconsistent, the transaction rolls back:
+the batch remains `OPEN` and no close record is retained.
+
+After a successful close, repeated `closeBatch` calls and
+`getBatchCloseResult` return the exact persisted result, including its stable
+close fingerprint and accepted snapshot. The in-memory adapter returns cloned
+records, so mutating a returned object cannot mutate authority. PostgreSQL
+migration `005_submission_close_authority.sql` adds the relational close
+snapshot, accepted-submission audit table, bounded rejection reason constraint,
+immutable-record triggers, and batch/assignment/submission guards. The close
+record, accepted snapshot, and CLOSED manifest cannot be replaced or reopened
+through the service authority.
+
+Reviewer retrieval is limited to the authenticated reviewer's own accepted
+submission. Operator close-result retrieval is separate and does not publish
+other reviewer annotations or an agreement view.
+
+### Race and lock semantics
+
+The in-memory repository serializes complete transaction callbacks and commits
+only a cloned state after success. Therefore submit-versus-close has only two
+valid outcomes: a submission that commits first is included in the exact close
+snapshot, or a close that commits first makes the later submission fail as
+late. Withdrawal and submission share the same OPEN-batch boundary: withdrawal
+wins with no accepted row, or submission wins and later withdrawal is rejected
+because accepted evidence exists. Failed P3 validation never creates an
+accepted row or acceptance audit event.
+
+The PostgreSQL design uses the compatible lock order `batch -> assignment ->
+accepted submission / close snapshot` for these lifecycle writes. Submission,
+withdrawal, close, and snapshot insertion lock the batch before reading its
+state. The service has no PostgreSQL adapter in this phase; the migration is a
+database-level authority design boundary and the in-memory adapter is a
+deterministic correctness harness, not a claim about PostgreSQL performance.
+
+## P4-E persistence additions
+
+Migration `005_submission_close_authority.sql` keeps migrations 001-004
+unchanged and adds:
+
+| Record | Stored boundary | Important constraint |
+| --- | --- | --- |
+| `review_batch_close_submissions` | exact accepted assignment/reviewer/submission-fingerprint set for one close | composite reference to `review_submissions`, unique assignment/reviewer within the batch, immutable after close |
+| `review_submission_audit_events` | narrow accepted-submission event metadata | composite reference to the accepted row; no payload, credentials, or claims |
+| `rejected_submission_attempts` | bounded rejection metadata only | bounded reason code and no raw rejected request column |
+| `review_batches` / `review_assignments` / `review_submissions` | lifecycle guards and immutable identity projections | compatible OPEN-to-CLOSED authority, assigned-to-withdrawn authority, batch lock guards, and existing one-row uniqueness |
+
+The service's `ReviewBatchCloseRecord` stores the same exact accepted P3
+submission objects used to create the close result. This is a local persistence
+contract for the close authority; it is not a public evidence export.
 
 ## Access, privacy, and audit
 
@@ -385,11 +537,13 @@ retirement or an already-issued attempt is evaluated under the explicitly
 permitted retired-pool rule. Two submissions cannot produce two final states;
 two receipt issuances cannot produce two rows.
 
-The existing P4-A batch operations retain their row-lock design: accepting a
-submission and closing a batch serialize on the batch row, while freezing a
-batch requires the exact stored close record. A submission is either committed
-while the batch is `OPEN` and included in close, or rejected after close; no
-late or replacement submission overwrites accepted evidence.
+P4-E extends the row-lock design: accepting a submission, withdrawing an
+assignment, and closing a batch serialize on the same batch boundary. A
+submission is either committed while the batch is `OPEN` and included in the
+close snapshot, or rejected after close; no late or replacement submission
+overwrites accepted evidence. Existing pure P3 freeze compatibility remains
+available to prior tests, but operational freeze and evidence handling belong
+to P4-F and are not claimed here.
 
 ## Synthetic testing and gates
 
@@ -403,8 +557,13 @@ audit privacy, and the authenticated application facade. Existing P4-A/P4-B
 tests remain green. P4-D service tests additionally cover authenticated
 assignment, oldest-eligible-batch selection, exact retry idempotency, private
 material fingerprint mismatch rollback, SEALED/CLOSED/FROZEN state gates,
-and runtime packet blindness. All fixtures are synthetic and unmistakably
-non-evidence.
+and runtime packet blindness. P4-E service tests additionally cover complete
+atomic submission/status validation, exact packet binding, authenticated own
+submission retrieval, accepted/replacement/idempotency rules, rejected and
+accepted audit privacy, CLOSED/FROZEN late rejection, exact close snapshots,
+close rollback/idempotency, simultaneous submissions and closes,
+submit-versus-close races, withdrawal-versus-submission races, and operator
+authorization. All fixtures are synthetic and unmistakably non-evidence.
 
 Run the isolated harness with:
 
@@ -413,28 +572,43 @@ npm run typecheck:community-review-service
 npm run test:community-review-service
 ```
 
+The repository-level gates remain applicable to the complete change:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run benchmark
+npm run test:governance
+npm run test:package
+git diff --check
+```
+
 The root benchmark remains provider-free. Its expected unavailable-provider
 behavior is unchanged; P4-C does not add model calls or turn unavailable Judge
 errors into an official score.
 
-## Explicit exclusions and P4-E handoff
+## Explicit exclusions and P4-F handoff
 
-P4-D does not implement or claim:
+P4-E implements service semantics only. It does not implement or claim:
 
-- public reviewer signup or intake;
-- a deployed identity provider, hosted PostgreSQL, private hosted secret
-  store, or production deployment;
-- a real qualification bank, real reviewer qualification, or public launch;
-- reviewer payments, abuse controls, or retention/deletion execution;
-- production submission endpoint, accepted-submission transaction expansion,
-  campaign scheduling, reviewer dashboard, marketplace, or blind campaign
-  operations beyond synthetic assignment delivery;
-- majority voting, gold labels, adjudication, Judge comparison, calibration,
-  accuracy claims, reference generation, or leaderboard scoring (P5); or
-- a Review Workspace integration or root-package export.
+- a hosted PostgreSQL adapter, production identity-provider deployment, or
+  private production material store;
+- public reviewer signup/intake, payments, abuse controls, a reviewer
+  dashboard, campaign scheduling, or a real Community Review campaign;
+- operational freeze, retention/deletion execution, public evidence disclosure,
+  or an evidence export pipeline (P4-F);
+- majority voting, agreement-as-correctness, gold/reference labels,
+  adjudication, Judge comparison, calibration, accuracy claims, or leaderboard
+  scoring (P5);
+- a Review Workspace integration, root-package export, or production
+  deployment; or
+- any reopening transition after `CLOSED`.
 
-P4-D blind delivery/assignment is complete only as an isolated synthetic
-service boundary. P4-E Production Submission / Close remains not started. P5
-Community calibration remains not started. The next phase must preserve the
-private material boundary and the distinction between P3 validity and P4
-authority.
+The authoritative completion boundary for this task is `CLOSED`. P4-F Freeze /
+Operational Evidence and P4-G Deployment / Readiness remain **NOT STARTED**.
+P4 Community Review Service remains **IN PROGRESS**; public reviewer intake is
+**NOT OPEN**, the real campaign is **NOT STARTED**, and P5 Community
+calibration is **NOT STARTED**. The next phase must preserve the private
+material boundary and the distinction between P3 validity and P4 authority.

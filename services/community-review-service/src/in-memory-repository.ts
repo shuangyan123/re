@@ -9,12 +9,16 @@ import {
   parseCommunityReviewSubmission,
   parseFrozenCommunityReviewPool,
 } from "../../../src/contracts/community-review-validation.js";
-import { canonicalCommunityReviewJson } from "../../../src/community-review/fingerprint.js";
+import {
+  canonicalCommunityReviewJson,
+  communityReviewAtomicIdentityKey,
+} from "../../../src/community-review/fingerprint.js";
 import {
   QUALIFICATION_PASS_RULE_ID,
 } from "./qualification.js";
 import type { QualificationStoredResponse } from "./qualification.js";
 import { CommunityReviewServiceError } from "./errors.js";
+import type { CommunityReviewSubmission } from "../../../src/contracts/community-review.js";
 import type {
   AcceptedSubmissionRecord,
   AuthAuditEventRecord,
@@ -33,6 +37,7 @@ import type {
   ReviewAssignmentRecord,
   ReviewBatchCloseRecord,
   ReviewBatchRecord,
+  ReviewSubmissionAuditEventRecord,
   SealedBatchPayloadReferenceRecord,
 } from "./persistence.js";
 
@@ -47,6 +52,7 @@ interface DatabaseState {
   readonly authAuditEvents: Map<string, AuthAuditEventRecord>;
   readonly qualificationAuditEvents: Map<string, QualificationAuthorityAuditEventRecord>;
   readonly reviewDeliveryAuditEvents: Map<string, ReviewDeliveryAuditEventRecord>;
+  readonly reviewSubmissionAuditEvents: Map<string, ReviewSubmissionAuditEventRecord>;
   readonly qualificationPools: Map<string, QualificationPoolRecord>;
   readonly qualificationAttempts: Map<string, QualificationAttemptRecord>;
   readonly attemptNonces: Map<string, string>;
@@ -79,6 +85,7 @@ function emptyState(): DatabaseState {
     authAuditEvents: new Map(),
     qualificationAuditEvents: new Map(),
     reviewDeliveryAuditEvents: new Map(),
+    reviewSubmissionAuditEvents: new Map(),
     qualificationPools: new Map(),
     qualificationAttempts: new Map(),
     attemptNonces: new Map(),
@@ -106,6 +113,17 @@ function copy<T>(value: T): T {
 
 function same(left: unknown, right: unknown): boolean {
   return canonicalCommunityReviewJson(left) === canonicalCommunityReviewJson(right);
+}
+
+function invalidRecord(): never {
+  throw new CommunityReviewServiceError("invalid_service_record");
+}
+
+function sortedSubmissions(
+  submissions: readonly CommunityReviewSubmission[],
+): CommunityReviewSubmission[] {
+  return [...submissions].sort((left, right) =>
+    left.submissionFingerprint.localeCompare(right.submissionFingerprint));
 }
 
 function requiredString(value: string): void {
@@ -453,13 +471,24 @@ function assertQualificationAttemptRecord(record: QualificationAttemptRecord): v
 function assertAssignmentRecord(record: ReviewAssignmentRecord): void {
   const assignment = parseCommunityReviewAssignment(record.assignment);
   const packet = parseCommunityReviewReviewerPacket(record.packet);
+  const assignmentAtomicIds = assignment.visibleAtomicIds.map(communityReviewAtomicIdentityKey).sort();
+  const packetAtomicIds = packet.tasks.flatMap((task) => task.rubrics.flatMap((rubric) =>
+    rubric.requirements.map((requirement) => communityReviewAtomicIdentityKey({
+      caseId: task.caseId,
+      rubricId: rubric.id,
+      requirementId: requirement.id,
+    }))
+  )).sort();
   if (!["assigned", "withdrawn"].includes(assignment.assignmentState) ||
+    packet.dataKind !== assignment.dataKind || !same(packet.fixture, assignment.fixture) ||
+    packet.protocolId !== assignment.protocolId || packet.protocolVersion !== assignment.protocolVersion ||
     packet.assignmentId !== assignment.assignmentId ||
     packet.batchId !== assignment.batchId || packet.batchFingerprint !== assignment.batchFingerprint ||
     packet.reviewerId !== assignment.reviewerId ||
     packet.qualificationReceiptFingerprint !== assignment.qualificationReceiptFingerprint ||
     packet.taskSetFingerprint !== assignment.visibleTaskSetFingerprint ||
-    !same(packet.instrument, assignment.instrument)) {
+    !same(packet.instrument, assignment.instrument) ||
+    !same(packetAtomicIds, assignmentAtomicIds)) {
     throw new CommunityReviewServiceError("invalid_service_record");
   }
 }
@@ -478,9 +507,37 @@ function assertQualificationReceiptRecord(record: QualificationReceiptRecord): v
 
 function assertBatchCloseRecord(record: ReviewBatchCloseRecord): void {
   const manifest = parseCommunityReviewBatchManifest(record.manifest);
-  if (manifest.batchId !== record.batchId || manifest.state !== "CLOSED") {
-    throw new CommunityReviewServiceError("invalid_service_record");
+  const closeRecord = parseCommunityReviewBatchCloseRecord(record.closeRecord);
+  if (manifest.batchId !== record.batchId || manifest.state !== "CLOSED" ||
+    closeRecord.batchId !== record.batchId || closeRecord.batchFingerprint !== manifest.batchFingerprint ||
+    closeRecord.dataKind !== manifest.dataKind || !same(closeRecord.fixture, manifest.fixture) ||
+    closeRecord.protocolId !== manifest.protocolId || closeRecord.protocolVersion !== manifest.protocolVersion ||
+    !same(closeRecord.instrument, manifest.instrument) ||
+    !same(closeRecord.qualificationEligibility, manifest.qualificationEligibility) ||
+    closeRecord.visibleTaskSetFingerprint !== manifest.visibleTaskSetFingerprint ||
+    closeRecord.batchPurpose !== manifest.batchPurpose ||
+    closeRecord.blindnessMode !== manifest.blindnessMode ||
+    closeRecord.closeFingerprint !== manifest.closeRecordFingerprint ||
+    !Array.isArray(record.acceptedSubmissions)) invalidRecord();
+
+  const submissions = record.acceptedSubmissions.map((value) => parseCommunityReviewSubmission(value));
+  const assignmentIds = submissions.map((submission) => submission.assignmentId).sort();
+  const reviewerIds = submissions.map((submission) => submission.reviewerId).sort();
+  const submissionFingerprints = submissions.map((submission) => submission.submissionFingerprint).sort();
+  if (submissions.some((submission) => submission.submissionDisposition !== "accepted-before-close" ||
+    submission.batchId !== record.batchId || submission.batchFingerprint !== manifest.batchFingerprint ||
+    submission.dataKind !== closeRecord.dataKind || !same(submission.fixture, closeRecord.fixture) ||
+    !same(submission.instrument, closeRecord.instrument) ||
+    submission.taskSetFingerprint !== closeRecord.visibleTaskSetFingerprint) ||
+    new Set(assignmentIds).size !== assignmentIds.length ||
+    new Set(reviewerIds).size !== reviewerIds.length ||
+    new Set(submissionFingerprints).size !== submissionFingerprints.length ||
+    !same(assignmentIds, [...closeRecord.acceptedAssignmentIds].sort()) ||
+    !same(reviewerIds, [...closeRecord.acceptedReviewerIds].sort()) ||
+    !same(submissionFingerprints, [...closeRecord.acceptedSubmissionFingerprints].sort())) {
+    invalidRecord();
   }
+  timestamp(record.createdAt);
 }
 
 function assertSubmissionRecord(record: AcceptedSubmissionRecord): void {
@@ -488,6 +545,17 @@ function assertSubmissionRecord(record: AcceptedSubmissionRecord): void {
   if (submission.submissionDisposition !== "accepted-before-close") {
     throw new CommunityReviewServiceError("invalid_service_record");
   }
+  timestamp(record.acceptedAt);
+}
+
+function assertReviewSubmissionAuditEventRecord(record: ReviewSubmissionAuditEventRecord): void {
+  opaqueId(record.eventId);
+  if (record.eventType !== "submission_accepted") invalidRecord();
+  requiredString(record.batchId);
+  requiredString(record.assignmentId);
+  opaqueId(record.reviewerId);
+  fingerprint(record.submissionFingerprint);
+  timestamp(record.occurredAt);
 }
 
 class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTransaction {
@@ -682,6 +750,42 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
       .map(copy);
   }
 
+  insertReviewSubmissionAuditEvent(
+    record: ReviewSubmissionAuditEventRecord,
+  ): ReviewSubmissionAuditEventRecord {
+    assertReviewSubmissionAuditEventRecord(record);
+    const batch = this.state.batches.get(record.batchId);
+    const assignment = this.state.assignments.get(record.assignmentId);
+    const accepted = this.state.acceptedSubmissions.get(record.assignmentId);
+    if (batch === undefined || assignment === undefined || accepted === undefined ||
+      assignment.assignment.batchId !== record.batchId ||
+      assignment.assignment.reviewerId !== record.reviewerId ||
+      accepted.submission.assignmentId !== record.assignmentId ||
+      accepted.submission.batchId !== record.batchId ||
+      accepted.submission.reviewerId !== record.reviewerId ||
+      accepted.submission.submissionFingerprint !== record.submissionFingerprint) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    if (this.state.reviewSubmissionAuditEvents.has(record.eventId) ||
+      [...this.state.reviewSubmissionAuditEvents.values()].some((event) =>
+        event.batchId === record.batchId &&
+        event.submissionFingerprint === record.submissionFingerprint &&
+        event.eventType === record.eventType)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.reviewSubmissionAuditEvents.set(record.eventId, stored);
+    return copy(stored);
+  }
+
+  listReviewSubmissionAuditEvents(batchId?: string): readonly ReviewSubmissionAuditEventRecord[] {
+    return [...this.state.reviewSubmissionAuditEvents.values()]
+      .filter((record) => batchId === undefined || record.batchId === batchId)
+      .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) ||
+        left.eventId.localeCompare(right.eventId))
+      .map(copy);
+  }
+
   getQualificationPool(poolId: string, poolVersion: string): QualificationPoolRecord | undefined {
     const record = this.state.qualificationPools.get(poolKey(poolId, poolVersion));
     return record === undefined ? undefined : copy(record);
@@ -863,6 +967,20 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
       throw new CommunityReviewServiceError("repository_conflict");
     }
     assertBatchRecord(record);
+    if (record.state === "CLOSED") {
+      const close = this.state.batchCloseRecords.get(record.batchId);
+      if (close === undefined || !same(record.manifest, close.manifest)) {
+        throw new CommunityReviewServiceError("repository_conflict");
+      }
+    }
+    if (record.state === "FROZEN") {
+      const frozen = this.state.frozenReviewPools.get(record.batchId);
+      const close = this.state.batchCloseRecords.get(record.batchId);
+      if (frozen === undefined || close === undefined || record.manifest.closeRecordFingerprint !==
+        close.closeRecord.closeFingerprint || record.manifest.freezeFingerprint !== frozen.frozenPool.freezeFingerprint) {
+        throw new CommunityReviewServiceError("repository_conflict");
+      }
+    }
     const stored = copy(record);
     this.state.batches.set(record.batchId, stored);
     return copy(stored);
@@ -937,11 +1055,15 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
   updateAssignment(record: ReviewAssignmentRecord): ReviewAssignmentRecord {
     assertAssignmentRecord(record);
     const previous = this.state.assignments.get(record.assignment.assignmentId);
+    const batch = this.state.batches.get(record.assignment.batchId);
     if (previous === undefined || previous.assignment.batchId !== record.assignment.batchId ||
       previous.assignment.reviewerId !== record.assignment.reviewerId ||
       !same(previous.packet, record.packet) ||
       previous.assignment.assignmentState !== "assigned" ||
-      record.assignment.assignmentState !== "withdrawn") {
+      record.assignment.assignmentState !== "withdrawn" || batch?.state !== "OPEN") {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    if (this.state.acceptedSubmissions.has(record.assignment.assignmentId)) {
       throw new CommunityReviewServiceError("repository_conflict");
     }
     const stored = copy(record);
@@ -971,8 +1093,24 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
     const submission = record.submission;
     const assignment = this.state.assignments.get(submission.assignmentId);
     const batch = this.state.batches.get(submission.batchId);
+    const parsedAssignment = assignment === undefined ? undefined : parseCommunityReviewAssignment(assignment.assignment);
+    const parsedPacket = assignment === undefined ? undefined : parseCommunityReviewReviewerPacket(assignment.packet);
     if (assignment === undefined || batch === undefined || batch.state !== "OPEN" ||
-      assignment.assignment.assignmentState !== "assigned" ||
+      parsedAssignment === undefined || parsedPacket === undefined ||
+      parsedAssignment.assignmentState !== "assigned" ||
+      parsedAssignment.batchId !== batch.batchId ||
+      parsedAssignment.batchFingerprint !== batch.batchFingerprint ||
+      parsedAssignment.protocolId !== batch.manifest.protocolId ||
+      parsedAssignment.protocolVersion !== batch.manifest.protocolVersion ||
+      parsedAssignment.dataKind !== batch.manifest.dataKind ||
+      !same(parsedAssignment.fixture, batch.manifest.fixture) ||
+      !same(parsedAssignment.instrument, batch.manifest.instrument) ||
+      parsedAssignment.visibleTaskSetFingerprint !== batch.manifest.visibleTaskSetFingerprint ||
+      parsedPacket.dataKind !== parsedAssignment.dataKind ||
+      !same(parsedPacket.fixture, parsedAssignment.fixture) ||
+      parsedPacket.protocolId !== parsedAssignment.protocolId ||
+      parsedPacket.protocolVersion !== parsedAssignment.protocolVersion ||
+      parsedPacket.assignmentId !== parsedAssignment.assignmentId ||
       submission.reviewerId !== assignment.assignment.reviewerId ||
       submission.batchFingerprint !== batch.batchFingerprint ||
       !this.state.qualificationReceipts.has(submission.qualificationReceiptFingerprint) ||
@@ -1005,11 +1143,14 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
     record: RejectedSubmissionAttemptRecord,
   ): RejectedSubmissionAttemptRecord {
     requiredString(record.rejectionId);
-    requiredString(record.reason);
+    if (!/^[A-Za-z0-9._:-]{1,80}$/u.test(record.reason)) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
     if (record.batchId !== undefined) requiredString(record.batchId);
     if (record.assignmentId !== undefined) requiredString(record.assignmentId);
     if (record.reviewerId !== undefined) opaqueId(record.reviewerId);
     if (record.payloadFingerprint !== undefined) fingerprint(record.payloadFingerprint);
+    timestamp(record.attemptedAt);
     if (this.state.rejectedSubmissionAttempts.has(record.rejectionId)) {
       throw new CommunityReviewServiceError("repository_conflict");
     }
@@ -1039,6 +1180,14 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
       record.manifest.batchFingerprint !== batch.batchFingerprint) {
       throw new CommunityReviewServiceError("repository_conflict");
     }
+    const persistedSubmissions = this.listAcceptedSubmissions(record.batchId)
+      .map((item) => item.submission);
+    if (!same(
+      sortedSubmissions(record.acceptedSubmissions),
+      sortedSubmissions(persistedSubmissions),
+    )) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
     if (this.state.batchCloseRecords.has(record.batchId) ||
       this.state.closeFingerprints.has(closeRecord.closeFingerprint)) {
       throw new CommunityReviewServiceError("repository_conflict");
@@ -1063,6 +1212,12 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
       pool.batchFingerprint !== batch.batchFingerprint) {
       throw new CommunityReviewServiceError("repository_conflict");
     }
+    if (!same(
+      sortedSubmissions(pool.submissions),
+      sortedSubmissions(close.acceptedSubmissions),
+    )) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
     if (this.state.frozenReviewPools.has(record.batchId) ||
       this.state.freezeFingerprints.has(pool.freezeFingerprint)) {
       throw new CommunityReviewServiceError("repository_conflict");
@@ -1075,7 +1230,7 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
 }
 
 /**
- * Deterministic local adapter for P4-A tests. A real PostgreSQL adapter must
+ * Deterministic local adapter for P4 service tests. A real PostgreSQL adapter must
  * use row locks and the same uniqueness constraints from the migration.
  */
 export class InMemoryCommunityReviewRepository implements CommunityReviewPersistence {
