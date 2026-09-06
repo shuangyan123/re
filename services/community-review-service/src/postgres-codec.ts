@@ -723,11 +723,14 @@ async function persistPools(
     } else {
       await client.query(
         `UPDATE qualification_pools
-            SET state = $10, updated_at = $14, instrument = $15,
-                visible_task_set_fingerprint = $16, answer_key_commitment = $17,
-                pass_rule_id = $18, state_version = $19, sealed_at = $20, retired_at = $21
+            SET state = $3, updated_at = $4, instrument = $5,
+                visible_task_set_fingerprint = $6, answer_key_commitment = $7,
+                pass_rule_id = $8, state_version = $9, sealed_at = $10, retired_at = $11
           WHERE pool_id = $1 AND pool_version = $2`,
-        values,
+        [record.poolId, record.poolVersion, record.state, record.updatedAt,
+          persistableJson(record.instrument), record.visibleTaskSetFingerprint ?? null,
+          record.answerKeyCommitment ?? null, record.passRuleId ?? null, record.stateVersion ?? 0,
+          record.sealedAt ?? null, record.retiredAt ?? null],
       );
     }
   }
@@ -777,13 +780,17 @@ async function persistAttempts(
     } else {
       await client.query(
         `UPDATE qualification_attempts
-            SET state = $6, result = $7, submitted_at = $9, issued_at = $10,
-                evaluated_at = $11, qualification_definition_fingerprint = $12,
-                instrument_fingerprint = $13, review_locale = $14, packet_fingerprint = $15,
-                responses = $16, response_fingerprint = $17, evaluation_rule_id = $18,
-                failure_code = $19
+            SET state = $2, result = $3, submitted_at = $4, issued_at = $5,
+                evaluated_at = $6, qualification_definition_fingerprint = $7,
+                instrument_fingerprint = $8, review_locale = $9, packet_fingerprint = $10,
+                responses = $11, response_fingerprint = $12, evaluation_rule_id = $13,
+                failure_code = $14
           WHERE attempt_id = $1`,
-        values,
+        [record.attemptId, record.state, record.result ?? null, record.submittedAt ?? null,
+          record.issuedAt ?? null, record.evaluatedAt ?? null, record.qualificationDefinitionFingerprint ?? null,
+          record.instrumentFingerprint ?? null, record.reviewLocale ?? null, record.packetFingerprint ?? null,
+          persistableJson(record.responses), record.responseFingerprint ?? null,
+          record.evaluationRuleId ?? null, record.failureCode ?? null],
       );
     }
   }
@@ -873,11 +880,10 @@ async function persistAssignments(
     } else {
       await client.query(
         `UPDATE review_assignments
-            SET assignment = $4, packet = $5, assignment_state = $6, updated_at = $8
+            SET assignment = $4, packet = $5, assignment_state = $6, updated_at = $7
           WHERE assignment_id = $1 AND batch_id = $2 AND reviewer_id = $3`,
         [record.assignment.assignmentId, record.assignment.batchId, record.assignment.reviewerId,
-          record.assignment, record.packet, record.assignment.assignmentState, record.assignedAt,
-          record.updatedAt],
+          record.assignment, record.packet, record.assignment.assignmentState, record.updatedAt],
       );
     }
   }
