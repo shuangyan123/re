@@ -2,10 +2,13 @@ import { createHash, randomBytes } from "node:crypto";
 
 import {
   buildCommunityReviewAssignment,
+  buildCommunityReviewAgreementEvidence,
+  buildCommunityReviewPublicEvidenceArtifact,
   buildCommunityReviewQualificationReceipt,
   buildCommunityReviewReviewerPacket,
   buildCommunityReviewSubmission,
   closeCommunityReviewBatch,
+  communityReviewPublicArtifactFingerprint,
   freezeCommunityReviewPool,
   openCommunityReviewBatch,
   withdrawCommunityReviewAssignment,
@@ -15,10 +18,12 @@ import {
   parseCommunityReviewAssignment,
   parseCommunityReviewBatchManifest,
   parseCommunityReviewBatchCloseRecord,
+  parseCommunityReviewPublicEvidenceArtifact,
   parseCommunityReviewQualificationReceipt,
   parseCommunityReviewReviewerPacket,
   parseCommunityReviewSubmission,
   parseCommunityReviewVisibleTasks,
+  parseFrozenCommunityReviewPool,
 } from "../../../src/contracts/community-review-validation.js";
 import {
   HUMAN_ATOMIC_STATUSES,
@@ -26,10 +31,13 @@ import {
 } from "../../../src/contracts/human-reference-calibration.js";
 import type {
   CommunityReviewAssignment,
+  CommunityReviewAgreementEvidence,
   CommunityReviewBatchManifest,
   CommunityReviewBatchCloseResult,
   CommunityReviewDataKind,
+  CommunityReviewDisclosurePolicy,
   CommunityReviewQualificationReceipt,
+  CommunityReviewPublicEvidenceArtifact,
   CommunityReviewReviewerPacket,
   CommunityReviewSubmission,
   CommunityReviewSyntheticFixtureMarker,
@@ -39,14 +47,21 @@ import type {
 import {
   canonicalCommunityReviewJson,
   communityReviewAtomicIdentityKey,
+  communityReviewFingerprint,
   communityReviewVisibleTaskSetFingerprint,
 } from "../../../src/community-review/fingerprint.js";
 import { parseAuthenticationContext } from "./authentication.js";
 import type { AuthenticatedPrincipal } from "./authentication.js";
 import { CommunityReviewServiceError } from "./errors.js";
+import { communityReviewAgreementEvidencePersistenceFingerprint } from "./persistence.js";
 import type {
   AcceptedSubmissionRecord,
   AuthAuditEventType,
+  CommunityReviewAgreementEvidenceRecord,
+  CommunityReviewDisclosureMode,
+  CommunityReviewDisclosureRecord,
+  CommunityReviewEvidenceAuditEventRecord,
+  CommunityReviewEvidenceAuditEventType,
   CommunityReviewPersistence,
   CommunityReviewPersistenceTransaction,
   FrozenReviewPoolRecord,
@@ -477,6 +492,260 @@ function closeResultFromStoredRecord(
   }
 }
 
+const PRIVATE_DISCLOSURE_POLICY: CommunityReviewDisclosurePolicy = {
+  publishReviewerIds: false,
+  publishAtomicAnnotations: false,
+  publishReviewerEvidence: false,
+};
+
+function policyHasPublishedFields(policy: CommunityReviewDisclosurePolicy): boolean {
+  return policy.publishReviewerIds || policy.publishAtomicAnnotations || policy.publishReviewerEvidence;
+}
+
+function parseDisclosurePolicy(value: unknown): CommunityReviewDisclosurePolicy {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new CommunityReviewServiceError("disclosure_policy_invalid");
+  }
+  const policy = value as Record<string, unknown>;
+  if (Object.keys(policy).some((key) => ![
+    "publishReviewerIds",
+    "publishAtomicAnnotations",
+    "publishReviewerEvidence",
+  ].includes(key)) || typeof policy.publishReviewerIds !== "boolean" ||
+    typeof policy.publishAtomicAnnotations !== "boolean" ||
+    typeof policy.publishReviewerEvidence !== "boolean") {
+    throw new CommunityReviewServiceError("disclosure_policy_invalid");
+  }
+  return {
+    publishReviewerIds: policy.publishReviewerIds,
+    publishAtomicAnnotations: policy.publishAtomicAnnotations,
+    publishReviewerEvidence: policy.publishReviewerEvidence,
+  };
+}
+
+function validDisclosureDate(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00.000Z`)) ||
+    new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) !== value) {
+    throw new CommunityReviewServiceError("disclosure_policy_invalid");
+  }
+  return value;
+}
+
+function publicArtifactIdentityFingerprint(artifact: CommunityReviewPublicEvidenceArtifact): string {
+  const { disclosureDate, ...identity } = artifact;
+  if (disclosureDate.length === 0) throw new CommunityReviewServiceError("invalid_service_record");
+  return communityReviewPublicArtifactFingerprint(identity);
+}
+
+function assertPersistedFrozenPool(
+  batch: ReviewBatchRecord,
+  stored: FrozenReviewPoolRecord,
+  closeResult: CommunityReviewBatchCloseResult,
+): FrozenCommunityReviewPool {
+  try {
+    const pool = parseFrozenCommunityReviewPool(stored.frozenPool);
+    if (stored.batchId !== batch.batchId || batch.state !== "FROZEN" || batch.manifest.state !== "FROZEN" ||
+      batch.manifest.freezeFingerprint !== pool.freezeFingerprint ||
+      batch.manifest.closeRecordFingerprint !== pool.closeRecordFingerprint ||
+      pool.batchId !== batch.batchId || pool.batchFingerprint !== batch.batchFingerprint) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+    // Recompute only as an integrity check against the immutable close record;
+    // the returned authority remains the exact persisted pool object.
+    if (!same(freezeCommunityReviewPool(closeResult), pool)) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+    return stored.frozenPool;
+  } catch (error) {
+    if (error instanceof CommunityReviewServiceError) throw error;
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+}
+
+function assertCloseSnapshotMatchesCurrentAuthority(
+  transaction: CommunityReviewPersistenceTransaction,
+  batch: ReviewBatchRecord,
+  storedClose: ReviewBatchCloseRecord,
+): CommunityReviewBatchCloseResult {
+  const result = closeResultFromStoredRecord(batch, storedClose);
+  const assignmentRecords = transaction.listAssignments(batch.batchId);
+  const assignments = assignmentRecords.map((record) => {
+    return assertStoredAssignmentMatchesBatch(batch, record).assignment;
+  });
+  const assignedReviewerIds = assignments.map((assignment) => assignment.reviewerId).sort();
+  const withdrawnReviewerIds = assignments
+    .filter((assignment) => assignment.assignmentState === "withdrawn")
+    .map((assignment) => assignment.reviewerId)
+    .sort();
+  if (new Set(assignedReviewerIds).size !== assignedReviewerIds.length ||
+    !same(assignedReviewerIds, [...result.closeRecord.coverage.assignedReviewerIds].sort()) ||
+    !same(withdrawnReviewerIds, [...result.closeRecord.coverage.withdrawnReviewerIds].sort())) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+
+  const acceptedRecords = transaction.listAcceptedSubmissions(batch.batchId);
+  const acceptedSubmissions = acceptedRecords.map((record) => {
+    const assignmentRecord = transaction.getAssignment(record.submission.assignmentId);
+    if (assignmentRecord === undefined || assignmentRecord.assignment.batchId !== batch.batchId) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+    const { assignment, packet } = assertStoredAssignmentMatchesBatch(batch, assignmentRecord);
+    if (assignment.assignmentState !== "assigned") {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+    try {
+      return assertCommunityReviewSubmissionMatchesAssignment(
+        assignment,
+        record.submission,
+        packet.packetFingerprint,
+      ).submission;
+    } catch {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+  });
+  if (!sameSubmissionSet(acceptedSubmissions, result.acceptedSubmissions) ||
+    !same(result.closeRecord.acceptedAssignmentIds,
+      acceptedSubmissions.map((submission) => submission.assignmentId).sort()) ||
+    !same(result.closeRecord.acceptedReviewerIds,
+      acceptedSubmissions.map((submission) => submission.reviewerId).sort()) ||
+    !same(result.closeRecord.acceptedSubmissionFingerprints,
+      acceptedSubmissions.map((submission) => submission.submissionFingerprint).sort())) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  const acceptedReviewerIds = acceptedSubmissions.map((submission) => submission.reviewerId).sort();
+  const missingReviewerIds = assignedReviewerIds.filter((reviewerId) =>
+    !acceptedReviewerIds.includes(reviewerId) && !withdrawnReviewerIds.includes(reviewerId));
+  if (!same(acceptedReviewerIds, [...result.closeRecord.coverage.acceptedReviewerIds].sort()) ||
+    !same(missingReviewerIds, [...result.closeRecord.coverage.missingReviewerIds].sort())) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  return result;
+}
+
+function assertPersistedAgreementEvidence(
+  batch: ReviewBatchRecord,
+  pool: FrozenCommunityReviewPool,
+  record: CommunityReviewAgreementEvidenceRecord,
+): CommunityReviewAgreementEvidence {
+  try {
+    if (record.batchId !== batch.batchId || record.freezeFingerprint !== pool.freezeFingerprint ||
+      record.evidence.poolFingerprint !== pool.freezeFingerprint ||
+      record.evidence.agreementKind !== "community-review-agreement" ||
+      !same(record.evidence, buildCommunityReviewAgreementEvidence(pool)) ||
+      record.evidencePersistenceFingerprint !== communityReviewAgreementEvidencePersistenceFingerprint({
+        batchId: record.batchId,
+        freezeFingerprint: record.freezeFingerprint,
+        evidence: record.evidence,
+      })) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+    return record.evidence;
+  } catch (error) {
+    if (error instanceof CommunityReviewServiceError) throw error;
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+}
+
+function assertPersistedDisclosure(
+  batch: ReviewBatchRecord,
+  pool: FrozenCommunityReviewPool,
+  agreement: CommunityReviewAgreementEvidenceRecord,
+  record: CommunityReviewDisclosureRecord,
+): CommunityReviewDisclosureRecord {
+  if (record.batchId !== batch.batchId || record.freezeFingerprint !== pool.freezeFingerprint ||
+    record.agreementEvidencePersistenceFingerprint !== agreement.evidencePersistenceFingerprint ||
+    (record.mode !== "PRIVATE" && record.mode !== "PUBLIC")) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  let policy: CommunityReviewDisclosurePolicy;
+  try {
+    policy = parseDisclosurePolicy(record.disclosurePolicy);
+  } catch {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  if (!same(policy, record.disclosurePolicy)) throw new CommunityReviewServiceError("invalid_service_record");
+  if (record.mode === "PRIVATE") {
+    if (record.disclosureDate !== undefined || record.publicArtifact !== undefined ||
+      record.publicArtifactFingerprint !== undefined || policyHasPublishedFields(policy)) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+    return record;
+  }
+  if (record.disclosureDate === undefined || record.publicArtifact === undefined ||
+    record.publicArtifactFingerprint === undefined) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  try {
+    const artifact = parseCommunityReviewPublicEvidenceArtifact(record.publicArtifact);
+    if (artifact.batchId !== batch.batchId || artifact.batchFingerprint !== batch.batchFingerprint ||
+      artifact.frozenPoolFingerprint !== pool.freezeFingerprint ||
+      artifact.visibleTaskSetFingerprint !== pool.visibleTaskSetFingerprint ||
+      !same(artifact.acceptedSubmissionFingerprints, pool.acceptedSubmissionFingerprints) ||
+      artifact.disclosureDate !== record.disclosureDate || !same(artifact.disclosurePolicy, policy) ||
+      publicArtifactIdentityFingerprint(artifact) !== record.publicArtifactFingerprint ||
+      !same(artifact, buildCommunityReviewPublicEvidenceArtifact(pool, {
+        disclosureDate: record.disclosureDate,
+        disclosurePolicy: policy,
+      }))) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+  } catch (error) {
+    if (error instanceof CommunityReviewServiceError) throw error;
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  return record;
+}
+
+function disclosureIdentity(
+  batchId: string,
+  freezeFingerprint: string,
+  agreementEvidencePersistenceFingerprint: string,
+  mode: CommunityReviewDisclosureMode,
+  policy: CommunityReviewDisclosurePolicy,
+  disclosureDate: string | undefined,
+): string {
+  const identity = communityReviewFingerprint({
+    persistenceKind: "community-review-disclosure",
+    batchId,
+    freezeFingerprint,
+    agreementEvidencePersistenceFingerprint,
+    mode,
+    disclosurePolicy: policy,
+    ...(disclosureDate === undefined ? {} : { disclosureDate }),
+  });
+  return `disclosure-${identity.slice("sha256:".length, "sha256:".length + 32)}`;
+}
+
+function resolveDisclosureRequest(
+  input: CreateCommunityReviewDisclosureInput,
+): {
+  readonly mode: CommunityReviewDisclosureMode;
+  readonly disclosurePolicy: CommunityReviewDisclosurePolicy;
+  readonly disclosureDate?: string;
+} {
+  const mode = input.mode ?? (input.disclosurePolicy === undefined ? "PRIVATE" : "PUBLIC");
+  if (mode !== "PRIVATE" && mode !== "PUBLIC") {
+    throw new CommunityReviewServiceError("disclosure_policy_invalid");
+  }
+  const disclosurePolicy = input.disclosurePolicy === undefined
+    ? PRIVATE_DISCLOSURE_POLICY
+    : parseDisclosurePolicy(input.disclosurePolicy);
+  if (mode === "PRIVATE") {
+    if (input.disclosureDate !== undefined || policyHasPublishedFields(disclosurePolicy)) {
+      throw new CommunityReviewServiceError("disclosure_policy_invalid");
+    }
+    return { mode, disclosurePolicy };
+  }
+  if (input.disclosurePolicy === undefined) {
+    throw new CommunityReviewServiceError("disclosure_policy_invalid");
+  }
+  if (input.disclosureDate === undefined) {
+    throw new CommunityReviewServiceError("disclosure_policy_invalid");
+  }
+  const disclosureDate = validDisclosureDate(input.disclosureDate);
+  return { mode, disclosurePolicy, disclosureDate };
+}
+
 function qualificationPoolOrThrow(
   transaction: CommunityReviewPersistenceTransaction,
   poolId: string,
@@ -748,6 +1017,34 @@ export interface WithdrawCommunityReviewAssignmentInput {
   readonly reviewerId: string;
 }
 
+export interface GetFrozenCommunityReviewPoolInput {
+  readonly batchId: string;
+}
+
+export interface BuildCommunityReviewAgreementEvidenceInput {
+  readonly batchId: string;
+}
+
+export interface GetCommunityReviewAgreementEvidenceInput {
+  readonly batchId: string;
+}
+
+export interface CreateCommunityReviewDisclosureInput {
+  readonly batchId: string;
+  /** Omitting the mode keeps the evidence private/internal. */
+  readonly mode?: CommunityReviewDisclosureMode;
+  /** Supplying a policy is an explicit request for a public P3 projection. */
+  readonly disclosurePolicy?: CommunityReviewDisclosurePolicy;
+  /** Required for an explicit public artifact; private records do not use it. */
+  readonly disclosureDate?: string;
+}
+
+export interface BuildCommunityReviewPublicEvidenceArtifactInput {
+  readonly batchId: string;
+  /** If omitted, the newest persisted PUBLIC disclosure is selected. */
+  readonly disclosureId?: string;
+}
+
 /**
  * P4 service boundary. This class owns private account/consent authority and
  * transaction ordering; all protocol semantics remain in existing P3 pure
@@ -878,6 +1175,38 @@ export class CommunityReviewService {
     transaction.insertReviewSubmissionAuditEvent(event);
   }
 
+  private evidenceAudit(
+    transaction: CommunityReviewPersistenceTransaction,
+    eventType: CommunityReviewEvidenceAuditEventType,
+    input: {
+      readonly batchId: string;
+      readonly freezeFingerprint?: string;
+      readonly agreementEvidencePersistenceFingerprint?: string;
+      readonly disclosureId?: string;
+      readonly disclosureVersion?: number;
+      readonly disclosureMode?: CommunityReviewDisclosureMode;
+      readonly disclosurePolicy?: CommunityReviewDisclosurePolicy;
+      readonly reasonCode?: string;
+    },
+  ): void {
+    const event: CommunityReviewEvidenceAuditEventRecord = {
+      eventId: this.nextId(this.auditEventIdGenerator),
+      eventType,
+      batchId: input.batchId,
+      ...(input.freezeFingerprint === undefined ? {} : { freezeFingerprint: input.freezeFingerprint }),
+      ...(input.agreementEvidencePersistenceFingerprint === undefined
+        ? {}
+        : { agreementEvidencePersistenceFingerprint: input.agreementEvidencePersistenceFingerprint }),
+      ...(input.disclosureId === undefined ? {} : { disclosureId: input.disclosureId }),
+      ...(input.disclosureVersion === undefined ? {} : { disclosureVersion: input.disclosureVersion }),
+      ...(input.disclosureMode === undefined ? {} : { disclosureMode: input.disclosureMode }),
+      ...(input.disclosurePolicy === undefined ? {} : { disclosurePolicy: input.disclosurePolicy }),
+      ...(input.reasonCode === undefined ? {} : { reasonCode: input.reasonCode }),
+      occurredAt: this.now(),
+    };
+    transaction.insertCommunityReviewEvidenceAuditEvent(event);
+  }
+
   private async recordRejectedSubmission(
     input: SubmitCommunityReviewInput,
     error: unknown,
@@ -929,6 +1258,52 @@ export class CommunityReviewService {
       throw new CommunityReviewServiceError("review_batch_material_invalid");
     }
     return tasks;
+  }
+
+  private frozenPoolForTransaction(
+    transaction: CommunityReviewPersistenceTransaction,
+    batchId: string,
+  ): { readonly batch: ReviewBatchRecord; readonly record: FrozenReviewPoolRecord; readonly pool: FrozenCommunityReviewPool } {
+    const batch = batchOrThrow(transaction, batchId);
+    if (batch.state !== "FROZEN") throw new CommunityReviewServiceError("batch_not_frozen");
+    const record = transaction.getFrozenReviewPool(batchId);
+    if (record === undefined) throw new CommunityReviewServiceError("frozen_pool_not_found");
+    const storedClose = transaction.getBatchCloseRecord(batchId);
+    if (storedClose === undefined) throw new CommunityReviewServiceError("invalid_service_record");
+    const closeResult = closeResultFromStoredRecord(batch, storedClose);
+    const pool = assertPersistedFrozenPool(batch, record, closeResult);
+    return { batch, record, pool };
+  }
+
+  private ensureAgreementEvidence(
+    transaction: CommunityReviewPersistenceTransaction,
+    batch: ReviewBatchRecord,
+    pool: FrozenCommunityReviewPool,
+  ): CommunityReviewAgreementEvidenceRecord {
+    const existing = transaction.getCommunityReviewAgreementEvidence(batch.batchId);
+    if (existing !== undefined) {
+      assertPersistedAgreementEvidence(batch, pool, existing);
+      return existing;
+    }
+    const evidence = buildCommunityReviewAgreementEvidence(pool);
+    const record: CommunityReviewAgreementEvidenceRecord = {
+      batchId: batch.batchId,
+      freezeFingerprint: pool.freezeFingerprint,
+      evidencePersistenceFingerprint: communityReviewAgreementEvidencePersistenceFingerprint({
+        batchId: batch.batchId,
+        freezeFingerprint: pool.freezeFingerprint,
+        evidence,
+      }),
+      evidence,
+      createdAt: this.now(),
+    };
+    const stored = transaction.insertCommunityReviewAgreementEvidence(record);
+    this.evidenceAudit(transaction, "agreement_evidence_generated", {
+      batchId: batch.batchId,
+      freezeFingerprint: pool.freezeFingerprint,
+      agreementEvidencePersistenceFingerprint: stored.evidencePersistenceFingerprint,
+    });
+    return stored;
   }
 
   private eligibleReceiptForBatch(
@@ -2328,16 +2703,21 @@ export class CommunityReviewService {
       if (batch.state === "FROZEN") {
         const frozen = transaction.getFrozenReviewPool(batchId);
         if (frozen === undefined) throw new CommunityReviewServiceError("invalid_service_record");
-        return frozen.frozenPool;
+        const storedClose = transaction.getBatchCloseRecord(batchId);
+        if (storedClose === undefined) throw new CommunityReviewServiceError("invalid_service_record");
+        const closeResult = closeResultFromStoredRecord(batch, storedClose);
+        const pool = assertPersistedFrozenPool(batch, frozen, closeResult);
+        this.evidenceAudit(transaction, "freeze_retrieved", {
+          batchId,
+          freezeFingerprint: pool.freezeFingerprint,
+        });
+        return pool;
       }
       if (batch.state !== "CLOSED") throw new CommunityReviewServiceError("batch_not_closed");
       const storedClose = transaction.getBatchCloseRecord(batchId);
       if (storedClose === undefined) throw new CommunityReviewServiceError("invalid_service_record");
-      const pool = freezeCommunityReviewPool({
-        manifest: batch.manifest,
-        closeRecord: storedClose.closeRecord,
-        acceptedSubmissions: storedClose.acceptedSubmissions,
-      });
+      const closeResult = assertCloseSnapshotMatchesCurrentAuthority(transaction, batch, storedClose);
+      const pool = freezeCommunityReviewPool(closeResult);
       const stored = transaction.insertFrozenReviewPool({
         batchId,
         frozenPool: pool,
@@ -2355,7 +2735,164 @@ export class CommunityReviewService {
         stateVersion: batch.stateVersion + 1,
         updatedAt: this.now(),
       });
+      this.evidenceAudit(transaction, "batch_frozen", {
+        batchId,
+        freezeFingerprint: stored.frozenPool.freezeFingerprint,
+      });
       return stored.frozenPool;
+    });
+  }
+
+  /** Returns the exact persisted pool; it never rebuilds one from live rows. */
+  async getFrozenPool(batchId: string): Promise<FrozenCommunityReviewPool> {
+    required(batchId);
+    return this.persistence.transaction((transaction) => {
+      const { pool } = this.frozenPoolForTransaction(transaction, batchId);
+      this.evidenceAudit(transaction, "freeze_retrieved", {
+        batchId,
+        freezeFingerprint: pool.freezeFingerprint,
+      });
+      return pool;
+    });
+  }
+
+  /** Builds once from the stored frozen pool and then returns the stored artifact. */
+  async buildAgreementEvidence(batchId: string): Promise<CommunityReviewAgreementEvidence> {
+    required(batchId);
+    return this.persistence.transaction((transaction) => {
+      const { batch, pool } = this.frozenPoolForTransaction(transaction, batchId);
+      const existing = transaction.getCommunityReviewAgreementEvidence(batchId);
+      if (existing !== undefined) {
+        const evidence = assertPersistedAgreementEvidence(batch, pool, existing);
+        this.evidenceAudit(transaction, "agreement_evidence_retrieved", {
+          batchId,
+          freezeFingerprint: pool.freezeFingerprint,
+          agreementEvidencePersistenceFingerprint: existing.evidencePersistenceFingerprint,
+        });
+        return evidence;
+      }
+      return this.ensureAgreementEvidence(transaction, batch, pool).evidence;
+    });
+  }
+
+  /** Retrieves only the exact persisted diagnostic artifact. */
+  async getAgreementEvidence(batchId: string): Promise<CommunityReviewAgreementEvidence> {
+    required(batchId);
+    return this.persistence.transaction((transaction) => {
+      const { batch, pool } = this.frozenPoolForTransaction(transaction, batchId);
+      const stored = transaction.getCommunityReviewAgreementEvidence(batchId);
+      if (stored === undefined) throw new CommunityReviewServiceError("agreement_evidence_not_found");
+      const evidence = assertPersistedAgreementEvidence(batch, pool, stored);
+      this.evidenceAudit(transaction, "agreement_evidence_retrieved", {
+        batchId,
+        freezeFingerprint: pool.freezeFingerprint,
+        agreementEvidencePersistenceFingerprint: stored.evidencePersistenceFingerprint,
+      });
+      return evidence;
+    });
+  }
+
+  /**
+   * Records an immutable disclosure decision. A missing mode/policy is the
+   * conservative PRIVATE default; PUBLIC requires an explicit allowlist.
+   */
+  async createDisclosure(
+    input: CreateCommunityReviewDisclosureInput,
+  ): Promise<CommunityReviewDisclosureRecord> {
+    required(input.batchId);
+    const resolved = resolveDisclosureRequest(input);
+    return this.persistence.transaction((transaction) => {
+      const { batch, pool } = this.frozenPoolForTransaction(transaction, input.batchId);
+      const agreement = this.ensureAgreementEvidence(transaction, batch, pool);
+      const publicArtifact = resolved.mode === "PUBLIC"
+        ? buildCommunityReviewPublicEvidenceArtifact(pool, {
+            disclosureDate: resolved.disclosureDate!,
+            disclosurePolicy: resolved.disclosurePolicy,
+          })
+        : undefined;
+      const publicArtifactFingerprintValue = publicArtifact === undefined
+        ? undefined
+        : publicArtifactIdentityFingerprint(publicArtifact);
+      const disclosureId = disclosureIdentity(
+        batch.batchId,
+        pool.freezeFingerprint,
+        agreement.evidencePersistenceFingerprint,
+        resolved.mode,
+        resolved.disclosurePolicy,
+        resolved.disclosureDate,
+      );
+      const existing = transaction.getCommunityReviewDisclosure(disclosureId);
+      if (existing !== undefined) {
+        const checked = assertPersistedDisclosure(batch, pool, agreement, existing);
+        if (checked.mode !== resolved.mode || !same(checked.disclosurePolicy, resolved.disclosurePolicy) ||
+          checked.disclosureDate !== resolved.disclosureDate) {
+          throw new CommunityReviewServiceError("repository_conflict");
+        }
+        return checked;
+      }
+      const disclosureVersion = transaction.listCommunityReviewDisclosures(batch.batchId).length + 1;
+      const record: CommunityReviewDisclosureRecord = {
+        disclosureId,
+        batchId: batch.batchId,
+        freezeFingerprint: pool.freezeFingerprint,
+        agreementEvidencePersistenceFingerprint: agreement.evidencePersistenceFingerprint,
+        disclosureVersion,
+        mode: resolved.mode,
+        disclosurePolicy: resolved.disclosurePolicy,
+        ...(resolved.disclosureDate === undefined ? {} : { disclosureDate: resolved.disclosureDate }),
+        ...(publicArtifact === undefined ? {} : { publicArtifact }),
+        ...(publicArtifactFingerprintValue === undefined ? {}
+          : { publicArtifactFingerprint: publicArtifactFingerprintValue }),
+        createdAt: this.now(),
+      };
+      const stored = transaction.insertCommunityReviewDisclosure(record);
+      this.evidenceAudit(transaction, "disclosure_created", {
+        batchId: batch.batchId,
+        freezeFingerprint: pool.freezeFingerprint,
+        agreementEvidencePersistenceFingerprint: agreement.evidencePersistenceFingerprint,
+        disclosureId: stored.disclosureId,
+        disclosureVersion: stored.disclosureVersion,
+        disclosureMode: stored.mode,
+        disclosurePolicy: stored.disclosurePolicy,
+      });
+      if (stored.mode === "PUBLIC") {
+        this.evidenceAudit(transaction, "public_artifact_generated", {
+          batchId: batch.batchId,
+          freezeFingerprint: pool.freezeFingerprint,
+          agreementEvidencePersistenceFingerprint: agreement.evidencePersistenceFingerprint,
+          disclosureId: stored.disclosureId,
+          disclosureVersion: stored.disclosureVersion,
+          disclosureMode: stored.mode,
+          disclosurePolicy: stored.disclosurePolicy,
+        });
+      }
+      return stored;
+    });
+  }
+
+  /** Returns a persisted PUBLIC artifact selected by disclosure identity/history. */
+  async buildPublicEvidenceArtifact(
+    input: BuildCommunityReviewPublicEvidenceArtifactInput,
+  ): Promise<CommunityReviewPublicEvidenceArtifact> {
+    required(input.batchId);
+    if (input.disclosureId !== undefined) required(input.disclosureId);
+    return this.persistence.transaction((transaction) => {
+      const { batch, pool } = this.frozenPoolForTransaction(transaction, input.batchId);
+      const agreement = transaction.getCommunityReviewAgreementEvidence(input.batchId);
+      if (agreement === undefined) throw new CommunityReviewServiceError("agreement_evidence_not_found");
+      assertPersistedAgreementEvidence(batch, pool, agreement);
+      const disclosure = input.disclosureId === undefined
+        ? [...transaction.listCommunityReviewDisclosures(input.batchId)].reverse()
+          .find((item) => item.mode === "PUBLIC")
+        : transaction.getCommunityReviewDisclosure(input.disclosureId);
+      if (disclosure === undefined || disclosure.batchId !== input.batchId) {
+        throw new CommunityReviewServiceError("disclosure_not_found");
+      }
+      const checked = assertPersistedDisclosure(batch, pool, agreement, disclosure);
+      if (checked.mode !== "PUBLIC" || checked.publicArtifact === undefined) {
+        throw new CommunityReviewServiceError("disclosure_not_public");
+      }
+      return checked.publicArtifact;
     });
   }
 }

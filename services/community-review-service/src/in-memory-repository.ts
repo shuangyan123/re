@@ -1,9 +1,15 @@
 import {
+  buildCommunityReviewAgreementEvidence,
+  buildCommunityReviewPublicEvidenceArtifact,
+  communityReviewPublicArtifactFingerprint,
+} from "../../../src/community-review/freeze.js";
+import {
   assertCommunityReviewSubmissionMatchesAssignment,
   parseCommunityReviewAssignment,
   parseCommunityReviewBatchCloseRecord,
   parseCommunityReviewBatchManifest,
   parseCommunityReviewInstrumentIdentity,
+  parseCommunityReviewPublicEvidenceArtifact,
   parseCommunityReviewQualificationReceipt,
   parseCommunityReviewReviewerPacket,
   parseCommunityReviewSubmission,
@@ -13,15 +19,22 @@ import {
   canonicalCommunityReviewJson,
   communityReviewAtomicIdentityKey,
 } from "../../../src/community-review/fingerprint.js";
+import { communityReviewAgreementEvidencePersistenceFingerprint } from "./persistence.js";
 import {
   QUALIFICATION_PASS_RULE_ID,
 } from "./qualification.js";
 import type { QualificationStoredResponse } from "./qualification.js";
 import { CommunityReviewServiceError } from "./errors.js";
-import type { CommunityReviewSubmission } from "../../../src/contracts/community-review.js";
+import type {
+  CommunityReviewDisclosurePolicy,
+  CommunityReviewSubmission,
+} from "../../../src/contracts/community-review.js";
 import type {
   AcceptedSubmissionRecord,
   AuthAuditEventRecord,
+  CommunityReviewAgreementEvidenceRecord,
+  CommunityReviewDisclosureRecord,
+  CommunityReviewEvidenceAuditEventRecord,
   CommunityReviewPersistence,
   CommunityReviewPersistenceTransaction,
   FrozenReviewPoolRecord,
@@ -71,6 +84,10 @@ interface DatabaseState {
   readonly closeFingerprints: Map<string, string>;
   readonly frozenReviewPools: Map<string, FrozenReviewPoolRecord>;
   readonly freezeFingerprints: Map<string, string>;
+  readonly agreementEvidence: Map<string, CommunityReviewAgreementEvidenceRecord>;
+  readonly agreementEvidenceFingerprints: Map<string, string>;
+  readonly disclosures: Map<string, CommunityReviewDisclosureRecord>;
+  readonly evidenceAuditEvents: Map<string, CommunityReviewEvidenceAuditEventRecord>;
 }
 
 function emptyState(): DatabaseState {
@@ -104,6 +121,10 @@ function emptyState(): DatabaseState {
     closeFingerprints: new Map(),
     frozenReviewPools: new Map(),
     freezeFingerprints: new Map(),
+    agreementEvidence: new Map(),
+    agreementEvidenceFingerprints: new Map(),
+    disclosures: new Map(),
+    evidenceAuditEvents: new Map(),
   };
 }
 
@@ -555,6 +576,88 @@ function assertReviewSubmissionAuditEventRecord(record: ReviewSubmissionAuditEve
   requiredString(record.assignmentId);
   opaqueId(record.reviewerId);
   fingerprint(record.submissionFingerprint);
+  timestamp(record.occurredAt);
+}
+
+function assertDisclosurePolicy(policy: CommunityReviewDisclosurePolicy): void {
+  if (typeof policy !== "object" || policy === null || Array.isArray(policy) ||
+    Object.keys(policy).some((key) => ![
+      "publishReviewerIds",
+      "publishAtomicAnnotations",
+      "publishReviewerEvidence",
+    ].includes(key)) || typeof policy.publishReviewerIds !== "boolean" ||
+    typeof policy.publishAtomicAnnotations !== "boolean" ||
+    typeof policy.publishReviewerEvidence !== "boolean") {
+    invalidRecord();
+  }
+}
+
+function publicArtifactFingerprint(
+  artifact: NonNullable<CommunityReviewDisclosureRecord["publicArtifact"]>,
+): string {
+  const { disclosureDate, ...identity } = artifact;
+  if (disclosureDate.length === 0) invalidRecord();
+  return communityReviewPublicArtifactFingerprint(identity);
+}
+
+function assertAgreementEvidenceRecord(record: CommunityReviewAgreementEvidenceRecord): void {
+  requiredString(record.batchId);
+  fingerprint(record.freezeFingerprint);
+  fingerprint(record.evidencePersistenceFingerprint);
+  if (typeof record.evidence !== "object" || record.evidence === null ||
+    record.evidence.schemaVersion !== 1 || record.evidence.agreementKind !== "community-review-agreement" ||
+    record.evidence.poolFingerprint !== record.freezeFingerprint) {
+    invalidRecord();
+  }
+  timestamp(record.createdAt);
+}
+
+function assertDisclosureRecord(record: CommunityReviewDisclosureRecord): void {
+  opaqueId(record.disclosureId);
+  requiredString(record.batchId);
+  fingerprint(record.freezeFingerprint);
+  fingerprint(record.agreementEvidencePersistenceFingerprint);
+  if (!Number.isInteger(record.disclosureVersion) || record.disclosureVersion < 1 ||
+    (record.mode !== "PRIVATE" && record.mode !== "PUBLIC")) invalidRecord();
+  assertDisclosurePolicy(record.disclosurePolicy);
+  if (record.disclosureDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/u.test(record.disclosureDate)) {
+    invalidRecord();
+  }
+  if (record.mode === "PRIVATE" && (record.disclosureDate !== undefined ||
+    record.publicArtifact !== undefined || record.publicArtifactFingerprint !== undefined ||
+    record.disclosurePolicy.publishReviewerIds || record.disclosurePolicy.publishAtomicAnnotations ||
+    record.disclosurePolicy.publishReviewerEvidence)) invalidRecord();
+  if (record.mode === "PUBLIC") {
+    if (record.disclosureDate === undefined || record.publicArtifact === undefined ||
+      record.publicArtifactFingerprint === undefined) invalidRecord();
+    const artifact = parseCommunityReviewPublicEvidenceArtifact(record.publicArtifact);
+    fingerprint(record.publicArtifactFingerprint);
+    if (artifact.batchId !== record.batchId || artifact.frozenPoolFingerprint !== record.freezeFingerprint ||
+      !same(artifact.disclosurePolicy, record.disclosurePolicy) || artifact.disclosureDate !== record.disclosureDate ||
+      publicArtifactFingerprint(artifact) !== record.publicArtifactFingerprint) invalidRecord();
+  } else if (record.publicArtifact !== undefined || record.publicArtifactFingerprint !== undefined) {
+    invalidRecord();
+  }
+  timestamp(record.createdAt);
+}
+
+function assertEvidenceAuditEventRecord(record: CommunityReviewEvidenceAuditEventRecord): void {
+  opaqueId(record.eventId);
+  if (!["batch_frozen", "freeze_retrieved", "agreement_evidence_generated",
+    "agreement_evidence_retrieved", "disclosure_created", "public_artifact_generated",
+    "disclosure_rejected"].includes(record.eventType)) invalidRecord();
+  requiredString(record.batchId);
+  if (record.freezeFingerprint !== undefined) fingerprint(record.freezeFingerprint);
+  if (record.agreementEvidencePersistenceFingerprint !== undefined) {
+    fingerprint(record.agreementEvidencePersistenceFingerprint);
+  }
+  if (record.disclosureId !== undefined) opaqueId(record.disclosureId);
+  if (record.disclosureVersion !== undefined &&
+    (!Number.isInteger(record.disclosureVersion) || record.disclosureVersion < 1)) invalidRecord();
+  if (record.disclosureMode !== undefined && record.disclosureMode !== "PRIVATE" &&
+    record.disclosureMode !== "PUBLIC") invalidRecord();
+  if (record.disclosurePolicy !== undefined) assertDisclosurePolicy(record.disclosurePolicy);
+  if (record.reasonCode !== undefined && !/^[A-Za-z0-9._:-]{1,80}$/u.test(record.reasonCode)) invalidRecord();
   timestamp(record.occurredAt);
 }
 
@@ -1226,6 +1329,158 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
     this.state.frozenReviewPools.set(record.batchId, stored);
     this.state.freezeFingerprints.set(pool.freezeFingerprint, record.batchId);
     return copy(stored);
+  }
+
+  getCommunityReviewAgreementEvidence(
+    batchId: string,
+  ): CommunityReviewAgreementEvidenceRecord | undefined {
+    const record = this.state.agreementEvidence.get(batchId);
+    return record === undefined ? undefined : copy(record);
+  }
+
+  insertCommunityReviewAgreementEvidence(
+    record: CommunityReviewAgreementEvidenceRecord,
+  ): CommunityReviewAgreementEvidenceRecord {
+    assertAgreementEvidenceRecord(record);
+    const batch = this.state.batches.get(record.batchId);
+    const frozen = this.state.frozenReviewPools.get(record.batchId);
+    if (batch === undefined || batch.state !== "FROZEN" || frozen === undefined ||
+      frozen.frozenPool.freezeFingerprint !== record.freezeFingerprint) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const expected = buildCommunityReviewAgreementEvidence(frozen.frozenPool);
+    if (!same(expected, record.evidence) ||
+      communityReviewAgreementEvidencePersistenceFingerprint({
+        batchId: record.batchId,
+        freezeFingerprint: record.freezeFingerprint,
+        evidence: record.evidence,
+      }) !== record.evidencePersistenceFingerprint) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    if (this.state.agreementEvidence.has(record.batchId) ||
+      this.state.agreementEvidenceFingerprints.has(record.evidencePersistenceFingerprint)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.agreementEvidence.set(record.batchId, stored);
+    this.state.agreementEvidenceFingerprints.set(record.evidencePersistenceFingerprint, record.batchId);
+    return copy(stored);
+  }
+
+  getCommunityReviewDisclosure(disclosureId: string): CommunityReviewDisclosureRecord | undefined {
+    const record = this.state.disclosures.get(disclosureId);
+    return record === undefined ? undefined : copy(record);
+  }
+
+  listCommunityReviewDisclosures(batchId: string): readonly CommunityReviewDisclosureRecord[] {
+    return [...this.state.disclosures.values()]
+      .filter((record) => record.batchId === batchId)
+      .sort((left, right) => left.disclosureVersion - right.disclosureVersion ||
+        left.disclosureId.localeCompare(right.disclosureId))
+      .map(copy);
+  }
+
+  insertCommunityReviewDisclosure(
+    record: CommunityReviewDisclosureRecord,
+  ): CommunityReviewDisclosureRecord {
+    assertDisclosureRecord(record);
+    const batch = this.state.batches.get(record.batchId);
+    const frozen = this.state.frozenReviewPools.get(record.batchId);
+    const agreement = this.state.agreementEvidence.get(record.batchId);
+    if (batch === undefined || batch.state !== "FROZEN" || frozen === undefined ||
+      frozen.frozenPool.freezeFingerprint !== record.freezeFingerprint || agreement === undefined ||
+      agreement.evidencePersistenceFingerprint !== record.agreementEvidencePersistenceFingerprint) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    if (record.mode === "PUBLIC" && record.publicArtifact !== undefined &&
+      (record.publicArtifact.batchFingerprint !== batch.batchFingerprint ||
+        record.publicArtifact.visibleTaskSetFingerprint !== batch.manifest.visibleTaskSetFingerprint ||
+        !same(record.publicArtifact.acceptedSubmissionFingerprints,
+          frozen.frozenPool.acceptedSubmissionFingerprints))) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    if (record.mode === "PUBLIC") {
+      try {
+        const expectedArtifact = buildCommunityReviewPublicEvidenceArtifact(frozen.frozenPool, {
+          disclosureDate: record.disclosureDate!,
+          disclosurePolicy: record.disclosurePolicy,
+        });
+        if (!same(expectedArtifact, record.publicArtifact)) {
+          throw new CommunityReviewServiceError("repository_conflict");
+        }
+      } catch (error) {
+        if (error instanceof CommunityReviewServiceError) throw error;
+        throw new CommunityReviewServiceError("repository_conflict");
+      }
+    }
+    const duplicateIdentity = [...this.state.disclosures.values()].some((existing) =>
+      existing.batchId === record.batchId && existing.freezeFingerprint === record.freezeFingerprint &&
+      existing.mode === record.mode && same(existing.disclosurePolicy, record.disclosurePolicy) &&
+      existing.disclosureDate === record.disclosureDate);
+    if (this.state.disclosures.has(record.disclosureId) || duplicateIdentity ||
+      [...this.state.disclosures.values()].some((existing) =>
+        existing.batchId === record.batchId && existing.disclosureVersion === record.disclosureVersion)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.disclosures.set(record.disclosureId, stored);
+    return copy(stored);
+  }
+
+  insertCommunityReviewEvidenceAuditEvent(
+    record: CommunityReviewEvidenceAuditEventRecord,
+  ): CommunityReviewEvidenceAuditEventRecord {
+    assertEvidenceAuditEventRecord(record);
+    const batch = this.state.batches.get(record.batchId);
+    if (batch === undefined || this.state.evidenceAuditEvents.has(record.eventId)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    if (record.freezeFingerprint !== undefined) {
+      const frozen = this.state.frozenReviewPools.get(record.batchId);
+      if (frozen === undefined || frozen.frozenPool.freezeFingerprint !== record.freezeFingerprint) {
+        throw new CommunityReviewServiceError("repository_conflict");
+      }
+    }
+    if (record.agreementEvidencePersistenceFingerprint !== undefined) {
+      const agreement = this.state.agreementEvidence.get(record.batchId);
+      if (agreement === undefined || agreement.evidencePersistenceFingerprint !==
+        record.agreementEvidencePersistenceFingerprint) {
+        throw new CommunityReviewServiceError("repository_conflict");
+      }
+    }
+    if (record.disclosureId !== undefined) {
+      const disclosure = this.state.disclosures.get(record.disclosureId);
+      if (disclosure === undefined || disclosure.batchId !== record.batchId ||
+        record.disclosureVersion !== disclosure.disclosureVersion ||
+        record.disclosureMode !== disclosure.mode) {
+        throw new CommunityReviewServiceError("repository_conflict");
+      }
+    }
+    if ((record.eventType === "batch_frozen" && batch.state !== "FROZEN") ||
+      (record.eventType === "freeze_retrieved" && batch.state !== "FROZEN") ||
+      (record.eventType === "agreement_evidence_generated" &&
+        record.agreementEvidencePersistenceFingerprint === undefined) ||
+      (record.eventType === "agreement_evidence_retrieved" &&
+        record.agreementEvidencePersistenceFingerprint === undefined) ||
+      (record.eventType === "disclosure_created" && record.disclosureId === undefined) ||
+      (record.eventType === "public_artifact_generated" &&
+        (record.disclosureId === undefined || record.disclosureMode !== "PUBLIC")) ||
+      (record.eventType === "disclosure_rejected" && record.reasonCode === undefined)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.evidenceAuditEvents.set(record.eventId, stored);
+    return copy(stored);
+  }
+
+  listCommunityReviewEvidenceAuditEvents(
+    batchId?: string,
+  ): readonly CommunityReviewEvidenceAuditEventRecord[] {
+    return [...this.state.evidenceAuditEvents.values()]
+      .filter((record) => batchId === undefined || record.batchId === batchId)
+      .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) ||
+        left.eventId.localeCompare(right.eventId))
+      .map(copy);
   }
 }
 

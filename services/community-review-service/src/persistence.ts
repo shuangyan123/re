@@ -1,16 +1,20 @@
 import type {
   CommunityReviewAssignment,
+  CommunityReviewAgreementEvidence,
   CommunityReviewBatchCloseRecord,
   CommunityReviewBatchManifest,
   CommunityReviewDataKind,
+  CommunityReviewDisclosurePolicy,
   CommunityReviewFingerprint,
   CommunityReviewInstrumentIdentity,
+  CommunityReviewPublicEvidenceArtifact,
   CommunityReviewReviewerPacket,
   CommunityReviewQualificationReceipt,
   CommunityReviewSubmission,
   CommunityReviewSyntheticFixtureMarker,
   FrozenCommunityReviewPool,
 } from "../../../src/contracts/community-review.js";
+import { communityReviewFingerprint } from "../../../src/community-review/fingerprint.js";
 import type {
   QualificationPassRuleId,
   QualificationStoredResponse,
@@ -273,6 +277,72 @@ export interface FrozenReviewPoolRecord {
   readonly createdAt: ServiceTimestamp;
 }
 
+/**
+ * Persistence identity only. P3's agreement object remains the methodological
+ * artifact; this fingerprint identifies the exact service row that stores it.
+ */
+export function communityReviewAgreementEvidencePersistenceFingerprint(input: {
+  readonly batchId: string;
+  readonly freezeFingerprint: CommunityReviewFingerprint;
+  readonly evidence: CommunityReviewAgreementEvidence;
+}): CommunityReviewFingerprint {
+  return communityReviewFingerprint({
+    persistenceKind: "community-review-agreement-evidence",
+    batchId: input.batchId,
+    freezeFingerprint: input.freezeFingerprint,
+    evidence: input.evidence,
+  });
+}
+
+export type CommunityReviewDisclosureMode = "PRIVATE" | "PUBLIC";
+
+export interface CommunityReviewAgreementEvidenceRecord {
+  readonly batchId: string;
+  readonly freezeFingerprint: CommunityReviewFingerprint;
+  /** Service persistence identity; not a new protocol or correctness claim. */
+  readonly evidencePersistenceFingerprint: CommunityReviewFingerprint;
+  readonly evidence: CommunityReviewAgreementEvidence;
+  readonly createdAt: ServiceTimestamp;
+}
+
+export interface CommunityReviewDisclosureRecord {
+  readonly disclosureId: string;
+  readonly batchId: string;
+  readonly freezeFingerprint: CommunityReviewFingerprint;
+  readonly agreementEvidencePersistenceFingerprint: CommunityReviewFingerprint;
+  readonly disclosureVersion: number;
+  readonly mode: CommunityReviewDisclosureMode;
+  readonly disclosurePolicy: CommunityReviewDisclosurePolicy;
+  readonly disclosureDate?: string;
+  readonly publicArtifact?: CommunityReviewPublicEvidenceArtifact;
+  readonly publicArtifactFingerprint?: CommunityReviewFingerprint;
+  readonly createdAt: ServiceTimestamp;
+}
+
+export type CommunityReviewEvidenceAuditEventType =
+  | "batch_frozen"
+  | "freeze_retrieved"
+  | "agreement_evidence_generated"
+  | "agreement_evidence_retrieved"
+  | "disclosure_created"
+  | "public_artifact_generated"
+  | "disclosure_rejected";
+
+/** Narrow operational metadata; raw annotations and private identity never enter this row. */
+export interface CommunityReviewEvidenceAuditEventRecord {
+  readonly eventId: string;
+  readonly eventType: CommunityReviewEvidenceAuditEventType;
+  readonly batchId: string;
+  readonly freezeFingerprint?: CommunityReviewFingerprint;
+  readonly agreementEvidencePersistenceFingerprint?: CommunityReviewFingerprint;
+  readonly disclosureId?: string;
+  readonly disclosureVersion?: number;
+  readonly disclosureMode?: CommunityReviewDisclosureMode;
+  readonly disclosurePolicy?: CommunityReviewDisclosurePolicy;
+  readonly reasonCode?: string;
+  readonly occurredAt: ServiceTimestamp;
+}
+
 export interface CommunityReviewPersistenceTransaction {
   getReviewerAccount(internalId: string): ReviewerAccountRecord | undefined;
   getReviewerAccountByReviewerId(reviewerId: string): ReviewerAccountRecord | undefined;
@@ -366,6 +436,26 @@ export interface CommunityReviewPersistenceTransaction {
 
   getFrozenReviewPool(batchId: string): FrozenReviewPoolRecord | undefined;
   insertFrozenReviewPool(record: FrozenReviewPoolRecord): FrozenReviewPoolRecord;
+
+  getCommunityReviewAgreementEvidence(
+    batchId: string,
+  ): CommunityReviewAgreementEvidenceRecord | undefined;
+  insertCommunityReviewAgreementEvidence(
+    record: CommunityReviewAgreementEvidenceRecord,
+  ): CommunityReviewAgreementEvidenceRecord;
+
+  getCommunityReviewDisclosure(disclosureId: string): CommunityReviewDisclosureRecord | undefined;
+  listCommunityReviewDisclosures(batchId: string): readonly CommunityReviewDisclosureRecord[];
+  insertCommunityReviewDisclosure(
+    record: CommunityReviewDisclosureRecord,
+  ): CommunityReviewDisclosureRecord;
+
+  insertCommunityReviewEvidenceAuditEvent(
+    record: CommunityReviewEvidenceAuditEventRecord,
+  ): CommunityReviewEvidenceAuditEventRecord;
+  listCommunityReviewEvidenceAuditEvents(
+    batchId?: string,
+  ): readonly CommunityReviewEvidenceAuditEventRecord[];
 }
 
 export interface CommunityReviewPersistence {

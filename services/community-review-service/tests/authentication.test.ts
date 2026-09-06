@@ -604,6 +604,94 @@ test("authenticated own-submission facade derives identity and operators retriev
   );
 });
 
+test("P4-F evidence authority is operator-only and disclosure follows the frozen boundary", async () => {
+  const setup = await makeSetup();
+  const reviewerRequest = {
+    authenticationInput: "reviewer-a-token",
+    batchId: setup.batchId,
+  };
+  await setup.application.submitOwnAssignment({
+    ...reviewerRequest,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    annotations: annotations(setup.packets[0]!),
+  });
+
+  await assert.rejects(
+    setup.application.freezeBatch(reviewerRequest),
+    serviceError("operator_not_authorized"),
+  );
+  await assert.rejects(
+    setup.application.getFrozenPool(reviewerRequest),
+    serviceError("operator_not_authorized"),
+  );
+  await assert.rejects(
+    setup.application.buildAgreementEvidence(reviewerRequest),
+    serviceError("operator_not_authorized"),
+  );
+  await assert.rejects(
+    setup.application.getAgreementEvidence(reviewerRequest),
+    serviceError("operator_not_authorized"),
+  );
+  await assert.rejects(
+    setup.application.createDisclosure(reviewerRequest),
+    serviceError("operator_not_authorized"),
+  );
+  await assert.rejects(
+    setup.application.buildPublicEvidenceArtifact(reviewerRequest),
+    serviceError("operator_not_authorized"),
+  );
+
+  await setup.application.closeBatch({ authenticationInput: "operator-token", batchId: setup.batchId });
+  await assert.rejects(
+    setup.application.createDisclosure({ authenticationInput: "operator-token", batchId: setup.batchId }),
+    serviceError("batch_not_frozen"),
+  );
+
+  const pool = await setup.application.freezeBatch({ authenticationInput: "operator-token", batchId: setup.batchId });
+  const evidence = await setup.application.buildAgreementEvidence({
+    authenticationInput: "operator-token",
+    batchId: setup.batchId,
+  });
+  assert.equal(evidence.poolFingerprint, pool.freezeFingerprint);
+
+  const privateDisclosure = await setup.application.createDisclosure({
+    authenticationInput: "operator-token",
+    batchId: setup.batchId,
+  });
+  assert.equal(privateDisclosure.mode, "PRIVATE");
+  assert.equal(privateDisclosure.publicArtifact, undefined);
+  await assert.rejects(
+    setup.application.buildPublicEvidenceArtifact({
+      authenticationInput: "operator-token",
+      batchId: setup.batchId,
+      disclosureId: privateDisclosure.disclosureId,
+    }),
+    serviceError("disclosure_not_public"),
+  );
+
+  const publicDisclosure = await setup.application.createDisclosure({
+    authenticationInput: "operator-token",
+    batchId: setup.batchId,
+    mode: "PUBLIC",
+    disclosurePolicy: {
+      publishReviewerIds: false,
+      publishAtomicAnnotations: false,
+      publishReviewerEvidence: false,
+    },
+    disclosureDate: "2026-09-06",
+  });
+  const publicArtifact = await setup.application.buildPublicEvidenceArtifact({
+    authenticationInput: "operator-token",
+    batchId: setup.batchId,
+    disclosureId: publicDisclosure.disclosureId,
+  });
+  assert.equal(publicArtifact.frozenPoolFingerprint, pool.freezeFingerprint);
+  await assert.rejects(
+    setup.application.getFrozenPool({ authenticationInput: undefined, batchId: setup.batchId }),
+    serviceError("authentication_required"),
+  );
+});
+
 test("current account and consent authority is required for authenticated submission", async () => {
   const setup = await makeSetup();
   const submit = (authenticationInput: unknown) => setup.application.submitOwnAssignment({

@@ -1,24 +1,24 @@
-# Community Review Service P4-A / P4-B / P4-C / P4-D / P4-E
+# Community Review Service P4-A / P4-B / P4-C / P4-D / P4-E / P4-F
 
 Status:
 
 ```text
-P4-A Service Foundation — PASS
-P4-B Authentication & Reviewer Identity — PASS
-P4-C Sealed Qualification Authority — PASS
-P4-D Blind Delivery / Assignment — PASS
-P4-E Production Submission / Close — PASS
-P4-F Freeze / Operational Evidence — NOT STARTED
-P4-G Deployment / Readiness — NOT STARTED
+P4-A Service Foundation               PASS
+P4-B Authentication & Reviewer ID     PASS
+P4-C Sealed Qualification Authority   PASS
+P4-D Blind Delivery / Assignment      PASS
+P4-E Production Submission / Close    PASS
+P4-F Freeze / Operational Evidence    PASS
+P4-G Deployment / Readiness           NOT STARTED
 ```
 
 The broader status remains:
 
 ```text
-P4 COMMUNITY REVIEW SERVICE — IN PROGRESS
-Public reviewer intake — NOT OPEN
-Real Community Review campaign — NOT STARTED
-P5 Community calibration — NOT STARTED
+P4 COMMUNITY REVIEW SERVICE           IN PROGRESS
+Public reviewer intake                NOT OPEN
+Real Community Review campaign        NOT STARTED
+P5 Community calibration              NOT STARTED
 ```
 
 This document describes an isolated service boundary and its synthetic test
@@ -42,11 +42,15 @@ P4 owns the private/runtime boundary around those helpers:
 - reviewer/operator separation and account lifecycle;
 - sealed qualification definitions, material references, pool state, attempts,
   server-side evaluation, and authoritative receipt persistence;
-  - authenticated blind assignment delivery from sealed review material;
-  - authenticated own-assignment submission and operator-only close authority;
-  - exact packet/atomic validation, transaction ordering, uniqueness,
-    anti-replay checks, close snapshots, narrow audit metadata, and
-    deterministic in-memory behavior for synthetic tests.
+- authenticated blind assignment delivery from sealed review material;
+- authenticated own-assignment submission and operator-only close authority;
+- exact packet/atomic validation, transaction ordering, uniqueness,
+  anti-replay checks, close snapshots, narrow audit metadata, and deterministic
+  in-memory behavior for synthetic tests;
+- operator-only `CLOSED -> FROZEN` authority bound to the exact persisted P4-E
+  close result;
+- diagnostic agreement evidence, conservative disclosure decisions, public
+  P3-allowlisted artifact generation, and narrow operational audit metadata.
 
 Qualification is an eligibility mechanism. It is not calibration, correctness
 validation of a tutor, a Human Reference, consensus, adjudication, a Judge
@@ -492,6 +496,130 @@ The service's `ReviewBatchCloseRecord` stores the same exact accepted P3
 submission objects used to create the close result. This is a local persistence
 contract for the close authority; it is not a public evidence export.
 
+## Freeze and operational evidence authority (P4-F)
+
+P4-F operationalizes only the authoritative `CLOSED -> FROZEN` transition. It
+does not add a protocol lifecycle state, publish a campaign, or turn a frozen
+pool into a Human Reference. The operator facade exposes:
+
+```text
+freezeBatch
+getFrozenPool
+buildAgreementEvidence
+getAgreementEvidence
+createDisclosure
+buildPublicEvidenceArtifact
+```
+
+All six operations require the existing operator authorization path. Reviewer
+authentication and reviewer ownership do not grant access to freeze, retrieve
+private frozen evidence, inspect the agreement matrix, create a disclosure, or
+build a public artifact.
+
+### Exact CLOSED-set binding and transactional freeze
+
+The freeze request contains only a `batchId`. The service locks the
+authoritative batch, requires `CLOSED`, loads the exact persisted P4-E close
+record and accepted-submission snapshot, and mechanically verifies the
+current authority before calling the existing P3
+`freezeCommunityReviewPool(...)` helper:
+
+```text
+lock batch
+  -> load exact persisted CLOSED manifest, close record, and accepted snapshot
+  -> verify batch/protocol/instrument/task/coverage bindings
+  -> set-equal assignment IDs, reviewer IDs, and submission fingerprints
+  -> call P3 freezeCommunityReviewPool(closeResult)
+  -> persist one frozen pool and its freeze fingerprint
+  -> transition the batch to FROZEN
+  -> write narrow batch_frozen audit metadata
+  -> commit
+```
+
+The caller cannot choose an accepted set or submit a close object to freeze.
+Any mismatch fails closed and rolls back, leaving the batch `CLOSED` with no
+new frozen row. P3 validation failure has the same rollback behavior. A
+successful retry returns the exact persisted frozen pool and fingerprint; it
+does not reconstruct a pool from mutable assignment or submission rows.
+The in-memory repository returns clones, while the PostgreSQL boundary uses
+the existing one-row/unique constraints, batch authority guard, and new
+immutable-record trigger. Once `FROZEN`, assignment, accepted-submission,
+close, coverage, and pool replacement/reopen operations are rejected.
+
+Freeze, close, late submission, assignment mutation, duplicate freeze, and
+evidence-generation races are serialized by the same batch transaction
+boundary. Only coherent ordered outcomes are permitted: a close either
+commits before a freeze, or a committed freeze is the sole frozen authority.
+
+### Diagnostic agreement evidence
+
+After a frozen pool exists, `buildAgreementEvidence` calls the existing P3
+`buildCommunityReviewAgreementEvidence(...)` helper using the exact stored
+frozen pool. The service persists one deterministic artifact per frozen pool
+with a separate service persistence fingerprint. It retains human-human
+agreement as diagnostic evidence: reviewer statuses, pairwise reports, the
+3x3 status confusion matrix, per-requirement and per-case distributions,
+disagreement rows, and missing/withdrawn coverage.
+
+The evidence does not collapse disagreements into a majority label. It never
+calculates accuracy, correctness, consensus truth, a gold/reference label, a
+Judge comparison, calibration, a leaderboard score, or adjudication. A
+single-reviewer pool retains the P3 limitation that human-human agreement
+cannot be established. Incomplete, pilot, and synthetic fixtures retain their
+P3 limitations and are not validated Human Reference evidence.
+
+Agreement retrieval returns the exact persisted artifact, not a recomputation
+from current mutable service rows. Repeated generation is idempotent and
+deterministic for the same stored frozen pool.
+
+### Private evidence and explicit disclosure policy
+
+Evidence is private by default. `createDisclosure` first requires an
+authoritative frozen pool and persisted agreement evidence, then appends an
+immutable disclosure decision. The default `PRIVATE` record contains no public
+artifact. A `PUBLIC` record requires an explicit disclosure date and policy and
+stores the result of P3's
+`buildCommunityReviewPublicEvidenceArtifact(...)` allowlist. A public artifact
+is generated/exportable evidence only; P4-F does not host, upload, announce,
+or expose a public endpoint.
+
+The public boundary excludes reviewer names, email/phone, GitHub or Discord
+identity, OAuth/auth subjects, access tokens, cookies, JWTs, IP/device/account
+identifiers, qualification answer keys/responses/private material references,
+sealed source references, operator notes, and hidden evaluator or Judge
+fields. The private persistence row is never used as the public response.
+Changing disclosure policy or date appends a new disclosure version and does
+not mutate the frozen pool, freeze fingerprint, close result, or prior
+disclosure history. No retroactive withdrawal/erasure policy is invented in
+P4-F; later account or consent changes do not silently rewrite historical
+evidence.
+
+### P4-F persistence and audit boundary
+
+Migration `006_freeze_operational_evidence.sql` keeps the P4-A
+`frozen_review_pools` table and adds:
+
+| Record | Stored boundary | Important constraint |
+| --- | --- | --- |
+| `community_review_agreement_evidence` | exact P3 agreement artifact plus service persistence identity | one row per frozen batch, unique freeze/evidence fingerprints, frozen-pool binding |
+| `community_review_disclosures` | append-only PRIVATE/PUBLIC decision, policy version, and optional P3 public artifact | one version per batch, deterministic identity uniqueness, PRIVATE/PUBLIC shape checks, frozen/evidence binding |
+| `community_review_evidence_audit_events` | event type, opaque freeze/evidence/disclosure bindings, policy/version, reason code, timestamp | narrow metadata only, foreign-key bindings, immutable rows |
+
+The migration adds insert guards for frozen pools, agreement evidence, and
+disclosures, plus immutable triggers for frozen pools and all P4-F evidence
+records. The SQL has been added and statically reviewed; there is no local
+PostgreSQL runtime or production adapter in this phase, so PostgreSQL
+execution evidence remains a P4-G/infrastructure concern. The deterministic
+in-memory adapter mirrors freeze idempotency, rollback, exact-set checks,
+evidence identity, disclosure append/version semantics, cloning, and audit
+metadata for synthetic tests.
+
+Evidence audit events are limited to `batch_frozen`, freeze retrieval,
+agreement generation/retrieval, disclosure creation, public-artifact
+generation, and sanitized rejection metadata. They never copy annotations,
+submissions, credentials, auth subjects, answer keys, sealed source material,
+or hidden evaluator fields.
+
 ## Access, privacy, and audit
 
 Reviewer-facing operations are limited to creating, reading, submitting, and
@@ -542,8 +670,8 @@ assignment, and closing a batch serialize on the same batch boundary. A
 submission is either committed while the batch is `OPEN` and included in the
 close snapshot, or rejected after close; no late or replacement submission
 overwrites accepted evidence. Existing pure P3 freeze compatibility remains
-available to prior tests, but operational freeze and evidence handling belong
-to P4-F and are not claimed here.
+available to prior tests; P4-F now adds the operator-authorized operational
+freeze and evidence authority described above.
 
 ## Synthetic testing and gates
 
@@ -563,7 +691,13 @@ submission retrieval, accepted/replacement/idempotency rules, rejected and
 accepted audit privacy, CLOSED/FROZEN late rejection, exact close snapshots,
 close rollback/idempotency, simultaneous submissions and closes,
 submit-versus-close races, withdrawal-versus-submission races, and operator
-authorization. All fixtures are synthetic and unmistakably non-evidence.
+authorization. P4-F tests additionally cover exact close-set verification,
+operator-only freeze/evidence/disclosure paths, immutable frozen-pool retries,
+rollback on P3 freeze failure, persisted-pool-only agreement evidence,
+confusion/distribution/disagreement preservation, single-reviewer limitations,
+private/public disclosure versioning, runtime privacy firewall checks, and
+freeze/close/evidence races. All fixtures are synthetic and unmistakably
+non-evidence.
 
 Run the isolated harness with:
 
@@ -589,26 +723,28 @@ The root benchmark remains provider-free. Its expected unavailable-provider
 behavior is unchanged; P4-C does not add model calls or turn unavailable Judge
 errors into an official score.
 
-## Explicit exclusions and P4-F handoff
+## Explicit exclusions and phase handoff
 
-P4-E implements service semantics only. It does not implement or claim:
+P4-E and P4-F implement service semantics only. They do not implement or claim:
 
 - a hosted PostgreSQL adapter, production identity-provider deployment, or
   private production material store;
 - public reviewer signup/intake, payments, abuse controls, a reviewer
   dashboard, campaign scheduling, or a real Community Review campaign;
-- operational freeze, retention/deletion execution, public evidence disclosure,
-  or an evidence export pipeline (P4-F);
+- PostgreSQL execution, production deployment, or public hosting of evidence;
 - majority voting, agreement-as-correctness, gold/reference labels,
   adjudication, Judge comparison, calibration, accuracy claims, or leaderboard
-  scoring (P5);
+  scoring (P5), including any conversion of P4-F agreement into correctness;
 - a Review Workspace integration, root-package export, or production
   deployment; or
 - any reopening transition after `CLOSED`.
 
-The authoritative completion boundary for this task is `CLOSED`. P4-F Freeze /
-Operational Evidence and P4-G Deployment / Readiness remain **NOT STARTED**.
-P4 Community Review Service remains **IN PROGRESS**; public reviewer intake is
-**NOT OPEN**, the real campaign is **NOT STARTED**, and P5 Community
-calibration is **NOT STARTED**. The next phase must preserve the private
+P4-F is complete at the `FROZEN` evidence-authority boundary. The next
+explicit phase is P4-G Deployment / Readiness, which remains **NOT STARTED**;
+P4-F does not host PostgreSQL, deploy an identity provider or secret store,
+open reviewer intake, run a real campaign, publish evidence, or implement a
+retention/erasure operation. P4 Community Review Service remains
+**IN PROGRESS**; public reviewer intake is **NOT OPEN**, the real campaign is
+**NOT STARTED**, and P5 Community calibration is **NOT STARTED**. The frozen
+pool is not a Human Reference, and the next phase must preserve the private
 material boundary and the distinction between P3 validity and P4 authority.
