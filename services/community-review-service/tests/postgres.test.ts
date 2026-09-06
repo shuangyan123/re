@@ -143,7 +143,7 @@ function deterministicClock(): () => string {
 async function makeSetup(
   repository: CommunityReviewPersistence,
   suffix: string,
-  reviewerIds: readonly string[] = ["reviewer-a"],
+  reviewerIds: readonly string[] = ["reviewer-a", "reviewer-b"],
 ): Promise<Setup> {
   const reviewInstrument = instrument();
   const reviewEligibility = eligibility(suffix, reviewInstrument);
@@ -363,15 +363,18 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
 
   test("full qualification, blind delivery, submission, close, freeze, and private disclosure round-trip through PostgreSQL", async () => {
     const setup = await makeSetup(activeRepository(), "pg-integration");
+    const submissions = await Promise.all(setup.assignments.map((assignment, index) => {
+      const packet = setup.packets[index]!;
+      return setup.service.submitReview({
+        batchId: setup.batchId,
+        assignmentId: assignment.assignmentId,
+        reviewerId: assignment.reviewerId,
+        packetFingerprint: packet.packetFingerprint,
+        annotations: reviewAnnotations(packet),
+      });
+    }));
     const assignment = setup.assignments[0]!;
-    const packet = setup.packets[0]!;
-    const submission = await setup.service.submitReview({
-      batchId: setup.batchId,
-      assignmentId: assignment.assignmentId,
-      reviewerId: assignment.reviewerId,
-      packetFingerprint: packet.packetFingerprint,
-      annotations: reviewAnnotations(packet),
-    });
+    const submission = submissions[0]!;
     const close = await setup.service.closeBatch(setup.batchId);
     const frozen = await setup.service.freezeBatch(setup.batchId);
     const evidence = await setup.service.buildAgreementEvidence(setup.batchId);
