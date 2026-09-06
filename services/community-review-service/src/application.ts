@@ -8,7 +8,12 @@ import { parseAuthenticationContext } from "./authentication.js";
 import { CommunityReviewServiceError } from "./errors.js";
 import type {
   AssignCommunityReviewReviewerInput,
+  CreateQualificationAttemptInput,
   CreateCommunityReviewBatchInput,
+  GetReviewerConsentInput,
+  LinkReviewerAuthIdentityInput,
+  QualificationAttemptRequest,
+  QualificationPoolRequest,
   RegisterAuthoritativeQualificationReceiptInput,
   RegisterQualificationPoolInput,
   RecordReviewerConsentInput,
@@ -16,9 +21,8 @@ import type {
   ReviewerAccountLifecycleInput,
   ReviewerConsentSnapshot,
   CommunityReviewAssignmentResult,
-  GetReviewerConsentInput,
-  LinkReviewerAuthIdentityInput,
   ReviewerPacketRequest,
+  SubmitQualificationAttemptInput,
   SubmitCommunityReviewInput,
   WithdrawCommunityReviewAssignmentInput,
 } from "./service.js";
@@ -29,6 +33,7 @@ import type {
   CommunityReviewReviewerPacket,
   CommunityReviewSubmission,
   FrozenCommunityReviewPool,
+  CommunityReviewQualificationReceipt,
 } from "../../../src/contracts/community-review.js";
 import type {
   QualificationPoolRecord,
@@ -36,6 +41,11 @@ import type {
   ReviewerAuthIdentityRecord,
   ReviewBatchRecord,
 } from "./persistence.js";
+import type {
+  QualificationAttemptIssue,
+  QualificationAttemptView,
+} from "./service.js";
+import type { QualificationVisiblePacket } from "./qualification.js";
 
 export interface AuthenticatedRequest {
   readonly authenticationInput: unknown;
@@ -67,6 +77,26 @@ export interface AuthenticatedReviewerWithdrawalInput extends AuthenticatedReque
   readonly assignmentId: string;
 }
 
+export interface AuthenticatedReviewerQualificationAttemptInput extends AuthenticatedRequest {
+  readonly qualificationId: CreateQualificationAttemptInput["qualificationId"];
+  readonly qualificationVersion: CreateQualificationAttemptInput["qualificationVersion"];
+  readonly poolId: CreateQualificationAttemptInput["poolId"];
+  readonly poolVersion: CreateQualificationAttemptInput["poolVersion"];
+  readonly instrumentFingerprint: CreateQualificationAttemptInput["instrumentFingerprint"];
+  readonly reviewLocale: CreateQualificationAttemptInput["reviewLocale"];
+}
+
+export interface AuthenticatedReviewerQualificationPacketRequest extends AuthenticatedRequest {
+  readonly attemptId: string;
+}
+
+export interface AuthenticatedReviewerQualificationSubmissionInput extends AuthenticatedRequest {
+  readonly attemptId: string;
+  readonly attemptNonce: string;
+  readonly packetFingerprint: string;
+  readonly responses: SubmitQualificationAttemptInput["responses"];
+}
+
 export interface AuthenticatedConsentRequest extends AuthenticatedRequest {
   readonly policyId?: string;
   readonly policyVersion?: string;
@@ -74,6 +104,11 @@ export interface AuthenticatedConsentRequest extends AuthenticatedRequest {
 
 export interface AuthenticatedOperatorBatchRequest extends AuthenticatedRequest {
   readonly batchId: string;
+}
+
+export interface AuthenticatedOperatorQualificationPoolRequest extends AuthenticatedRequest {
+  readonly poolId: string;
+  readonly poolVersion: string;
 }
 
 export interface AuthenticatedOperatorTargetRequest extends AuthenticatedRequest {
@@ -230,6 +265,77 @@ export class CommunityReviewApplicationService {
     return this.service.withdrawAssignment(withdrawal);
   }
 
+  async createQualificationAttempt(
+    input: AuthenticatedReviewerQualificationAttemptInput,
+  ): Promise<QualificationAttemptIssue> {
+    const account = await this.reviewer(input);
+    const attempt: CreateQualificationAttemptInput = {
+      reviewerId: account.reviewerId,
+      qualificationId: input.qualificationId,
+      qualificationVersion: input.qualificationVersion,
+      poolId: input.poolId,
+      poolVersion: input.poolVersion,
+      instrumentFingerprint: input.instrumentFingerprint,
+      reviewLocale: input.reviewLocale,
+    };
+    return this.service.createQualificationAttempt(attempt);
+  }
+
+  async getQualificationPacket(
+    input: AuthenticatedReviewerQualificationPacketRequest,
+  ): Promise<QualificationVisiblePacket> {
+    const account = await this.reviewer(input);
+    const request: QualificationAttemptRequest = {
+      reviewerId: account.reviewerId,
+      attemptId: input.attemptId,
+    };
+    return this.service.getQualificationPacket(request);
+  }
+
+  async submitQualificationAttempt(
+    input: AuthenticatedReviewerQualificationSubmissionInput,
+  ): Promise<QualificationAttemptView> {
+    const account = await this.reviewer(input);
+    const submission: SubmitQualificationAttemptInput = {
+      reviewerId: account.reviewerId,
+      attemptId: input.attemptId,
+      attemptNonce: input.attemptNonce,
+      packetFingerprint: input.packetFingerprint,
+      responses: input.responses,
+    };
+    return this.service.submitQualificationAttempt(submission);
+  }
+
+  async getQualificationAttempt(
+    input: AuthenticatedReviewerQualificationPacketRequest,
+  ): Promise<QualificationAttemptView> {
+    const account = await this.reviewer(input);
+    return this.service.getQualificationAttempt({
+      reviewerId: account.reviewerId,
+      attemptId: input.attemptId,
+    });
+  }
+
+  async issueQualificationReceipt(
+    input: AuthenticatedReviewerQualificationPacketRequest,
+  ) {
+    const account = await this.reviewer(input);
+    return this.service.issueQualificationReceipt({
+      reviewerId: account.reviewerId,
+      attemptId: input.attemptId,
+    });
+  }
+
+  async getQualificationReceipt(
+    input: AuthenticatedReviewerQualificationPacketRequest,
+  ): Promise<CommunityReviewQualificationReceipt> {
+    const account = await this.reviewer(input);
+    return this.service.getQualificationReceipt({
+      reviewerId: account.reviewerId,
+      attemptId: input.attemptId,
+    });
+  }
+
   async disableReviewerAccount(input: AuthenticatedOperatorTargetRequest): Promise<ReviewerAccountRecord> {
     await this.operator(input);
     return this.service.disableReviewerAccount({ reviewerId: input.reviewerId });
@@ -274,6 +380,47 @@ export class CommunityReviewApplicationService {
   ): Promise<QualificationPoolRecord> {
     await this.operator(input);
     return this.service.registerQualificationPool(input.pool);
+  }
+
+  async getQualificationPool(
+    input: AuthenticatedOperatorQualificationPoolRequest,
+  ): Promise<QualificationPoolRecord> {
+    await this.operator(input);
+    const request: QualificationPoolRequest = {
+      poolId: input.poolId,
+      poolVersion: input.poolVersion,
+    };
+    return this.service.getQualificationPool(request);
+  }
+
+  async sealQualificationPool(
+    input: AuthenticatedOperatorQualificationPoolRequest,
+  ): Promise<QualificationPoolRecord> {
+    await this.operator(input);
+    return this.service.sealQualificationPool({
+      poolId: input.poolId,
+      poolVersion: input.poolVersion,
+    });
+  }
+
+  async activateQualificationPool(
+    input: AuthenticatedOperatorQualificationPoolRequest,
+  ): Promise<QualificationPoolRecord> {
+    await this.operator(input);
+    return this.service.activateQualificationPool({
+      poolId: input.poolId,
+      poolVersion: input.poolVersion,
+    });
+  }
+
+  async retireQualificationPool(
+    input: AuthenticatedOperatorQualificationPoolRequest,
+  ): Promise<QualificationPoolRecord> {
+    await this.operator(input);
+    return this.service.retireQualificationPool({
+      poolId: input.poolId,
+      poolVersion: input.poolVersion,
+    });
   }
 
   async registerAuthoritativeQualificationReceipt(
