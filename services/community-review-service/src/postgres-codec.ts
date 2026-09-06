@@ -607,8 +607,10 @@ function poolKey(record: QualificationPoolRecord): string {
   return `${record.poolId}\u0000${record.poolVersion}`;
 }
 
-function persistableJson(value: unknown): unknown {
-  return value === undefined ? null : value;
+function persistableJson(value: unknown): string | null {
+  if (value === undefined) return null;
+  const serialized = JSON.stringify(value);
+  return serialized === undefined ? null : serialized;
 }
 
 async function persistAccounts(
@@ -810,7 +812,7 @@ async function persistReceipts(
          authority_state, issued_at, revoked_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [record.receiptFingerprint, record.attemptId, record.reviewerId, record.poolId, record.poolVersion,
-        record.receipt, record.authorityState, record.issuedAt, record.revokedAt ?? null],
+        persistableJson(record.receipt), record.authorityState, record.issuedAt, record.revokedAt ?? null],
     );
   }
 }
@@ -829,7 +831,7 @@ async function persistBatches(
           (batch_id, batch_fingerprint, manifest, state, state_version,
            sealed_source_reference, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [record.batchId, record.batchFingerprint, record.manifest, record.state, record.stateVersion,
+        [record.batchId, record.batchFingerprint, persistableJson(record.manifest), record.state, record.stateVersion,
           record.sealedSourceReference, record.createdAt, record.updatedAt],
       );
     } else {
@@ -837,7 +839,7 @@ async function persistBatches(
         `UPDATE review_batches
             SET manifest = $2, state = $3, state_version = $4, updated_at = $5
           WHERE batch_id = $1 AND state_version = $6`,
-        [record.batchId, record.manifest, record.state, record.stateVersion, record.updatedAt,
+        [record.batchId, persistableJson(record.manifest), record.state, record.stateVersion, record.updatedAt,
           previous.stateVersion],
       );
     }
@@ -874,7 +876,7 @@ async function persistAssignments(
            assigned_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [record.assignment.assignmentId, record.assignment.batchId, record.assignment.reviewerId,
-          record.assignment, record.packet, record.assignment.assignmentState, record.assignedAt,
+          persistableJson(record.assignment), persistableJson(record.packet), record.assignment.assignmentState, record.assignedAt,
           record.updatedAt],
       );
     } else {
@@ -883,7 +885,7 @@ async function persistAssignments(
             SET assignment = $4, packet = $5, assignment_state = $6, updated_at = $7
           WHERE assignment_id = $1 AND batch_id = $2 AND reviewer_id = $3`,
         [record.assignment.assignmentId, record.assignment.batchId, record.assignment.reviewerId,
-          record.assignment, record.packet, record.assignment.assignmentState, record.updatedAt],
+          persistableJson(record.assignment), persistableJson(record.packet), record.assignment.assignmentState, record.updatedAt],
       );
     }
   }
@@ -902,7 +904,7 @@ async function persistAcceptedSubmissions(
         (submission_fingerprint, assignment_id, batch_id, reviewer_id, submission, accepted_at)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [record.submission.submissionFingerprint, record.submission.assignmentId, record.submission.batchId,
-        record.submission.reviewerId, record.submission, record.acceptedAt],
+        record.submission.reviewerId, persistableJson(record.submission), record.acceptedAt],
     );
   }
 }
@@ -937,7 +939,8 @@ async function persistCloseRecords(
       `INSERT INTO review_batch_closes
         (batch_id, close_fingerprint, manifest, close_record, created_at)
        VALUES ($1, $2, $3, $4, $5)`,
-      [record.batchId, record.closeRecord.closeFingerprint, record.manifest, record.closeRecord, record.createdAt],
+      [record.batchId, record.closeRecord.closeFingerprint, persistableJson(record.manifest),
+        persistableJson(record.closeRecord), record.createdAt],
     );
     for (const submission of record.acceptedSubmissions) {
       await client.query(
@@ -962,7 +965,7 @@ async function persistFrozenPools(
       `INSERT INTO frozen_review_pools
         (batch_id, freeze_fingerprint, frozen_pool, created_at)
        VALUES ($1, $2, $3, $4)`,
-      [record.batchId, record.frozenPool.freezeFingerprint, record.frozenPool, record.createdAt],
+      [record.batchId, record.frozenPool.freezeFingerprint, persistableJson(record.frozenPool), record.createdAt],
     );
   }
 }
@@ -979,7 +982,7 @@ async function persistAgreementEvidence(
       `INSERT INTO community_review_agreement_evidence
         (batch_id, freeze_fingerprint, evidence_persistence_fingerprint, evidence, created_at)
        VALUES ($1, $2, $3, $4, $5)`,
-      [record.batchId, record.freezeFingerprint, record.evidencePersistenceFingerprint, record.evidence,
+      [record.batchId, record.freezeFingerprint, record.evidencePersistenceFingerprint, persistableJson(record.evidence),
         record.createdAt],
     );
   }
@@ -1001,7 +1004,8 @@ async function persistDisclosures(
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [record.disclosureId, record.batchId, record.freezeFingerprint,
         record.agreementEvidencePersistenceFingerprint, record.disclosureVersion, record.mode,
-        record.disclosurePolicy, record.disclosureDate ?? null, record.publicArtifact ?? null,
+        persistableJson(record.disclosurePolicy), record.disclosureDate ?? null,
+        persistableJson(record.publicArtifact),
         record.publicArtifactFingerprint ?? null, record.createdAt],
     );
   }
@@ -1056,7 +1060,7 @@ async function persistAuditRows(
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [record.eventId, record.eventType, record.batchId, record.freezeFingerprint ?? null,
         record.agreementEvidencePersistenceFingerprint ?? null, record.disclosureId ?? null,
-        record.disclosureVersion ?? null, record.disclosureMode ?? null, record.disclosurePolicy ?? null,
+        record.disclosureVersion ?? null, record.disclosureMode ?? null, persistableJson(record.disclosurePolicy),
         record.reasonCode ?? null, record.occurredAt],
     );
   }
