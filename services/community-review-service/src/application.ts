@@ -8,6 +8,8 @@ import { parseAuthenticationContext } from "./authentication.js";
 import { CommunityReviewServiceError } from "./errors.js";
 import type {
   AssignCommunityReviewReviewerInput,
+  BuildCommunityReviewPublicEvidenceArtifactInput,
+  CreateCommunityReviewDisclosureInput,
   CreateQualificationAttemptInput,
   CreateCommunityReviewBatchInput,
   GetReviewerConsentInput,
@@ -30,13 +32,16 @@ import type {
 import { CommunityReviewService } from "./service.js";
 import type {
   CommunityReviewAssignment,
+  CommunityReviewAgreementEvidence,
   CommunityReviewBatchCloseResult,
   CommunityReviewReviewerPacket,
   CommunityReviewSubmission,
   FrozenCommunityReviewPool,
+  CommunityReviewPublicEvidenceArtifact,
   CommunityReviewQualificationReceipt,
 } from "../../../src/contracts/community-review.js";
 import type {
+  CommunityReviewDisclosureRecord,
   QualificationPoolRecord,
   ReviewerAccountRecord,
   ReviewerAuthIdentityRecord,
@@ -110,6 +115,18 @@ export interface AuthenticatedConsentRequest extends AuthenticatedRequest {
 
 export interface AuthenticatedOperatorBatchRequest extends AuthenticatedRequest {
   readonly batchId: string;
+}
+
+export interface AuthenticatedOperatorDisclosureInput extends AuthenticatedRequest {
+  readonly batchId: string;
+  readonly mode?: CreateCommunityReviewDisclosureInput["mode"];
+  readonly disclosurePolicy?: CreateCommunityReviewDisclosureInput["disclosurePolicy"];
+  readonly disclosureDate?: CreateCommunityReviewDisclosureInput["disclosureDate"];
+}
+
+export interface AuthenticatedOperatorPublicEvidenceRequest extends AuthenticatedRequest {
+  readonly batchId: string;
+  readonly disclosureId?: BuildCommunityReviewPublicEvidenceArtifactInput["disclosureId"];
 }
 
 export interface AuthenticatedOperatorQualificationPoolRequest extends AuthenticatedRequest {
@@ -407,6 +424,43 @@ export class CommunityReviewApplicationService {
   async freezeBatch(input: AuthenticatedOperatorBatchRequest): Promise<FrozenCommunityReviewPool> {
     await this.operator(input);
     return this.service.freezeBatch(input.batchId);
+  }
+
+  async getFrozenPool(input: AuthenticatedOperatorBatchRequest): Promise<FrozenCommunityReviewPool> {
+    await this.operator(input);
+    return this.service.getFrozenPool(input.batchId);
+  }
+
+  async buildAgreementEvidence(input: AuthenticatedOperatorBatchRequest): Promise<CommunityReviewAgreementEvidence> {
+    await this.operator(input);
+    return this.service.buildAgreementEvidence(input.batchId);
+  }
+
+  async getAgreementEvidence(input: AuthenticatedOperatorBatchRequest): Promise<CommunityReviewAgreementEvidence> {
+    await this.operator(input);
+    return this.service.getAgreementEvidence(input.batchId);
+  }
+
+  async createDisclosure(input: AuthenticatedOperatorDisclosureInput): Promise<CommunityReviewDisclosureRecord> {
+    await this.operator(input);
+    const disclosure: CreateCommunityReviewDisclosureInput = {
+      batchId: input.batchId,
+      ...(input.mode === undefined ? {} : { mode: input.mode }),
+      ...(input.disclosurePolicy === undefined ? {} : { disclosurePolicy: input.disclosurePolicy }),
+      ...(input.disclosureDate === undefined ? {} : { disclosureDate: input.disclosureDate }),
+    };
+    return this.service.createDisclosure(disclosure);
+  }
+
+  async buildPublicEvidenceArtifact(
+    input: AuthenticatedOperatorPublicEvidenceRequest,
+  ): Promise<CommunityReviewPublicEvidenceArtifact> {
+    await this.operator(input);
+    const request: BuildCommunityReviewPublicEvidenceArtifactInput = {
+      batchId: input.batchId,
+      ...(input.disclosureId === undefined ? {} : { disclosureId: input.disclosureId }),
+    };
+    return this.service.buildPublicEvidenceArtifact(request);
   }
 
   async registerQualificationPool(

@@ -31,6 +31,12 @@ export type CommunityReviewServiceErrorCode =
   | "batch_not_found"
   | "batch_not_open"
   | "batch_not_closed"
+  | "batch_not_frozen"
+  | "frozen_pool_not_found"
+  | "agreement_evidence_not_found"
+  | "disclosure_not_found"
+  | "disclosure_policy_invalid"
+  | "disclosure_not_public"
   | "assignment_not_found"
   | "assignment_withdrawn"
   | "duplicate_assignment"
@@ -73,6 +79,12 @@ const messages: Record<CommunityReviewServiceErrorCode, string> = {
   batch_not_found: "Community Review batch was not found.",
   batch_not_open: "Community Review batch is not open for this operation.",
   batch_not_closed: "Community Review batch is not closed for this operation.",
+  batch_not_frozen: "Community Review batch is not frozen for this operation.",
+  frozen_pool_not_found: "Frozen Community Review pool was not found.",
+  agreement_evidence_not_found: "Community Review agreement evidence was not found.",
+  disclosure_not_found: "Community Review disclosure was not found.",
+  disclosure_policy_invalid: "Community Review disclosure policy is invalid.",
+  disclosure_not_public: "Community Review disclosure does not contain a public artifact.",
   assignment_not_found: "Community Review assignment was not found.",
   assignment_withdrawn: "Community Review assignment is withdrawn.",
   duplicate_assignment: "Community Review assignment already exists with different evidence.",

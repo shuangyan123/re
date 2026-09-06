@@ -6,11 +6,14 @@ import {
   parseCommunityReviewVisibleTask,
 } from "../../../src/contracts/index.js";
 import {
+  buildCommunityReviewAgreementEvidence,
   buildCommunityReviewInstrumentIdentity,
   buildCommunityReviewQualificationReceipt,
+  buildCommunityReviewPublicEvidenceArtifact,
   buildCommunityReviewSubmission,
   closeCommunityReviewBatch,
   communityReviewAtomicIdentityKey,
+  communityReviewCloseFingerprint,
   communityReviewFingerprint,
   createCommunityReviewBatch,
   freezeCommunityReviewPool,
@@ -20,6 +23,7 @@ import type {
   CommunityReviewAnnotation,
   CommunityReviewAssignment,
   CommunityReviewBatchPurpose,
+  CommunityReviewDisclosurePolicy,
   CommunityReviewQualificationEligibility,
   CommunityReviewQualificationReceipt,
   CommunityReviewReviewerPacket,
@@ -34,6 +38,10 @@ import {
   InMemoryReviewBatchMaterialStore,
   QUALIFICATION_PASS_RULE_ID,
   qualificationDefinitionFingerprint,
+} from "../src/index.js";
+import type {
+  CommunityReviewPersistence,
+  CommunityReviewPersistenceTransaction,
 } from "../src/index.js";
 import type {
   QualificationPrivateAnswer,
@@ -353,6 +361,31 @@ function serviceError(code: CommunityReviewServiceError["code"]): (error: unknow
 
 function p3Invalid(error: unknown): boolean {
   return error instanceof BenchmarkConfigurationError && error.code === "community_review_invalid";
+}
+
+function decoratedPersistence(
+  repository: InMemoryCommunityReviewRepository,
+  decorate: (transaction: CommunityReviewPersistenceTransaction) => CommunityReviewPersistenceTransaction,
+): CommunityReviewPersistence {
+  return {
+    transaction<T>(callback: (transaction: CommunityReviewPersistenceTransaction) => Promise<T> | T): Promise<T> {
+      return repository.transaction((transaction) => callback(decorate(transaction)));
+    },
+  };
+}
+
+async function closeCompleteBatch(
+  setup: CommunityReviewServiceTestSetup,
+): Promise<Awaited<ReturnType<CommunityReviewService["closeBatch"]>>> {
+  for (const [index, packet] of setup.packets.entries()) {
+    await setup.service.submitReview({
+      batchId: setup.batchId,
+      assignmentId: setup.assignments[index]!.assignmentId,
+      reviewerId: setup.assignments[index]!.reviewerId,
+      annotations: annotations(packet),
+    });
+  }
+  return setup.service.closeBatch(setup.batchId);
 }
 
 test("P4-A persists typed P3 records and preserves fingerprints through a round trip", async () => {
@@ -711,6 +744,500 @@ test("close and freeze persist exact P3 outputs and are idempotent", async () =>
     }),
     serviceError("batch_not_open"),
   );
+});
+
+test("P4-F freeze is an exact immutable close authority with stable retries", async () => {
+  const setup = await makeSetup({ suffix: "p4f-freeze-authority" });
+  await assert.rejects(
+    setup.service.freezeBatch(setup.batchId),
+    serviceError("batch_not_closed"),
+  );
+
+  const sealedBatch = createCommunityReviewBatch({
+    batchId: "community-review-batch-p4f-sealed-freeze",
+    instrument: setup.instrument,
+    qualificationEligibility: setup.eligibility,
+    sealedSourceFingerprint: communityReviewFingerprint({ sealedSource: "synthetic-p4f-sealed-freeze" }),
+    tasks,
+    dataKind: "synthetic-fixture",
+    fixture: syntheticFixture,
+    batchPurpose: "pilot",
+  });
+  setup.materialStore.register({
+    manifest: sealedBatch,
+    sealedSourceReference: "synthetic://sealed-source/p4f-sealed-freeze",
+    tasks,
+  });
+  await setup.service.createBatch({
+    manifest: sealedBatch,
+    sealedSourceReference: "synthetic://sealed-source/p4f-sealed-freeze",
+  });
+  await assert.rejects(
+    setup.service.freezeBatch(sealedBatch.batchId),
+    serviceError("batch_not_closed"),
+  );
+
+  const close = await closeCompleteBatch(setup);
+  const expected = freezeCommunityReviewPool(close);
+  const [first, retry] = await Promise.all([
+    setup.service.freezeBatch(setup.batchId),
+    setup.service.freezeBatch(setup.batchId),
+  ]);
+  assert.deepEqual(first, expected);
+  assert.deepEqual(retry, expected);
+  assert.deepEqual(await setup.service.getFrozenPool(setup.batchId), expected);
+
+  const returned = first as unknown as {
+    acceptedReviewerIds: string[];
+    submissions: CommunityReviewSubmission[];
+  };
+  try {
+    returned.acceptedReviewerIds.push("caller-mutation");
+    returned.submissions.pop();
+  } catch {
+    // A deep-frozen P3 result is also acceptable; persistence is the authority.
+  }
+  assert.deepEqual(await setup.service.getFrozenPool(setup.batchId), expected);
+
+  const persisted = await setup.repository.transaction((transaction) => ({
+    batch: transaction.getBatch(setup.batchId),
+    pool: transaction.getFrozenReviewPool(setup.batchId),
+    audit: transaction.listCommunityReviewEvidenceAuditEvents(setup.batchId),
+    close: transaction.getBatchCloseRecord(setup.batchId),
+  }));
+  assert.equal(persisted.batch?.state, "FROZEN");
+  assert.equal(persisted.pool?.frozenPool.freezeFingerprint, expected.freezeFingerprint);
+  assert.equal(persisted.close?.closeRecord.closeFingerprint, expected.closeRecordFingerprint);
+  assert.ok(persisted.audit.some((event) => event.eventType === "batch_frozen"));
+
+  await assert.rejects(
+    setup.service.submitReview({
+      batchId: setup.batchId,
+      assignmentId: setup.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+      annotations: annotations(setup.packets[0]!),
+    }),
+    serviceError("batch_not_open"),
+  );
+  await assert.rejects(setup.service.openBatch(setup.batchId), serviceError("batch_not_open"));
+
+  const assignmentRecord = await setup.repository.transaction((transaction) =>
+    transaction.getAssignment(setup.assignments[0]!.assignmentId));
+  assert.ok(assignmentRecord);
+  await assert.rejects(
+    setup.repository.transaction((transaction) => transaction.updateAssignment({
+      ...assignmentRecord,
+      assignment: withdrawCommunityReviewAssignment(assignmentRecord.assignment),
+      updatedAt: "2026-09-06T02:00:00.000Z",
+    })),
+    serviceError("repository_conflict"),
+  );
+  await assert.rejects(
+    setup.repository.transaction((transaction) => transaction.insertBatchCloseRecord(persisted.close!)),
+    serviceError("repository_conflict"),
+  );
+  await assert.rejects(
+    setup.repository.transaction((transaction) => transaction.insertFrozenReviewPool(persisted.pool!)),
+    serviceError("repository_conflict"),
+  );
+});
+
+test("P4-F freeze fails closed when any persisted P4-E exact-set binding drifts", async () => {
+  const setup = await makeSetup({ suffix: "p4f-exact-set" });
+  await closeCompleteBatch(setup);
+  const alternateSubmission = buildCommunityReviewSubmission(
+    setup.packets[0]!,
+    annotations(setup.packets[0]!, communityReviewAtomicIdentityKey({
+      caseId: "case-alpha",
+      rubricId: "reply-quality",
+      requirementId: "req-action",
+    })),
+  );
+
+  const submissionMismatch = new CommunityReviewService(decoratedPersistence(
+    setup.repository,
+    (transaction) => new Proxy(transaction, {
+      get(target, property, receiver) {
+        if (property === "listAcceptedSubmissions") {
+          return (batchId: string) => target.listAcceptedSubmissions(batchId).map((record, index) =>
+            index === 0 ? { ...record, submission: alternateSubmission } : record);
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    }),
+  ));
+  await assert.rejects(
+    submissionMismatch.freezeBatch(setup.batchId),
+    serviceError("invalid_service_record"),
+  );
+
+  const assignmentMismatch = new CommunityReviewService(decoratedPersistence(
+    setup.repository,
+    (transaction) => new Proxy(transaction, {
+      get(target, property, receiver) {
+        if (property === "listAssignments") {
+          return (batchId: string) => target.listAssignments(batchId).slice(0, 1);
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    }),
+  ));
+  await assert.rejects(
+    assignmentMismatch.freezeBatch(setup.batchId),
+    serviceError("invalid_service_record"),
+  );
+
+  const reviewerMismatch = new CommunityReviewService(decoratedPersistence(
+    setup.repository,
+    (transaction) => new Proxy(transaction, {
+      get(target, property, receiver) {
+        if (property === "listAcceptedSubmissions") {
+          return (batchId: string) => target.listAcceptedSubmissions(batchId).map((record) => ({
+            ...record,
+            submission: {
+              ...record.submission,
+              reviewerId: record.submission.reviewerId === "reviewer-a" ? "reviewer-b" : "reviewer-a",
+            },
+          }));
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    }),
+  ));
+  await assert.rejects(
+    reviewerMismatch.freezeBatch(setup.batchId),
+    serviceError("invalid_service_record"),
+  );
+
+  const tamperedClose = new CommunityReviewService(decoratedPersistence(
+    setup.repository,
+    (transaction) => new Proxy(transaction, {
+      get(target, property, receiver) {
+        if (property === "getBatchCloseRecord") {
+          return (batchId: string) => {
+            const record = target.getBatchCloseRecord(batchId);
+            if (record === undefined) return undefined;
+            const closeBase = {
+              ...record.closeRecord,
+              acceptedSubmissionFingerprints: [
+                communityReviewFingerprint({ tampered: true }),
+                ...record.closeRecord.acceptedSubmissionFingerprints.slice(1),
+              ],
+            };
+            return {
+              ...record,
+              closeRecord: {
+                ...closeBase,
+                closeFingerprint: communityReviewCloseFingerprint(closeBase),
+              },
+            };
+          };
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    }),
+  ));
+  await assert.rejects(
+    tamperedClose.freezeBatch(setup.batchId),
+    serviceError("invalid_service_record"),
+  );
+
+  const after = await setup.repository.transaction((transaction) => ({
+    batch: transaction.getBatch(setup.batchId),
+    pool: transaction.getFrozenReviewPool(setup.batchId),
+  }));
+  assert.equal(after.batch?.state, "CLOSED");
+  assert.equal(after.pool, undefined);
+});
+
+test("P4-F preserves transaction rollback when P3 rejects a freeze input", async () => {
+  const setup = await makeSetup({
+    suffix: "p4f-p3-rollback",
+    reviewers: ["reviewer-a"],
+    batchPurpose: "pilot",
+  });
+  const submitted = await setup.service.submitReview({
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+    annotations: annotations(setup.packets[0]!),
+  });
+  const close = await setup.service.closeBatch(setup.batchId);
+  const invalidClose = {
+    ...close,
+    acceptedSubmissions: [],
+  } as typeof close;
+  await assert.rejects(
+    setup.repository.transaction((transaction) => {
+      const pool = freezeCommunityReviewPool(invalidClose);
+      return transaction.insertFrozenReviewPool({
+        batchId: setup.batchId,
+        frozenPool: pool,
+        createdAt: "2026-09-06T03:00:00.000Z",
+      });
+    }),
+    p3Invalid,
+  );
+  const after = await setup.repository.transaction((transaction) => ({
+    batch: transaction.getBatch(setup.batchId),
+    close: transaction.getBatchCloseRecord(setup.batchId),
+    submissions: transaction.listAcceptedSubmissions(setup.batchId),
+    pool: transaction.getFrozenReviewPool(setup.batchId),
+  }));
+  assert.equal(after.batch?.state, "CLOSED");
+  assert.equal(after.close?.acceptedSubmissions[0]?.submissionFingerprint, submitted.submissionFingerprint);
+  assert.equal(after.submissions.length, 1);
+  assert.equal(after.pool, undefined);
+});
+
+test("P4-F agreement evidence is derived from the stored frozen pool and retains disagreement", async () => {
+  const setup = await makeSetup({ suffix: "p4f-agreement" });
+  await setup.service.submitReview({
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+    annotations: annotations(setup.packets[0]!),
+  });
+  await setup.service.submitReview({
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[1]!.assignmentId,
+    reviewerId: "reviewer-b",
+    annotations: annotations(setup.packets[1]!, communityReviewAtomicIdentityKey({
+      caseId: "case-alpha",
+      rubricId: "reply-quality",
+      requirementId: "req-action",
+    })),
+  });
+  await setup.service.closeBatch(setup.batchId);
+  const pool = await setup.service.freezeBatch(setup.batchId);
+  const expected = buildCommunityReviewAgreementEvidence(pool);
+
+  const mutablePool = pool as unknown as { submissions: CommunityReviewSubmission[] };
+  try {
+    mutablePool.submissions.pop();
+  } catch {
+    // The service may expose a deeply frozen clone.
+  }
+  const evidence = await setup.service.buildAgreementEvidence(setup.batchId);
+  assert.deepEqual(evidence, expected);
+  assert.deepEqual(await setup.service.buildAgreementEvidence(setup.batchId), evidence);
+  const mutableRows = new CommunityReviewService(decoratedPersistence(
+    setup.repository,
+    (transaction) => new Proxy(transaction, {
+      get(target, property, receiver) {
+        if (property === "listAssignments" || property === "listAcceptedSubmissions") {
+          return () => [];
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    }),
+  ));
+  assert.deepEqual(await mutableRows.getAgreementEvidence(setup.batchId), expected);
+  assert.deepEqual(await setup.service.getAgreementEvidence(setup.batchId), evidence);
+  assert.equal(evidence.comparableAtomicCount, 4);
+  assert.equal(evidence.agreementCount, 3);
+  assert.equal(evidence.disagreementCount, 1);
+  assert.equal(evidence.confusionMatrix.SATISFIED.OMITTED_OR_INCOMPLETE, 1);
+  assert.equal(evidence.perRequirement["case-alpha|reply-quality|req-action"]?.total, 2);
+  assert.equal(evidence.perCase["case-alpha"]?.counts.OMITTED_OR_INCOMPLETE, 1);
+  assert.equal(evidence.disagreements.length, 1);
+  assert.equal(evidence.disagreements[0]?.reviewerA, "reviewer-a");
+  assert.equal(evidence.disagreements[0]?.reviewerB, "reviewer-b");
+  for (const forbiddenField of ["accuracy", "gold", "groundTruth", "reference", "judge", "majorityLabel"]) {
+    assert.equal(Object.prototype.hasOwnProperty.call(evidence, forbiddenField), false, forbiddenField);
+  }
+
+  const persisted = await setup.repository.transaction((transaction) => ({
+    pool: transaction.getFrozenReviewPool(setup.batchId),
+    evidence: transaction.getCommunityReviewAgreementEvidence(setup.batchId),
+  }));
+  assert.equal(persisted.pool?.frozenPool.freezeFingerprint, pool.freezeFingerprint);
+  assert.equal(persisted.evidence?.freezeFingerprint, pool.freezeFingerprint);
+  assert.deepEqual(persisted.evidence?.evidence, evidence);
+});
+
+test("P4-F agreement evidence rejects mutable pre-freeze batches and preserves single-reviewer limits", async () => {
+  const open = await makeSetup({ suffix: "p4f-agreement-open", batchPurpose: "pilot" });
+  await assert.rejects(
+    open.service.buildAgreementEvidence(open.batchId),
+    serviceError("batch_not_frozen"),
+  );
+
+  const closed = await makeSetup({ suffix: "p4f-agreement-closed", batchPurpose: "pilot" });
+  await closed.service.submitReview({
+    batchId: closed.batchId,
+    assignmentId: closed.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+    annotations: annotations(closed.packets[0]!),
+  });
+  await closed.service.closeBatch(closed.batchId);
+  await assert.rejects(
+    closed.service.buildAgreementEvidence(closed.batchId),
+    serviceError("batch_not_frozen"),
+  );
+
+  const single = await makeSetup({
+    suffix: "p4f-single-reviewer",
+    reviewers: ["reviewer-a"],
+    batchPurpose: "pilot",
+  });
+  await single.service.submitReview({
+    batchId: single.batchId,
+    assignmentId: single.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+    annotations: annotations(single.packets[0]!),
+  });
+  await single.service.closeBatch(single.batchId);
+  await single.service.freezeBatch(single.batchId);
+  const evidence = await single.service.buildAgreementEvidence(single.batchId);
+  assert.equal(evidence.pairwise.length, 0);
+  assert.match(evidence.limitations.join(" "), /single accepted reviewer cannot provide human-human agreement/iu);
+  assert.match(evidence.limitations.join(" "), /incomplete/iu);
+  assert.equal(evidence.agreementShare, null);
+});
+
+test("P4-F disclosure defaults private, appends policy versions, and applies the public privacy firewall", async () => {
+  const setup = await makeSetup({ suffix: "p4f-disclosure" });
+  await closeCompleteBatch(setup);
+  const pool = await setup.service.freezeBatch(setup.batchId);
+  const privateDisclosure = await setup.service.createDisclosure({ batchId: setup.batchId });
+  assert.equal(privateDisclosure.mode, "PRIVATE");
+  assert.equal(privateDisclosure.publicArtifact, undefined);
+  assert.deepEqual(await setup.service.createDisclosure({ batchId: setup.batchId }), privateDisclosure);
+  await assert.rejects(
+    setup.service.buildPublicEvidenceArtifact({
+      batchId: setup.batchId,
+      disclosureId: privateDisclosure.disclosureId,
+    }),
+    serviceError("disclosure_not_public"),
+  );
+
+  const aggregatePolicy: CommunityReviewDisclosurePolicy = {
+    publishReviewerIds: false,
+    publishAtomicAnnotations: false,
+    publishReviewerEvidence: false,
+  };
+  await assert.rejects(
+    setup.service.createDisclosure({
+      batchId: setup.batchId,
+      mode: "PUBLIC",
+      disclosurePolicy: aggregatePolicy,
+    }),
+    serviceError("disclosure_policy_invalid"),
+  );
+  const publicDisclosure = await setup.service.createDisclosure({
+    batchId: setup.batchId,
+    mode: "PUBLIC",
+    disclosurePolicy: aggregatePolicy,
+    disclosureDate: "2026-09-06",
+  });
+  assert.equal(publicDisclosure.mode, "PUBLIC");
+  assert.equal(publicDisclosure.disclosureVersion, 2);
+  assert.equal(publicDisclosure.freezeFingerprint, pool.freezeFingerprint);
+  assert.ok(publicDisclosure.publicArtifact);
+  assert.deepEqual(
+    await setup.service.createDisclosure({
+      batchId: setup.batchId,
+      mode: "PUBLIC",
+      disclosurePolicy: aggregatePolicy,
+      disclosureDate: "2026-09-06",
+    }),
+    publicDisclosure,
+  );
+  const publicArtifact = await setup.service.buildPublicEvidenceArtifact({
+    batchId: setup.batchId,
+    disclosureId: publicDisclosure.disclosureId,
+  });
+  assert.deepEqual(publicArtifact, publicDisclosure.publicArtifact);
+  assert.deepEqual(publicArtifact, buildCommunityReviewPublicEvidenceArtifact(pool, {
+    disclosureDate: "2026-09-06",
+    disclosurePolicy: aggregatePolicy,
+  }));
+  assert.equal(publicArtifact.publishedReviewerIds, undefined);
+  assert.equal(publicArtifact.publishedSubmissions, undefined);
+  const serializedPublicArtifact = JSON.stringify(publicArtifact);
+  assert.doesNotMatch(serializedPublicArtifact, /"(authSubject|email|accessToken|refreshToken|cookie|jwt|answerKey|privateMaterial|sealedSourceReference|internalAccountId|judge|groundTruth|knownMisconception|privateNotes)"\s*:/iu);
+  assert.doesNotMatch(serializedPublicArtifact, /synthetic-private|synthetic@example|private-answer|sealed-source-secret/iu);
+
+  const rawPolicy: CommunityReviewDisclosurePolicy = {
+    publishReviewerIds: true,
+    publishAtomicAnnotations: true,
+    publishReviewerEvidence: true,
+  };
+  const changedPolicy = await setup.service.createDisclosure({
+    batchId: setup.batchId,
+    mode: "PUBLIC",
+    disclosurePolicy: rawPolicy,
+    disclosureDate: "2026-09-06",
+  });
+  assert.equal(changedPolicy.disclosureVersion, 3);
+  assert.notEqual(changedPolicy.disclosureId, publicDisclosure.disclosureId);
+  assert.equal(changedPolicy.freezeFingerprint, pool.freezeFingerprint);
+  assert.deepEqual(
+    await setup.service.createDisclosure({
+      batchId: setup.batchId,
+      mode: "PUBLIC",
+      disclosurePolicy: rawPolicy,
+      disclosureDate: "2026-09-06",
+    }),
+    changedPolicy,
+  );
+  assert.equal(changedPolicy.publicArtifact?.publishedReviewerIds?.length, 2);
+
+  const persisted = await setup.repository.transaction((transaction) => ({
+    pool: transaction.getFrozenReviewPool(setup.batchId),
+    disclosures: transaction.listCommunityReviewDisclosures(setup.batchId),
+    audit: transaction.listCommunityReviewEvidenceAuditEvents(setup.batchId),
+  }));
+  assert.deepEqual(persisted.pool?.frozenPool, pool);
+  assert.deepEqual(persisted.disclosures.map((item) => item.mode), ["PRIVATE", "PUBLIC", "PUBLIC"]);
+  assert.ok(persisted.audit.some((event) => event.eventType === "disclosure_created"));
+  assert.ok(persisted.audit.some((event) => event.eventType === "public_artifact_generated"));
+});
+
+test("P4-F freeze, evidence, and close races produce only coherent ordered outcomes", async () => {
+  const open = await makeSetup({ suffix: "p4f-freeze-close-race", batchPurpose: "pilot" });
+  await open.service.submitReview({
+    batchId: open.batchId,
+    assignmentId: open.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+    annotations: annotations(open.packets[0]!),
+  });
+  const closeRace = await Promise.allSettled([
+    open.service.freezeBatch(open.batchId),
+    open.service.closeBatch(open.batchId),
+  ]);
+  const closeOutcome = closeRace[1]!;
+  assert.equal(closeOutcome.status, "fulfilled");
+  const closeRaceBatch = await open.repository.transaction((transaction) => transaction.getBatch(open.batchId));
+  assert.ok(closeRaceBatch);
+  if (closeRaceBatch.state === "FROZEN") {
+    assert.equal(closeRace[0]!.status, "fulfilled");
+  } else {
+    assert.equal(closeRaceBatch.state, "CLOSED");
+    assert.equal(closeRace[0]!.status, "rejected");
+    assert.equal((closeRace[0] as PromiseRejectedResult).reason.code, "batch_not_closed");
+  }
+
+  const setup = await makeSetup({ suffix: "p4f-freeze-evidence-race", batchPurpose: "pilot" });
+  await setup.service.submitReview({
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+    annotations: annotations(setup.packets[0]!),
+  });
+  await setup.service.closeBatch(setup.batchId);
+  const outcomes = await Promise.allSettled([
+    setup.service.freezeBatch(setup.batchId),
+    setup.service.buildAgreementEvidence(setup.batchId),
+  ]);
+  const batch = await setup.repository.transaction((transaction) => transaction.getBatch(setup.batchId));
+  assert.equal(batch?.state, "FROZEN");
+  if (outcomes[1]!.status === "rejected") {
+    assert.equal((outcomes[1] as PromiseRejectedResult).reason.code, "batch_not_frozen");
+    await setup.service.buildAgreementEvidence(setup.batchId);
+  }
+  assert.ok((await setup.service.getAgreementEvidence(setup.batchId)).poolFingerprint);
 });
 
 test("submission and close race is ordered by the batch transaction", async () => {
