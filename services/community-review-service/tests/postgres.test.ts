@@ -73,8 +73,10 @@ function qualificationItems(suffix: string) {
 }
 
 function qualificationAnswers(suffix: string) {
-  return qualificationItems(suffix).map((item) => ({
-    ...item,
+  return qualificationItems(suffix).map(({ caseId, rubricId, requirementId }) => ({
+    caseId,
+    rubricId,
+    requirementId,
     status: "SATISFIED" as const,
   }));
 }
