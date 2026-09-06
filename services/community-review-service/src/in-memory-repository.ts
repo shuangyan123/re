@@ -12,6 +12,7 @@ import { canonicalCommunityReviewJson } from "../../../src/community-review/fing
 import { CommunityReviewServiceError } from "./errors.js";
 import type {
   AcceptedSubmissionRecord,
+  AuthAuditEventRecord,
   CommunityReviewPersistence,
   CommunityReviewPersistenceTransaction,
   FrozenReviewPoolRecord,
@@ -19,7 +20,9 @@ import type {
   QualificationPoolRecord,
   QualificationReceiptRecord,
   RejectedSubmissionAttemptRecord,
+  ReviewerAuthIdentityRecord,
   ReviewerAccountRecord,
+  ReviewerConsentRecord,
   ReviewAssignmentRecord,
   ReviewBatchCloseRecord,
   ReviewBatchRecord,
@@ -29,6 +32,12 @@ import type {
 interface DatabaseState {
   readonly reviewerAccounts: Map<string, ReviewerAccountRecord>;
   readonly reviewerIds: Map<string, string>;
+  readonly reviewerAuthIdentities: Map<string, ReviewerAuthIdentityRecord>;
+  readonly reviewerAuthSubjects: Map<string, string>;
+  readonly reviewerAuthAccounts: Map<string, string>;
+  readonly reviewerConsents: Map<string, ReviewerConsentRecord>;
+  readonly reviewerConsentHistory: Map<string, string[]>;
+  readonly authAuditEvents: Map<string, AuthAuditEventRecord>;
   readonly qualificationPools: Map<string, QualificationPoolRecord>;
   readonly qualificationAttempts: Map<string, QualificationAttemptRecord>;
   readonly attemptNonces: Map<string, string>;
@@ -53,6 +62,12 @@ function emptyState(): DatabaseState {
   return {
     reviewerAccounts: new Map(),
     reviewerIds: new Map(),
+    reviewerAuthIdentities: new Map(),
+    reviewerAuthSubjects: new Map(),
+    reviewerAuthAccounts: new Map(),
+    reviewerConsents: new Map(),
+    reviewerConsentHistory: new Map(),
+    authAuditEvents: new Map(),
     qualificationPools: new Map(),
     qualificationAttempts: new Map(),
     attemptNonces: new Map(),
@@ -86,6 +101,29 @@ function requiredString(value: string): void {
   if (value.trim().length === 0) throw new CommunityReviewServiceError("invalid_service_record");
 }
 
+function authProvider(value: string): void {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u.test(value)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+}
+
+function authSubject(value: string): void {
+  if (value.trim().length === 0 || value.length > 512 || value.includes("\u0000")) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+}
+
+function policyComponent(value: string): void {
+  if (value.trim().length === 0 || value.length > 128 || value.includes("\u0000")) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+}
+
+function timestamp(value: string): void {
+  requiredString(value);
+  if (Number.isNaN(Date.parse(value))) throw new CommunityReviewServiceError("invalid_service_record");
+}
+
 function opaqueId(value: string): void {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u.test(value) || value.includes("@")) {
     throw new CommunityReviewServiceError("invalid_service_record");
@@ -110,6 +148,14 @@ function batchReviewerKey(batchId: string, reviewerId: string): string {
   return `${batchId}\u0000${reviewerId}`;
 }
 
+function authSubjectKey(authProviderValue: string, authSubjectValue: string): string {
+  return `${authProviderValue}\u0000${authSubjectValue}`;
+}
+
+function consentKey(internalId: string, policyId: string, policyVersion: string): string {
+  return `${internalId}\u0000${policyId}\u0000${policyVersion}`;
+}
+
 function stateRank(state: ReviewBatchRecord["state"]): number {
   return { SEALED: 0, OPEN: 1, CLOSED: 2, FROZEN: 3 }[state];
 }
@@ -128,10 +174,62 @@ function assertReviewerAccountRecord(record: ReviewerAccountRecord): void {
   opaqueId(record.reviewerId);
   requiredString(record.privateAuthSubjectReference);
   requiredString(record.consentVersion);
-  if (!["ACTIVE", "SUSPENDED", "WITHDRAWN"].includes(record.status) ||
-    !["NOT_CONSENTED", "CONSENTED", "WITHDRAWN"].includes(record.consentState)) {
+  timestamp(record.createdAt);
+  timestamp(record.updatedAt);
+  if (!["ACTIVE", "WITHDRAWN", "DISABLED"].includes(record.status) ||
+    !["NOT_CONSENTED", "CONSENTED", "REVOKED"].includes(record.consentState)) {
     throw new CommunityReviewServiceError("invalid_service_record");
   }
+}
+
+function assertReviewerAuthIdentityRecord(record: ReviewerAuthIdentityRecord): void {
+  opaqueId(record.authIdentityId);
+  opaqueId(record.internalId);
+  opaqueId(record.reviewerId);
+  authProvider(record.authProvider);
+  authSubject(record.authSubject);
+  timestamp(record.createdAt);
+}
+
+function assertReviewerConsentRecord(record: ReviewerConsentRecord): void {
+  opaqueId(record.consentEventId);
+  opaqueId(record.internalId);
+  opaqueId(record.reviewerId);
+  policyComponent(record.policyId);
+  policyComponent(record.policyVersion);
+  timestamp(record.recordedAt);
+  if (record.state === "ACCEPTED") {
+    if (record.acceptedAt === undefined || record.revokedAt !== undefined) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+    timestamp(record.acceptedAt);
+    return;
+  }
+  if (record.state !== "REVOKED") {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  if (record.revokedAt === undefined || record.acceptedAt !== undefined) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  timestamp(record.revokedAt);
+}
+
+function assertAuthAuditEventRecord(record: AuthAuditEventRecord): void {
+  opaqueId(record.eventId);
+  if (!["account_created", "consent_accepted", "consent_revoked", "account_withdrawn",
+    "account_disabled", "authentication_mapping_created", "authentication_mapping_rejected"]
+    .includes(record.eventType)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  if (record.internalId !== undefined) opaqueId(record.internalId);
+  if (record.reviewerId !== undefined) opaqueId(record.reviewerId);
+  if (record.authProvider !== undefined) authProvider(record.authProvider);
+  if (record.reasonCode !== undefined) {
+    if (!/^[A-Za-z0-9._:-]{1,80}$/u.test(record.reasonCode)) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+  }
+  timestamp(record.occurredAt);
 }
 
 function assertQualificationAttemptRecord(record: QualificationAttemptRecord): void {
@@ -217,6 +315,119 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
     this.state.reviewerAccounts.set(record.internalId, stored);
     this.state.reviewerIds.set(record.reviewerId, record.internalId);
     return copy(stored);
+  }
+
+  updateReviewerAccount(record: ReviewerAccountRecord): ReviewerAccountRecord {
+    assertReviewerAccountRecord(record);
+    const previous = this.state.reviewerAccounts.get(record.internalId);
+    if (previous === undefined || previous.reviewerId !== record.reviewerId ||
+      (previous.privateAuthSubjectReference !== record.privateAuthSubjectReference &&
+        this.state.reviewerAuthAccounts.has(record.internalId)) ||
+      record.createdAt !== previous.createdAt) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.reviewerAccounts.set(record.internalId, stored);
+    return copy(stored);
+  }
+
+  getReviewerAuthIdentity(authIdentityId: string): ReviewerAuthIdentityRecord | undefined {
+    const record = this.state.reviewerAuthIdentities.get(authIdentityId);
+    return record === undefined ? undefined : copy(record);
+  }
+
+  getReviewerAuthIdentityBySubject(
+    authProviderValue: string,
+    authSubjectValue: string,
+  ): ReviewerAuthIdentityRecord | undefined {
+    const authIdentityId = this.state.reviewerAuthSubjects.get(
+      authSubjectKey(authProviderValue, authSubjectValue),
+    );
+    return authIdentityId === undefined ? undefined : this.getReviewerAuthIdentity(authIdentityId);
+  }
+
+  getReviewerAuthIdentityByInternalId(internalId: string): ReviewerAuthIdentityRecord | undefined {
+    const authIdentityId = this.state.reviewerAuthAccounts.get(internalId);
+    return authIdentityId === undefined ? undefined : this.getReviewerAuthIdentity(authIdentityId);
+  }
+
+  insertReviewerAuthIdentity(record: ReviewerAuthIdentityRecord): ReviewerAuthIdentityRecord {
+    assertReviewerAuthIdentityRecord(record);
+    const account = this.state.reviewerAccounts.get(record.internalId);
+    if (account === undefined || account.reviewerId !== record.reviewerId ||
+      account.privateAuthSubjectReference !== record.authIdentityId ||
+      this.state.reviewerAuthIdentities.has(record.authIdentityId) ||
+      this.state.reviewerAuthSubjects.has(authSubjectKey(record.authProvider, record.authSubject)) ||
+      this.state.reviewerAuthAccounts.has(record.internalId)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.reviewerAuthIdentities.set(record.authIdentityId, stored);
+    this.state.reviewerAuthSubjects.set(
+      authSubjectKey(record.authProvider, record.authSubject),
+      record.authIdentityId,
+    );
+    this.state.reviewerAuthAccounts.set(record.internalId, record.authIdentityId);
+    return copy(stored);
+  }
+
+  listReviewerConsentHistory(
+    internalId: string,
+    policyId: string,
+    policyVersion: string,
+  ): readonly ReviewerConsentRecord[] {
+    const ids = this.state.reviewerConsentHistory.get(consentKey(internalId, policyId, policyVersion)) ?? [];
+    return ids.map((consentEventId) => this.state.reviewerConsents.get(consentEventId))
+      .filter((record): record is ReviewerConsentRecord => record !== undefined)
+      .map(copy);
+  }
+
+  getReviewerConsent(consentEventId: string): ReviewerConsentRecord | undefined {
+    const record = this.state.reviewerConsents.get(consentEventId);
+    return record === undefined ? undefined : copy(record);
+  }
+
+  insertReviewerConsent(record: ReviewerConsentRecord): ReviewerConsentRecord {
+    assertReviewerConsentRecord(record);
+    const account = this.state.reviewerAccounts.get(record.internalId);
+    const key = consentKey(record.internalId, record.policyId, record.policyVersion);
+    const history = this.state.reviewerConsentHistory.get(key) ?? [];
+    const previous = history.length === 0 ? undefined : this.state.reviewerConsents.get(history[history.length - 1]!);
+    if (account === undefined || account.reviewerId !== record.reviewerId ||
+      this.state.reviewerConsents.has(record.consentEventId) ||
+      previous?.state === record.state ||
+      record.state === "REVOKED" && previous?.state !== "ACCEPTED") {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.reviewerConsents.set(record.consentEventId, stored);
+    this.state.reviewerConsentHistory.set(key, [...history, record.consentEventId]);
+    return copy(stored);
+  }
+
+  insertAuthAuditEvent(record: AuthAuditEventRecord): AuthAuditEventRecord {
+    assertAuthAuditEventRecord(record);
+    if (this.state.authAuditEvents.has(record.eventId)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    if (record.internalId !== undefined) {
+      const account = this.state.reviewerAccounts.get(record.internalId);
+      if (account === undefined || record.reviewerId !== undefined && record.reviewerId !== account.reviewerId) {
+        throw new CommunityReviewServiceError("repository_conflict");
+      }
+    } else if (record.reviewerId !== undefined && !this.state.reviewerIds.has(record.reviewerId)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.authAuditEvents.set(record.eventId, stored);
+    return copy(stored);
+  }
+
+  listAuthAuditEvents(internalId?: string): readonly AuthAuditEventRecord[] {
+    return [...this.state.authAuditEvents.values()]
+      .filter((record) => internalId === undefined || record.internalId === internalId)
+      .sort((left, right) => left.eventId.localeCompare(right.eventId))
+      .map(copy);
   }
 
   getQualificationPool(poolId: string, poolVersion: string): QualificationPoolRecord | undefined {
