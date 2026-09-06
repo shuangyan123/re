@@ -458,6 +458,60 @@ export interface CommunityReviewPersistenceTransaction {
   ): readonly CommunityReviewEvidenceAuditEventRecord[];
 }
 
+/**
+ * Storage-neutral snapshot used by the PostgreSQL adapter's compatibility
+ * boundary. It contains the same records as the in-memory repository; indexes
+ * and lookup maps are reconstructed by the adapter instead of becoming a
+ * second domain model.
+ */
+export interface CommunityReviewPersistenceSnapshot {
+  readonly reviewerAccounts: readonly ReviewerAccountRecord[];
+  readonly reviewerAuthIdentities: readonly ReviewerAuthIdentityRecord[];
+  readonly reviewerConsents: readonly ReviewerConsentRecord[];
+  readonly authAuditEvents: readonly AuthAuditEventRecord[];
+  readonly qualificationAuditEvents: readonly QualificationAuthorityAuditEventRecord[];
+  readonly reviewDeliveryAuditEvents: readonly ReviewDeliveryAuditEventRecord[];
+  readonly reviewSubmissionAuditEvents: readonly ReviewSubmissionAuditEventRecord[];
+  readonly qualificationPools: readonly QualificationPoolRecord[];
+  readonly qualificationAttempts: readonly QualificationAttemptRecord[];
+  readonly qualificationReceipts: readonly QualificationReceiptRecord[];
+  readonly batches: readonly ReviewBatchRecord[];
+  readonly sealedBatchPayloadReferences: readonly SealedBatchPayloadReferenceRecord[];
+  readonly assignments: readonly ReviewAssignmentRecord[];
+  readonly acceptedSubmissions: readonly AcceptedSubmissionRecord[];
+  readonly rejectedSubmissionAttempts: readonly RejectedSubmissionAttemptRecord[];
+  readonly batchCloseRecords: readonly ReviewBatchCloseRecord[];
+  readonly frozenReviewPools: readonly FrozenReviewPoolRecord[];
+  readonly agreementEvidence: readonly CommunityReviewAgreementEvidenceRecord[];
+  readonly disclosures: readonly CommunityReviewDisclosureRecord[];
+  readonly evidenceAuditEvents: readonly CommunityReviewEvidenceAuditEventRecord[];
+}
+
+export function emptyCommunityReviewPersistenceSnapshot(): CommunityReviewPersistenceSnapshot {
+  return {
+    reviewerAccounts: [],
+    reviewerAuthIdentities: [],
+    reviewerConsents: [],
+    authAuditEvents: [],
+    qualificationAuditEvents: [],
+    reviewDeliveryAuditEvents: [],
+    reviewSubmissionAuditEvents: [],
+    qualificationPools: [],
+    qualificationAttempts: [],
+    qualificationReceipts: [],
+    batches: [],
+    sealedBatchPayloadReferences: [],
+    assignments: [],
+    acceptedSubmissions: [],
+    rejectedSubmissionAttempts: [],
+    batchCloseRecords: [],
+    frozenReviewPools: [],
+    agreementEvidence: [],
+    disclosures: [],
+    evidenceAuditEvents: [],
+  };
+}
+
 export interface CommunityReviewPersistence {
   /** The callback commits atomically; a thrown error rolls back every mutation. */
   transaction<T>(

@@ -1,0 +1,14 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+dist
+**/dist
+coverage
+results
+artifacts
+.env
+.env.*
+data/private
+**/data/private
+services/community-review-service/private-material
