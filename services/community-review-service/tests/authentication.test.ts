@@ -549,6 +549,89 @@ test("reviewer-owned reads and writes derive ownership from auth, ignoring forge
   assert.equal(assignment.assignment.reviewerId, setup.accounts.reviewerA.reviewerId);
 });
 
+test("authenticated own-submission facade derives identity and operators retrieve the exact close result", async () => {
+  const setup = await makeSetup();
+  const submitted = await setup.application.submitOwnAssignment({
+    authenticationInput: "reviewer-a-token",
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    packetFingerprint: setup.packets[0]!.packetFingerprint,
+    annotations: annotations(setup.packets[0]!),
+  });
+  assert.equal(submitted.reviewerId, setup.accounts.reviewerA.reviewerId);
+  assert.deepEqual(
+    await setup.application.getOwnSubmission({
+      authenticationInput: "reviewer-a-token",
+      batchId: setup.batchId,
+      assignmentId: setup.assignments[0]!.assignmentId,
+    }),
+    submitted,
+  );
+  await assert.rejects(
+    setup.application.getOwnSubmission({
+      authenticationInput: "reviewer-b-token",
+      batchId: setup.batchId,
+      assignmentId: setup.assignments[0]!.assignmentId,
+    }),
+    serviceError("reviewer_not_authorized"),
+  );
+  await assert.rejects(
+    setup.application.getOwnSubmission({
+      authenticationInput: undefined,
+      batchId: setup.batchId,
+      assignmentId: setup.assignments[0]!.assignmentId,
+    }),
+    serviceError("authentication_required"),
+  );
+
+  const close = await setup.application.closeBatch({
+    authenticationInput: "operator-token",
+    batchId: setup.batchId,
+  });
+  assert.deepEqual(
+    await setup.application.getBatchCloseResult({
+      authenticationInput: "operator-token",
+      batchId: setup.batchId,
+    }),
+    close,
+  );
+  await assert.rejects(
+    setup.application.getBatchCloseResult({
+      authenticationInput: "reviewer-a-token",
+      batchId: setup.batchId,
+    }),
+    serviceError("operator_not_authorized"),
+  );
+});
+
+test("current account and consent authority is required for authenticated submission", async () => {
+  const setup = await makeSetup();
+  const submit = (authenticationInput: unknown) => setup.application.submitOwnAssignment({
+    authenticationInput,
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    annotations: annotations(setup.packets[0]!),
+  });
+
+  await setup.application.revokeConsent({ authenticationInput: "reviewer-a-token" });
+  await assert.rejects(submit("reviewer-a-token"), serviceError("consent_revoked"));
+
+  await setup.application.recordConsent({ authenticationInput: "reviewer-a-token" });
+  await setup.application.disableReviewerAccount({
+    authenticationInput: "operator-token",
+    reviewerId: setup.accounts.reviewerA.reviewerId,
+  });
+  await assert.rejects(submit("reviewer-a-token"), serviceError("reviewer_account_disabled"));
+
+  await assert.rejects(submit("unprovisioned-token"), serviceError("authentication_subject_not_found"));
+  const stored = await setup.repository.transaction((transaction) => ({
+    submissions: transaction.listAcceptedSubmissions(setup.batchId),
+    rejected: transaction.listRejectedSubmissionAttempts(setup.batchId),
+  }));
+  assert.deepEqual(stored.submissions, []);
+  assert.ok(stored.rejected.every((attempt) => attempt.reason !== "accepted"));
+});
+
 test("unauthenticated, unknown, and provider-mismatched principals are rejected before reviewer lookup", async () => {
   const setup = await makeSetup();
   await assert.rejects(

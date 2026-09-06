@@ -11,6 +11,7 @@ import type {
   CreateQualificationAttemptInput,
   CreateCommunityReviewBatchInput,
   GetReviewerConsentInput,
+  GetOwnCommunityReviewSubmissionInput,
   LinkReviewerAuthIdentityInput,
   QualificationAttemptRequest,
   QualificationPoolRequest,
@@ -68,7 +69,13 @@ export interface AuthenticatedReviewerPacketRequest extends AuthenticatedRequest
 export interface AuthenticatedReviewerSubmissionInput extends AuthenticatedRequest {
   readonly batchId: string;
   readonly assignmentId: string;
+  readonly packetFingerprint?: SubmitCommunityReviewInput["packetFingerprint"];
   readonly annotations: SubmitCommunityReviewInput["annotations"];
+}
+
+export interface AuthenticatedReviewerOwnSubmissionRequest extends AuthenticatedRequest {
+  readonly batchId: string;
+  readonly assignmentId: string;
 }
 
 export interface AuthenticatedReviewerWithdrawalInput extends AuthenticatedRequest {
@@ -253,9 +260,26 @@ export class CommunityReviewApplicationService {
       batchId: input.batchId,
       assignmentId: input.assignmentId,
       reviewerId: account.reviewerId,
+      ...(input.packetFingerprint === undefined ? {} : { packetFingerprint: input.packetFingerprint }),
       annotations: input.annotations,
     };
     return this.service.submitReview(submission);
+  }
+
+  async submitOwnAssignment(input: AuthenticatedReviewerSubmissionInput): Promise<CommunityReviewSubmission> {
+    return this.submitReview(input);
+  }
+
+  async getOwnSubmission(
+    input: AuthenticatedReviewerOwnSubmissionRequest,
+  ): Promise<CommunityReviewSubmission | undefined> {
+    const account = await this.reviewer(input);
+    const request: GetOwnCommunityReviewSubmissionInput = {
+      batchId: input.batchId,
+      assignmentId: input.assignmentId,
+      reviewerId: account.reviewerId,
+    };
+    return this.service.getOwnSubmission(request);
   }
 
   async withdrawAssignment(input: AuthenticatedReviewerWithdrawalInput): Promise<CommunityReviewAssignment> {
@@ -371,6 +395,13 @@ export class CommunityReviewApplicationService {
   async closeBatch(input: AuthenticatedOperatorBatchRequest): Promise<CommunityReviewBatchCloseResult> {
     await this.operator(input);
     return this.service.closeBatch(input.batchId);
+  }
+
+  async getBatchCloseResult(
+    input: AuthenticatedOperatorBatchRequest,
+  ): Promise<CommunityReviewBatchCloseResult> {
+    await this.operator(input);
+    return this.service.getBatchCloseResult(input.batchId);
   }
 
   async freezeBatch(input: AuthenticatedOperatorBatchRequest): Promise<FrozenCommunityReviewPool> {

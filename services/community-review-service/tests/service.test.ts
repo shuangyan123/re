@@ -14,6 +14,7 @@ import {
   communityReviewFingerprint,
   createCommunityReviewBatch,
   freezeCommunityReviewPool,
+  withdrawCommunityReviewAssignment,
 } from "../../../src/community-review/index.js";
 import type {
   CommunityReviewAnnotation,
@@ -22,6 +23,7 @@ import type {
   CommunityReviewQualificationEligibility,
   CommunityReviewQualificationReceipt,
   CommunityReviewReviewerPacket,
+  CommunityReviewSubmission,
   CommunityReviewVisibleTask,
 } from "../../../src/contracts/community-review.js";
 import {
@@ -527,6 +529,139 @@ test("failed P3 validation rolls back without accepting a partial submission", a
   assert.deepEqual(stored, []);
 });
 
+test("submission authority preserves the exact atomic vocabulary and writes narrow audit metadata", async () => {
+  const setup = await makeSetup({ suffix: "submission-validation" });
+  const packet = setup.packets[0]!;
+  const assignmentId = setup.assignments[0]!.assignmentId;
+  const base = {
+    batchId: setup.batchId,
+    assignmentId,
+    reviewerId: "reviewer-a",
+  } as const;
+  const valid = annotations(packet);
+  const first = valid[0]!;
+
+  await assert.rejects(
+    setup.service.submitOwnAssignment({
+      ...base,
+      packetFingerprint: setup.packets[1]!.packetFingerprint,
+      annotations: valid,
+    }),
+    serviceError("qualification_packet_invalid"),
+  );
+  await assert.rejects(
+    setup.service.submitOwnAssignment({ ...base, annotations: valid.slice(1) }),
+    p3Invalid,
+  );
+  await assert.rejects(
+    setup.service.submitOwnAssignment({ ...base, annotations: [...valid, first] }),
+    p3Invalid,
+  );
+  await assert.rejects(
+    setup.service.submitOwnAssignment({
+      ...base,
+      annotations: [...valid, {
+        caseId: "case-extra",
+        rubricId: "reply-quality",
+        requirementId: "req-extra",
+        status: "SATISFIED",
+      }],
+    }),
+    p3Invalid,
+  );
+  await assert.rejects(
+    setup.service.submitOwnAssignment({
+      ...base,
+      annotations: valid.map((annotation, index) => index === 0
+        ? { ...annotation, status: "UNKNOWN" as never }
+        : annotation),
+    }),
+    p3Invalid,
+  );
+  await assert.rejects(
+    setup.service.submitOwnAssignment({
+      ...base,
+      annotations: valid.map((annotation, index) => index === 0
+        ? { ...annotation, evidence: " " }
+        : annotation),
+    }),
+    p3Invalid,
+  );
+
+  const accepted = await setup.service.submitOwnAssignment({
+    ...base,
+    annotations: valid.map((annotation, index) => index === 0
+      ? { ...annotation, status: "EXPLICIT_CONFLICT" as const }
+      : annotation),
+  });
+  assert.equal(accepted.submissionDisposition, "accepted-before-close");
+  assert.equal(accepted.annotations.find((annotation) => annotation.caseId === first.caseId &&
+    annotation.requirementId === first.requirementId)?.status, "EXPLICIT_CONFLICT");
+
+  const stored = await setup.repository.transaction((transaction) => ({
+    submissions: transaction.listAcceptedSubmissions(setup.batchId),
+    acceptedAudit: transaction.listReviewSubmissionAuditEvents(setup.batchId),
+    rejected: transaction.listRejectedSubmissionAttempts(setup.batchId),
+  }));
+  assert.equal(stored.submissions.length, 1);
+  assert.equal(stored.submissions[0]!.submission.submissionFingerprint, accepted.submissionFingerprint);
+  assert.equal(stored.acceptedAudit.length, 1);
+  assert.deepEqual(Object.keys(stored.acceptedAudit[0]!).sort(), [
+    "assignmentId",
+    "batchId",
+    "eventId",
+    "eventType",
+    "occurredAt",
+    "reviewerId",
+    "submissionFingerprint",
+  ]);
+  assert.ok(stored.rejected.some((attempt) => attempt.reason === "atomic_incomplete"));
+  assert.ok(stored.rejected.some((attempt) => attempt.reason === "packet_mismatch"));
+  assert.ok(stored.rejected.some((attempt) => attempt.reason === "atomic_duplicate"));
+  assert.ok(stored.rejected.some((attempt) => attempt.reason === "atomic_extra"));
+  assert.ok(stored.rejected.some((attempt) => attempt.reason === "invalid_status"));
+  assert.ok(stored.rejected.some((attempt) => attempt.reason === "malformed_evidence"));
+  assert.doesNotMatch(JSON.stringify(stored.rejected), /"annotations"|"evidence"|"tutorResponse"|"answerKey"/iu);
+});
+
+test("conflicting simultaneous submissions have one winner and never overwrite accepted evidence", async () => {
+  const setup = await makeSetup({ suffix: "submission-conflict-race" });
+  const packet = setup.packets[0]!;
+  const common = {
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+  } as const;
+  const first = { ...common, annotations: annotations(packet) };
+  const second = {
+    ...common,
+    annotations: annotations(packet, communityReviewAtomicIdentityKey({
+      caseId: "case-alpha",
+      rubricId: "reply-quality",
+      requirementId: "req-action",
+    })),
+  };
+  const outcomes = await Promise.allSettled([
+    setup.service.submitReview(first),
+    setup.service.submitReview(second),
+  ]);
+  const accepted = outcomes.filter((outcome) => outcome.status === "fulfilled");
+  const rejected = outcomes.filter((outcome) => outcome.status === "rejected");
+  assert.equal(accepted.length, 1);
+  assert.equal(rejected.length, 1);
+  assert.equal((rejected[0] as PromiseRejectedResult).reason.code, "replacement_submission");
+  const persisted = await setup.repository.transaction((transaction) => ({
+    submissions: transaction.listAcceptedSubmissions(setup.batchId),
+    rejected: transaction.listRejectedSubmissionAttempts(setup.batchId),
+  }));
+  assert.equal(persisted.submissions.length, 1);
+  assert.equal(
+    persisted.submissions[0]!.submission.submissionFingerprint,
+    (accepted[0] as PromiseFulfilledResult<CommunityReviewSubmission>).value.submissionFingerprint,
+  );
+  assert.ok(persisted.rejected.some((attempt) => attempt.reason === "replacement_submission"));
+});
+
 test("close and freeze persist exact P3 outputs and are idempotent", async () => {
   const setup = await makeSetup();
   const expectedSubmissions = setup.packets.map((packet) => buildCommunityReviewSubmission(packet, annotations(packet)));
@@ -626,6 +761,158 @@ test("submission and close race is ordered by the batch transaction", async () =
   assert.equal(submitFirstStored.length, 2);
 });
 
+test("withdrawal and submission races serialize to either withdrawn-without-submission or accepted-assigned", async () => {
+  const withdrawalFirst = await makeSetup({ suffix: "withdrawal-submit-withdrawal-first", batchPurpose: "pilot" });
+  const withdrawalFirstResults = await Promise.allSettled([
+    withdrawalFirst.service.withdrawAssignment({
+      batchId: withdrawalFirst.batchId,
+      assignmentId: withdrawalFirst.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+    }),
+    withdrawalFirst.service.submitReview({
+      batchId: withdrawalFirst.batchId,
+      assignmentId: withdrawalFirst.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+      annotations: annotations(withdrawalFirst.packets[0]!),
+    }),
+  ]);
+  assert.equal(withdrawalFirstResults[0]!.status, "fulfilled");
+  assert.equal(withdrawalFirstResults[1]!.status, "rejected");
+  assert.equal((withdrawalFirstResults[1] as PromiseRejectedResult).reason.code, "assignment_withdrawn");
+  const withdrawalFirstState = await withdrawalFirst.repository.transaction((transaction) => ({
+    assignment: transaction.getAssignment(withdrawalFirst.assignments[0]!.assignmentId),
+    submissions: transaction.listAcceptedSubmissions(withdrawalFirst.batchId),
+  }));
+  assert.equal(withdrawalFirstState.assignment?.assignment.assignmentState, "withdrawn");
+  assert.deepEqual(withdrawalFirstState.submissions, []);
+
+  const submissionFirst = await makeSetup({ suffix: "withdrawal-submit-submission-first", batchPurpose: "pilot" });
+  const submissionFirstResults = await Promise.allSettled([
+    submissionFirst.service.submitReview({
+      batchId: submissionFirst.batchId,
+      assignmentId: submissionFirst.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+      annotations: annotations(submissionFirst.packets[0]!),
+    }),
+    submissionFirst.service.withdrawAssignment({
+      batchId: submissionFirst.batchId,
+      assignmentId: submissionFirst.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+    }),
+  ]);
+  assert.equal(submissionFirstResults[0]!.status, "fulfilled");
+  assert.equal(submissionFirstResults[1]!.status, "rejected");
+  assert.equal((submissionFirstResults[1] as PromiseRejectedResult).reason.code, "submission_already_exists");
+  const submissionFirstState = await submissionFirst.repository.transaction((transaction) => ({
+    assignment: transaction.getAssignment(submissionFirst.assignments[0]!.assignmentId),
+    submissions: transaction.listAcceptedSubmissions(submissionFirst.batchId),
+  }));
+  assert.equal(submissionFirstState.assignment?.assignment.assignmentState, "assigned");
+  assert.equal(submissionFirstState.submissions.length, 1);
+});
+
+test("failed close, close races, and close retries preserve one exact accepted-set commitment", async () => {
+  const failedClose = await makeSetup({ suffix: "close-failure-rollback", batchPurpose: "interpretable" });
+  await assert.rejects(
+    failedClose.service.closeBatch(failedClose.batchId),
+    p3Invalid,
+  );
+  const afterFailure = await failedClose.repository.transaction((transaction) => ({
+    batch: transaction.getBatch(failedClose.batchId),
+    close: transaction.getBatchCloseRecord(failedClose.batchId),
+    submissions: transaction.listAcceptedSubmissions(failedClose.batchId),
+  }));
+  assert.equal(afterFailure.batch?.state, "OPEN");
+  assert.equal(afterFailure.close, undefined);
+  assert.deepEqual(afterFailure.submissions, []);
+
+  const setup = await makeSetup({ suffix: "close-exact-snapshot", batchPurpose: "pilot" });
+  const accepted = await setup.service.submitReview({
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+    annotations: annotations(setup.packets[0]!),
+  });
+  const unpersistedSubmission = buildCommunityReviewSubmission(
+    setup.packets[1]!,
+    annotations(setup.packets[1]!),
+  );
+  const omittedAcceptedClose = closeCommunityReviewBatch(
+    setup.open,
+    setup.assignments,
+    [unpersistedSubmission],
+  );
+  await assert.rejects(
+    setup.repository.transaction((transaction) => transaction.insertBatchCloseRecord({
+      batchId: setup.batchId,
+      manifest: omittedAcceptedClose.manifest,
+      closeRecord: omittedAcceptedClose.closeRecord,
+      acceptedSubmissions: omittedAcceptedClose.acceptedSubmissions,
+      createdAt: "2026-09-06T01:00:00.000Z",
+    })),
+    serviceError("repository_conflict"),
+  );
+  assert.equal(
+    (await setup.repository.transaction((transaction) => transaction.getBatch(setup.batchId)))?.state,
+    "OPEN",
+  );
+
+  const closeResults = await Promise.all([
+    setup.service.closeBatch(setup.batchId),
+    setup.service.closeBatch(setup.batchId),
+  ]);
+  assert.deepEqual(closeResults[0], closeResults[1]);
+  assert.deepEqual(closeResults[0].acceptedSubmissions.map((item) => item.submissionFingerprint), [
+    accepted.submissionFingerprint,
+  ]);
+  const mutableResult = closeResults[0].acceptedSubmissions as CommunityReviewSubmission[];
+  mutableResult.splice(0, 1);
+  assert.deepEqual(await setup.service.getBatchCloseResult(setup.batchId), closeResults[1]);
+  const persisted = await setup.repository.transaction((transaction) => ({
+    batch: transaction.getBatch(setup.batchId),
+    close: transaction.getBatchCloseRecord(setup.batchId),
+    submissions: transaction.listAcceptedSubmissions(setup.batchId),
+  }));
+  assert.equal(persisted.batch?.state, "CLOSED");
+  assert.equal(persisted.close?.acceptedSubmissions.length, 1);
+  assert.equal(persisted.submissions.length, 1);
+  assert.equal(persisted.close?.closeRecord.acceptedSubmissionFingerprints[0], accepted.submissionFingerprint);
+});
+
+test("close wins over an invalid submission without accepting or auditing the failed P3 payload", async () => {
+  const setup = await makeSetup({ suffix: "close-invalid-submit-race", batchPurpose: "pilot" });
+  await setup.service.submitReview({
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[1]!.assignmentId,
+    reviewerId: "reviewer-b",
+    annotations: annotations(setup.packets[1]!),
+  });
+  const results = await Promise.allSettled([
+    setup.service.closeBatch(setup.batchId),
+    setup.service.submitReview({
+      batchId: setup.batchId,
+      assignmentId: setup.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+      annotations: annotations(setup.packets[0]!).slice(1),
+    }),
+  ]);
+  assert.equal(results[0]!.status, "fulfilled");
+  assert.equal(results[1]!.status, "rejected");
+  assert.equal((results[1] as PromiseRejectedResult).reason.code, "batch_not_open");
+  const stored = await setup.repository.transaction((transaction) => ({
+    batch: transaction.getBatch(setup.batchId),
+    close: transaction.getBatchCloseRecord(setup.batchId),
+    submissions: transaction.listAcceptedSubmissions(setup.batchId),
+    rejected: transaction.listRejectedSubmissionAttempts(setup.batchId),
+    acceptedAudit: transaction.listReviewSubmissionAuditEvents(setup.batchId),
+  }));
+  assert.equal(stored.batch?.state, "CLOSED");
+  assert.equal(stored.close?.acceptedSubmissions.length, 1);
+  assert.equal(stored.submissions.length, 1);
+  assert.equal(stored.acceptedAudit.length, 1);
+  assert.ok(stored.rejected.some((attempt) => attempt.reason === "batch_not_open"));
+});
+
 test("withdrawal and packet retrieval retain the blindness firewall", async () => {
   const setup = await makeSetup({ suffix: "withdrawal", batchPurpose: "pilot" });
   const packet = await setup.service.getReviewerPacket({
@@ -712,6 +999,17 @@ test("repository uniqueness covers nonce replay and duplicate accepted submissio
     setup.repository.transaction((transaction) => transaction.insertAcceptedSubmission({
       submission,
       acceptedAt: "2026-09-06T00:03:00.000Z",
+    })),
+    serviceError("repository_conflict"),
+  );
+  const assignmentRecord = await setup.repository.transaction((transaction) =>
+    transaction.getAssignment(submission.assignmentId));
+  assert.ok(assignmentRecord);
+  await assert.rejects(
+    setup.repository.transaction((transaction) => transaction.updateAssignment({
+      ...assignmentRecord,
+      assignment: withdrawCommunityReviewAssignment(assignmentRecord.assignment),
+      updatedAt: "2026-09-06T00:03:30.000Z",
     })),
     serviceError("repository_conflict"),
   );
