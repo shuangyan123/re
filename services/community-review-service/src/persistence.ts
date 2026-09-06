@@ -13,20 +13,65 @@ import type {
 
 export type ServiceTimestamp = string;
 
-export type ReviewerAccountStatus = "ACTIVE" | "SUSPENDED" | "WITHDRAWN";
-export type ReviewerConsentState = "NOT_CONSENTED" | "CONSENTED" | "WITHDRAWN";
+export type ReviewerAccountStatus = "ACTIVE" | "WITHDRAWN" | "DISABLED";
+export type ReviewerConsentState = "NOT_CONSENTED" | "CONSENTED" | "REVOKED";
 
 export interface ReviewerAccountRecord {
   readonly internalId: string;
   /** Opaque P3 reviewer ID; no contact or OAuth identity is stored here. */
   readonly reviewerId: string;
-  /** Private placeholder for a future auth mapping, never a P3 artifact field. */
+  /** Private auth mapping reference, never a P3 artifact field. */
   readonly privateAuthSubjectReference: string;
   readonly status: ReviewerAccountStatus;
   readonly consentVersion: string;
   readonly consentState: ReviewerConsentState;
   readonly createdAt: ServiceTimestamp;
   readonly updatedAt: ServiceTimestamp;
+}
+
+/** Private external identity mapping. These fields never enter a P3 object. */
+export interface ReviewerAuthIdentityRecord {
+  readonly authIdentityId: string;
+  readonly internalId: string;
+  readonly reviewerId: string;
+  readonly authProvider: string;
+  readonly authSubject: string;
+  readonly createdAt: ServiceTimestamp;
+}
+
+export type ReviewerConsentEventState = "ACCEPTED" | "REVOKED";
+
+/** Append-only consent event; the current snapshot is derived from its history. */
+export interface ReviewerConsentRecord {
+  readonly consentEventId: string;
+  readonly internalId: string;
+  readonly reviewerId: string;
+  readonly policyId: string;
+  readonly policyVersion: string;
+  readonly state: ReviewerConsentEventState;
+  readonly acceptedAt?: ServiceTimestamp;
+  readonly revokedAt?: ServiceTimestamp;
+  readonly recordedAt: ServiceTimestamp;
+}
+
+export type AuthAuditEventType =
+  | "account_created"
+  | "consent_accepted"
+  | "consent_revoked"
+  | "account_withdrawn"
+  | "account_disabled"
+  | "authentication_mapping_created"
+  | "authentication_mapping_rejected";
+
+/** Security audit metadata only; no subject, token, cookie, JWT, or claims blob. */
+export interface AuthAuditEventRecord {
+  readonly eventId: string;
+  readonly eventType: AuthAuditEventType;
+  readonly internalId?: string;
+  readonly reviewerId?: string;
+  readonly authProvider?: string;
+  readonly reasonCode?: string;
+  readonly occurredAt: ServiceTimestamp;
 }
 
 export type QualificationPoolState = "SEALED" | "OPEN" | "RETIRED";
@@ -144,6 +189,25 @@ export interface CommunityReviewPersistenceTransaction {
   getReviewerAccount(internalId: string): ReviewerAccountRecord | undefined;
   getReviewerAccountByReviewerId(reviewerId: string): ReviewerAccountRecord | undefined;
   insertReviewerAccount(record: ReviewerAccountRecord): ReviewerAccountRecord;
+  updateReviewerAccount(record: ReviewerAccountRecord): ReviewerAccountRecord;
+
+  getReviewerAuthIdentity(authIdentityId: string): ReviewerAuthIdentityRecord | undefined;
+  getReviewerAuthIdentityBySubject(
+    authProvider: string,
+    authSubject: string,
+  ): ReviewerAuthIdentityRecord | undefined;
+  getReviewerAuthIdentityByInternalId(internalId: string): ReviewerAuthIdentityRecord | undefined;
+  insertReviewerAuthIdentity(record: ReviewerAuthIdentityRecord): ReviewerAuthIdentityRecord;
+
+  listReviewerConsentHistory(
+    internalId: string,
+    policyId: string,
+    policyVersion: string,
+  ): readonly ReviewerConsentRecord[];
+  getReviewerConsent(consentEventId: string): ReviewerConsentRecord | undefined;
+  insertReviewerConsent(record: ReviewerConsentRecord): ReviewerConsentRecord;
+  insertAuthAuditEvent(record: AuthAuditEventRecord): AuthAuditEventRecord;
+  listAuthAuditEvents(internalId?: string): readonly AuthAuditEventRecord[];
 
   getQualificationPool(poolId: string, poolVersion: string): QualificationPoolRecord | undefined;
   insertQualificationPool(record: QualificationPoolRecord): QualificationPoolRecord;

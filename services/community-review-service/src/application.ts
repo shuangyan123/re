@@ -1,0 +1,285 @@
+import type {
+  AuthenticatedPrincipal,
+  AuthenticationAdapter,
+  AuthenticationContext,
+  OperatorAuthorizer,
+} from "./authentication.js";
+import { parseAuthenticationContext } from "./authentication.js";
+import { CommunityReviewServiceError } from "./errors.js";
+import type {
+  AssignCommunityReviewReviewerInput,
+  CreateCommunityReviewBatchInput,
+  RegisterAuthoritativeQualificationReceiptInput,
+  RegisterQualificationPoolInput,
+  RecordReviewerConsentInput,
+  RevokeReviewerConsentInput,
+  ReviewerAccountLifecycleInput,
+  ReviewerConsentSnapshot,
+  CommunityReviewAssignmentResult,
+  GetReviewerConsentInput,
+  LinkReviewerAuthIdentityInput,
+  ReviewerPacketRequest,
+  SubmitCommunityReviewInput,
+  WithdrawCommunityReviewAssignmentInput,
+} from "./service.js";
+import { CommunityReviewService } from "./service.js";
+import type {
+  CommunityReviewAssignment,
+  CommunityReviewBatchCloseResult,
+  CommunityReviewReviewerPacket,
+  CommunityReviewSubmission,
+  FrozenCommunityReviewPool,
+} from "../../../src/contracts/community-review.js";
+import type {
+  QualificationPoolRecord,
+  ReviewerAccountRecord,
+  ReviewerAuthIdentityRecord,
+  ReviewBatchRecord,
+} from "./persistence.js";
+
+export interface AuthenticatedRequest {
+  readonly authenticationInput: unknown;
+}
+
+export interface AuthenticatedReviewerProvisionInput extends AuthenticatedRequest {
+  /** Optional target principal selected by an already authorized operator. */
+  readonly principal?: AuthenticatedPrincipal;
+}
+
+export interface AuthenticatedReviewerAssignmentInput extends AuthenticatedRequest {
+  readonly batchId: string;
+  readonly qualificationReceipt: unknown;
+  readonly visibleTasks: AssignCommunityReviewReviewerInput["visibleTasks"];
+}
+
+export interface AuthenticatedReviewerPacketRequest extends AuthenticatedRequest {
+  readonly assignmentId: string;
+}
+
+export interface AuthenticatedReviewerSubmissionInput extends AuthenticatedRequest {
+  readonly batchId: string;
+  readonly assignmentId: string;
+  readonly annotations: SubmitCommunityReviewInput["annotations"];
+}
+
+export interface AuthenticatedReviewerWithdrawalInput extends AuthenticatedRequest {
+  readonly batchId: string;
+  readonly assignmentId: string;
+}
+
+export interface AuthenticatedConsentRequest extends AuthenticatedRequest {
+  readonly policyId?: string;
+  readonly policyVersion?: string;
+}
+
+export interface AuthenticatedOperatorBatchRequest extends AuthenticatedRequest {
+  readonly batchId: string;
+}
+
+export interface AuthenticatedOperatorTargetRequest extends AuthenticatedRequest {
+  readonly reviewerId: string;
+}
+
+export interface AuthenticatedOperatorCreateBatchInput extends AuthenticatedRequest {
+  readonly manifest: CreateCommunityReviewBatchInput["manifest"];
+  readonly sealedSourceReference: string;
+}
+
+export interface AuthenticatedOperatorQualificationPoolInput extends AuthenticatedRequest {
+  readonly pool: RegisterQualificationPoolInput;
+}
+
+export interface AuthenticatedOperatorQualificationReceiptInput extends AuthenticatedRequest {
+  readonly receipt: RegisterAuthoritativeQualificationReceiptInput;
+}
+
+export interface AuthenticatedOperatorIdentityLinkInput extends AuthenticatedRequest {
+  readonly reviewerId: string;
+  readonly principal: AuthenticatedPrincipal;
+}
+
+/**
+ * Application boundary for authenticated requests. Reviewer-owned operations
+ * derive the opaque reviewer ID from the private auth mapping and ignore any
+ * caller-supplied reviewer ID at runtime.
+ */
+export class CommunityReviewApplicationService {
+  constructor(
+    private readonly service: CommunityReviewService,
+    private readonly authentication: AuthenticationAdapter,
+    private readonly operatorAuthorization?: OperatorAuthorizer,
+  ) {}
+
+  private async authenticate(input: unknown): Promise<AuthenticationContext> {
+    if (input === undefined || input === null || input === "") {
+      throw new CommunityReviewServiceError("authentication_required");
+    }
+    try {
+      return parseAuthenticationContext(await this.authentication.authenticate(input));
+    } catch (error) {
+      if (error instanceof CommunityReviewServiceError && error.code === "authentication_failed") {
+        throw error;
+      }
+      throw new CommunityReviewServiceError("authentication_failed");
+    }
+  }
+
+  private async reviewer(input: AuthenticatedRequest): Promise<ReviewerAccountRecord> {
+    const context = await this.authenticate(input.authenticationInput);
+    return this.service.resolveAuthenticatedReviewer({ principal: context.principal });
+  }
+
+  private async operator(input: AuthenticatedRequest): Promise<AuthenticationContext> {
+    const context = await this.authenticate(input.authenticationInput);
+    if (this.operatorAuthorization === undefined) {
+      throw new CommunityReviewServiceError("operator_not_authorized");
+    }
+    try {
+      if (await this.operatorAuthorization.isOperator(context) !== true) {
+        throw new CommunityReviewServiceError("operator_not_authorized");
+      }
+    } catch (error) {
+      if (error instanceof CommunityReviewServiceError && error.code === "operator_not_authorized") {
+        throw error;
+      }
+      throw new CommunityReviewServiceError("operator_not_authorized");
+    }
+    return context;
+  }
+
+  /** Trusted operator provisioning; this method is not a public signup flow. */
+  async provisionReviewerAccount(input: AuthenticatedReviewerProvisionInput): Promise<ReviewerAccountRecord> {
+    const context = await this.operator(input);
+    return this.service.provisionReviewerAccount({ principal: input.principal ?? context.principal });
+  }
+
+  async recordConsent(input: AuthenticatedConsentRequest): Promise<ReviewerConsentSnapshot> {
+    const account = await this.reviewer(input);
+    const consent: RecordReviewerConsentInput = {
+      reviewerId: account.reviewerId,
+      ...(input.policyId === undefined ? {} : { policyId: input.policyId }),
+      ...(input.policyVersion === undefined ? {} : { policyVersion: input.policyVersion }),
+    };
+    return this.service.recordConsent(consent);
+  }
+
+  async revokeConsent(input: AuthenticatedConsentRequest): Promise<ReviewerConsentSnapshot> {
+    const account = await this.reviewer(input);
+    const consent: RevokeReviewerConsentInput = {
+      reviewerId: account.reviewerId,
+      ...(input.policyId === undefined ? {} : { policyId: input.policyId }),
+      ...(input.policyVersion === undefined ? {} : { policyVersion: input.policyVersion }),
+    };
+    return this.service.revokeConsent(consent);
+  }
+
+  async getCurrentConsent(input: AuthenticatedConsentRequest): Promise<ReviewerConsentSnapshot> {
+    const account = await this.reviewer(input);
+    const consent: GetReviewerConsentInput = {
+      reviewerId: account.reviewerId,
+      ...(input.policyId === undefined ? {} : { policyId: input.policyId }),
+      ...(input.policyVersion === undefined ? {} : { policyVersion: input.policyVersion }),
+    };
+    return this.service.getCurrentConsent(consent);
+  }
+
+  async withdrawReviewerAccount(input: AuthenticatedRequest): Promise<ReviewerAccountRecord> {
+    const account = await this.reviewer(input);
+    const lifecycle: ReviewerAccountLifecycleInput = { reviewerId: account.reviewerId };
+    return this.service.withdrawReviewerAccount(lifecycle);
+  }
+
+  async assignReviewer(input: AuthenticatedReviewerAssignmentInput): Promise<CommunityReviewAssignmentResult> {
+    const account = await this.reviewer(input);
+    const assignment: AssignCommunityReviewReviewerInput = {
+      batchId: input.batchId,
+      reviewerId: account.reviewerId,
+      qualificationReceipt: input.qualificationReceipt,
+      visibleTasks: input.visibleTasks,
+    };
+    return this.service.assignReviewer(assignment);
+  }
+
+  async getReviewerPacket(input: AuthenticatedReviewerPacketRequest): Promise<CommunityReviewReviewerPacket> {
+    const account = await this.reviewer(input);
+    const request: ReviewerPacketRequest = {
+      assignmentId: input.assignmentId,
+      reviewerId: account.reviewerId,
+    };
+    return this.service.getReviewerPacket(request);
+  }
+
+  async submitReview(input: AuthenticatedReviewerSubmissionInput): Promise<CommunityReviewSubmission> {
+    const account = await this.reviewer(input);
+    const submission: SubmitCommunityReviewInput = {
+      batchId: input.batchId,
+      assignmentId: input.assignmentId,
+      reviewerId: account.reviewerId,
+      annotations: input.annotations,
+    };
+    return this.service.submitReview(submission);
+  }
+
+  async withdrawAssignment(input: AuthenticatedReviewerWithdrawalInput): Promise<CommunityReviewAssignment> {
+    const account = await this.reviewer(input);
+    const withdrawal: WithdrawCommunityReviewAssignmentInput = {
+      batchId: input.batchId,
+      assignmentId: input.assignmentId,
+      reviewerId: account.reviewerId,
+    };
+    return this.service.withdrawAssignment(withdrawal);
+  }
+
+  async disableReviewerAccount(input: AuthenticatedOperatorTargetRequest): Promise<ReviewerAccountRecord> {
+    await this.operator(input);
+    return this.service.disableReviewerAccount({ reviewerId: input.reviewerId });
+  }
+
+  async linkReviewerAuthIdentity(
+    input: AuthenticatedOperatorIdentityLinkInput,
+  ): Promise<ReviewerAuthIdentityRecord> {
+    await this.operator(input);
+    const link: LinkReviewerAuthIdentityInput = {
+      reviewerId: input.reviewerId,
+      principal: input.principal,
+    };
+    return this.service.linkReviewerAuthIdentity(link);
+  }
+
+  async createBatch(input: AuthenticatedOperatorCreateBatchInput): Promise<ReviewBatchRecord> {
+    await this.operator(input);
+    return this.service.createBatch({
+      manifest: input.manifest,
+      sealedSourceReference: input.sealedSourceReference,
+    });
+  }
+
+  async openBatch(input: AuthenticatedOperatorBatchRequest): Promise<ReviewBatchRecord> {
+    await this.operator(input);
+    return this.service.openBatch(input.batchId);
+  }
+
+  async closeBatch(input: AuthenticatedOperatorBatchRequest): Promise<CommunityReviewBatchCloseResult> {
+    await this.operator(input);
+    return this.service.closeBatch(input.batchId);
+  }
+
+  async freezeBatch(input: AuthenticatedOperatorBatchRequest): Promise<FrozenCommunityReviewPool> {
+    await this.operator(input);
+    return this.service.freezeBatch(input.batchId);
+  }
+
+  async registerQualificationPool(
+    input: AuthenticatedOperatorQualificationPoolInput,
+  ): Promise<QualificationPoolRecord> {
+    await this.operator(input);
+    return this.service.registerQualificationPool(input.pool);
+  }
+
+  async registerAuthoritativeQualificationReceipt(
+    input: AuthenticatedOperatorQualificationReceiptInput,
+  ) {
+    await this.operator(input);
+    return this.service.registerAuthoritativeQualificationReceipt(input.receipt);
+  }
+}

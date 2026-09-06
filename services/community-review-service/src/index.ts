@@ -1,3 +1,5 @@
+export * from "./authentication.js";
+export * from "./application.js";
 export * from "./errors.js";
 export * from "./in-memory-repository.js";
 export * from "./persistence.js";

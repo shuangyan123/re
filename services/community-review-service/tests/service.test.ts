@@ -178,8 +178,9 @@ async function makeSetup(options: {
       internalId: `internal-${reviewerId}-${suffix}`,
       reviewerId,
       privateAuthSubjectReference: `synthetic-auth-${reviewerId}-${suffix}`,
-      consentVersion: "synthetic-consent-v1",
+      consentVersion: "1.0.0",
     });
+    await service.recordConsent({ reviewerId });
   }
   const pool: QualificationPoolRecord = {
     dataKind: "synthetic-fixture",
@@ -402,8 +403,9 @@ test("an unregistered but valid P3 receipt cannot become authoritative", async (
     internalId: "internal-reviewer-c",
     reviewerId: "reviewer-c",
     privateAuthSubjectReference: "synthetic-auth-reviewer-c",
-    consentVersion: "synthetic-consent-v1",
+    consentVersion: "1.0.0",
   });
+  await setup.service.recordConsent({ reviewerId: "reviewer-c" });
   const unregistered = receipt("reviewer-c", setup.instrument, setup.eligibility);
   assert.doesNotThrow(() => buildCommunityReviewSubmission(
     setup.packets[0]!,

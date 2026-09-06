@@ -1,6 +1,15 @@
 export type CommunityReviewServiceErrorCode =
+  | "authentication_required"
+  | "authentication_failed"
+  | "authentication_subject_not_found"
+  | "operator_not_authorized"
   | "reviewer_not_found"
   | "reviewer_not_authorized"
+  | "reviewer_account_withdrawn"
+  | "reviewer_account_disabled"
+  | "consent_required"
+  | "consent_revoked"
+  | "consent_stale"
   | "qualification_pool_not_found"
   | "qualification_attempt_not_found"
   | "qualification_receipt_invalid"
@@ -17,8 +26,17 @@ export type CommunityReviewServiceErrorCode =
   | "invalid_service_record";
 
 const messages: Record<CommunityReviewServiceErrorCode, string> = {
+  authentication_required: "Community Review authentication is required.",
+  authentication_failed: "Community Review authentication failed.",
+  authentication_subject_not_found: "Authenticated Community Review principal is not provisioned.",
+  operator_not_authorized: "Community Review operator authorization is required.",
   reviewer_not_found: "Community Review reviewer account was not found.",
   reviewer_not_authorized: "Community Review reviewer is not authorized for this operation.",
+  reviewer_account_withdrawn: "Community Review reviewer account has been withdrawn.",
+  reviewer_account_disabled: "Community Review reviewer account is disabled.",
+  consent_required: "Current Community Review consent is required.",
+  consent_revoked: "Current Community Review consent has been revoked.",
+  consent_stale: "Current Community Review consent is for a stale policy version.",
   qualification_pool_not_found: "Community Review qualification pool was not found.",
   qualification_attempt_not_found: "Community Review qualification attempt was not found.",
   qualification_receipt_invalid: "Community Review qualification receipt is invalid.",
