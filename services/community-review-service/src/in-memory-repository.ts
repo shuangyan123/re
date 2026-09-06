@@ -23,6 +23,7 @@ import type {
   FrozenReviewPoolRecord,
   QualificationAttemptRecord,
   QualificationAuthorityAuditEventRecord,
+  ReviewDeliveryAuditEventRecord,
   QualificationPoolRecord,
   QualificationReceiptRecord,
   RejectedSubmissionAttemptRecord,
@@ -45,6 +46,7 @@ interface DatabaseState {
   readonly reviewerConsentHistory: Map<string, string[]>;
   readonly authAuditEvents: Map<string, AuthAuditEventRecord>;
   readonly qualificationAuditEvents: Map<string, QualificationAuthorityAuditEventRecord>;
+  readonly reviewDeliveryAuditEvents: Map<string, ReviewDeliveryAuditEventRecord>;
   readonly qualificationPools: Map<string, QualificationPoolRecord>;
   readonly qualificationAttempts: Map<string, QualificationAttemptRecord>;
   readonly attemptNonces: Map<string, string>;
@@ -76,6 +78,7 @@ function emptyState(): DatabaseState {
     reviewerConsentHistory: new Map(),
     authAuditEvents: new Map(),
     qualificationAuditEvents: new Map(),
+    reviewDeliveryAuditEvents: new Map(),
     qualificationPools: new Map(),
     qualificationAttempts: new Map(),
     attemptNonces: new Map(),
@@ -262,6 +265,27 @@ function assertQualificationAuthorityAuditEventRecord(
   if ((record.poolId === undefined) !== (record.poolVersion === undefined)) {
     throw new CommunityReviewServiceError("invalid_service_record");
   }
+  if (record.reasonCode !== undefined && !/^[A-Za-z0-9._:-]{1,80}$/u.test(record.reasonCode)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  timestamp(record.occurredAt);
+}
+
+function assertReviewDeliveryAuditEventRecord(record: ReviewDeliveryAuditEventRecord): void {
+  opaqueId(record.eventId);
+  if (![
+    "assignment_issued",
+    "assignment_retrieved",
+    "assignment_withdrawn",
+    "assignment_issuance_rejected",
+    "batch_material_mismatch",
+    "eligibility_rejected",
+  ].includes(record.eventType)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  if (record.batchId !== undefined) requiredString(record.batchId);
+  if (record.assignmentId !== undefined) requiredString(record.assignmentId);
+  if (record.reviewerId !== undefined) opaqueId(record.reviewerId);
   if (record.reasonCode !== undefined && !/^[A-Za-z0-9._:-]{1,80}$/u.test(record.reasonCode)) {
     throw new CommunityReviewServiceError("invalid_service_record");
   }
@@ -633,6 +657,31 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
       .map(copy);
   }
 
+  insertReviewDeliveryAuditEvent(
+    record: ReviewDeliveryAuditEventRecord,
+  ): ReviewDeliveryAuditEventRecord {
+    assertReviewDeliveryAuditEventRecord(record);
+    if (this.state.reviewDeliveryAuditEvents.has(record.eventId)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    if (record.reviewerId !== undefined && !this.state.reviewerIds.has(record.reviewerId) ||
+      record.batchId !== undefined && !this.state.batches.has(record.batchId) ||
+      record.assignmentId !== undefined && !this.state.assignments.has(record.assignmentId)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.reviewDeliveryAuditEvents.set(record.eventId, stored);
+    return copy(stored);
+  }
+
+  listReviewDeliveryAuditEvents(batchId?: string): readonly ReviewDeliveryAuditEventRecord[] {
+    return [...this.state.reviewDeliveryAuditEvents.values()]
+      .filter((record) => batchId === undefined || record.batchId === batchId)
+      .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) ||
+        left.eventId.localeCompare(right.eventId))
+      .map(copy);
+  }
+
   getQualificationPool(poolId: string, poolVersion: string): QualificationPoolRecord | undefined {
     const record = this.state.qualificationPools.get(poolKey(poolId, poolVersion));
     return record === undefined ? undefined : copy(record);
@@ -749,6 +798,13 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
     return receiptFingerprint === undefined ? undefined : this.getQualificationReceipt(receiptFingerprint);
   }
 
+  listQualificationReceipts(reviewerId: string): readonly QualificationReceiptRecord[] {
+    return [...this.state.qualificationReceipts.values()]
+      .filter((record) => record.reviewerId === reviewerId)
+      .sort((left, right) => left.receiptFingerprint.localeCompare(right.receiptFingerprint))
+      .map(copy);
+  }
+
   insertQualificationReceipt(record: QualificationReceiptRecord): QualificationReceiptRecord {
     assertQualificationReceiptRecord(record);
     const attempt = this.state.qualificationAttempts.get(record.attemptId);
@@ -778,6 +834,13 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
   getBatch(batchId: string): ReviewBatchRecord | undefined {
     const record = this.state.batches.get(batchId);
     return record === undefined ? undefined : copy(record);
+  }
+
+  listBatches(): readonly ReviewBatchRecord[] {
+    return [...this.state.batches.values()]
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt) ||
+        left.batchId.localeCompare(right.batchId))
+      .map(copy);
   }
 
   insertBatch(record: ReviewBatchRecord): ReviewBatchRecord {

@@ -13,9 +13,11 @@ import {
 import {
   parseCommunityReviewBatchManifest,
   parseCommunityReviewQualificationReceipt,
+  parseCommunityReviewVisibleTasks,
 } from "../../../src/contracts/community-review-validation.js";
 import type {
   CommunityReviewAssignment,
+  CommunityReviewBatchManifest,
   CommunityReviewBatchCloseResult,
   CommunityReviewDataKind,
   CommunityReviewQualificationReceipt,
@@ -25,7 +27,10 @@ import type {
   CommunityReviewVisibleTask,
   FrozenCommunityReviewPool,
 } from "../../../src/contracts/community-review.js";
-import { canonicalCommunityReviewJson } from "../../../src/community-review/fingerprint.js";
+import {
+  canonicalCommunityReviewJson,
+  communityReviewVisibleTaskSetFingerprint,
+} from "../../../src/community-review/fingerprint.js";
 import { parseAuthenticationContext } from "./authentication.js";
 import type { AuthenticatedPrincipal } from "./authentication.js";
 import { CommunityReviewServiceError } from "./errors.js";
@@ -39,6 +44,7 @@ import type {
   QualificationAuthorityAuditEventType,
   QualificationPoolRecord,
   QualificationReceiptRecord,
+  ReviewDeliveryAuditEventType,
   ReviewerAuthIdentityRecord,
   ReviewerAccountRecord,
   ReviewerConsentRecord,
@@ -47,6 +53,8 @@ import type {
   ReviewBatchRecord,
   SealedBatchPayloadReferenceRecord,
 } from "./persistence.js";
+import type { ReviewBatchMaterialLookup, ReviewBatchMaterialStore } from "./material.js";
+import { ReviewBatchMaterialError } from "./material.js";
 import {
   QUALIFICATION_PASS_RULE_ID,
   buildQualificationVisiblePacket,
@@ -301,6 +309,72 @@ function qualificationPoolOrThrow(
   return pool;
 }
 
+function receiptMatchesBatch(
+  transaction: CommunityReviewPersistenceTransaction,
+  stored: QualificationReceiptRecord,
+  manifest: CommunityReviewBatchManifest,
+  reviewerId: string,
+): boolean {
+  if (stored.authorityState !== "authoritative" || stored.reviewerId !== reviewerId ||
+    stored.receipt.reviewerId !== reviewerId || stored.receipt.receiptFingerprint !== stored.receiptFingerprint) {
+    return false;
+  }
+  const receipt = stored.receipt;
+  const eligibility = manifest.qualificationEligibility;
+  const pool = transaction.getQualificationPool(receipt.qualificationPoolId, receipt.qualificationPoolVersion);
+  if (pool === undefined || pool.state !== "ACTIVE" ||
+    pool.dataKind !== manifest.dataKind || !fixtureMatches(pool.fixture, manifest.fixture) ||
+    pool.qualificationId !== eligibility.qualificationId ||
+    pool.qualificationVersion !== eligibility.qualificationVersion ||
+    pool.poolId !== eligibility.qualificationPoolId ||
+    pool.poolVersion !== eligibility.qualificationPoolVersion ||
+    pool.definitionFingerprint !== eligibility.qualificationDefinitionFingerprint ||
+    pool.instrumentFingerprint !== manifest.instrument.fingerprint ||
+    pool.reviewLocale !== manifest.instrument.reviewLocale) {
+    return false;
+  }
+  return receipt.protocolId === manifest.protocolId &&
+    receipt.protocolVersion === manifest.protocolVersion &&
+    receipt.dataKind === manifest.dataKind &&
+    fixtureMatches(receipt.fixture, manifest.fixture) &&
+    receipt.qualificationProtocolId === eligibility.qualificationProtocolId &&
+    receipt.qualificationProtocolVersion === eligibility.qualificationProtocolVersion &&
+    receipt.qualificationId === eligibility.qualificationId &&
+    receipt.qualificationVersion === eligibility.qualificationVersion &&
+    receipt.qualificationPoolId === eligibility.qualificationPoolId &&
+    receipt.qualificationPoolVersion === eligibility.qualificationPoolVersion &&
+    receipt.qualificationDefinitionFingerprint === eligibility.qualificationDefinitionFingerprint &&
+    receipt.reviewLocale === manifest.instrument.reviewLocale &&
+    receipt.instrumentEligibility.instrumentId === manifest.instrument.instrumentId &&
+    receipt.instrumentEligibility.instrumentVersion === manifest.instrument.instrumentVersion &&
+    receipt.instrumentEligibility.instrumentFingerprint === manifest.instrument.fingerprint &&
+    receipt.instrumentEligibility.reviewLocale === manifest.instrument.reviewLocale;
+}
+
+function batchMaterialLookup(
+  batch: ReviewBatchRecord,
+  reference: SealedBatchPayloadReferenceRecord | undefined,
+): ReviewBatchMaterialLookup {
+  const manifest = batch.manifest;
+  if (reference === undefined || batch.batchId !== manifest.batchId ||
+    batch.batchFingerprint !== manifest.batchFingerprint || batch.state !== manifest.state ||
+    reference.batchId !== batch.batchId || reference.sourceReference !== batch.sealedSourceReference ||
+    reference.visibleTaskSetFingerprint !== manifest.visibleTaskSetFingerprint) {
+    throw new CommunityReviewServiceError("review_batch_material_invalid");
+  }
+  return {
+    batchId: manifest.batchId,
+    batchFingerprint: manifest.batchFingerprint,
+    dataKind: manifest.dataKind,
+    ...(manifest.fixture === undefined ? {} : { fixture: manifest.fixture }),
+    sealedSourceReference: reference.sourceReference,
+    sealedSourceFingerprint: manifest.sealedSourceFingerprint,
+    visibleTaskSetFingerprint: manifest.visibleTaskSetFingerprint,
+    instrument: manifest.instrument,
+    qualificationEligibility: manifest.qualificationEligibility,
+  };
+}
+
 function qualificationMaterialIdentity(pool: QualificationPoolRecord): QualificationMaterialIdentity {
   const instrument = pool.instrument;
   if (instrument === undefined || pool.state === "OPEN") {
@@ -325,6 +399,8 @@ export interface CommunityReviewServiceOptions {
   readonly clock?: () => string;
   readonly consentPolicy?: ReviewerConsentPolicy;
   readonly qualificationMaterialStore?: QualificationMaterialStore;
+  /** Private store used to resolve sealed batch material into visible tasks. */
+  readonly reviewBatchMaterialStore?: ReviewBatchMaterialStore;
   /** Maximum issued/evaluated attempts counted for one reviewer and pool. */
   readonly maxQualificationAttemptsPerReviewerPool?: number;
   readonly reviewerIdGenerator?: OpaqueIdGenerator;
@@ -455,11 +531,12 @@ export interface CreateCommunityReviewBatchInput {
 }
 
 export interface AssignCommunityReviewReviewerInput {
-  readonly batchId: string;
+  /** Optional operational hint; eligibility is always checked server-side. */
+  readonly batchId?: string;
   readonly reviewerId: string;
-  readonly qualificationReceipt: unknown;
-  readonly visibleTasks: readonly CommunityReviewVisibleTask[];
 }
+
+export type GetOrCreateOwnEligibleAssignmentInput = AssignCommunityReviewReviewerInput;
 
 export interface CommunityReviewAssignmentResult {
   readonly assignment: CommunityReviewAssignment;
@@ -493,6 +570,7 @@ export class CommunityReviewService {
   private readonly now: () => string;
   private readonly consentPolicy: ReviewerConsentPolicy;
   private readonly qualificationMaterialStore: QualificationMaterialStore | undefined;
+  private readonly reviewBatchMaterialStore: ReviewBatchMaterialStore | undefined;
   private readonly maxQualificationAttemptsPerReviewerPool: number;
   private readonly reviewerIdGenerator: OpaqueIdGenerator;
   private readonly internalIdGenerator: OpaqueIdGenerator;
@@ -510,6 +588,7 @@ export class CommunityReviewService {
     this.consentPolicy = options.consentPolicy ?? DEFAULT_REVIEWER_CONSENT_POLICY;
     validPolicy(this.consentPolicy);
     this.qualificationMaterialStore = options.qualificationMaterialStore;
+    this.reviewBatchMaterialStore = options.reviewBatchMaterialStore;
     this.maxQualificationAttemptsPerReviewerPool = options.maxQualificationAttemptsPerReviewerPool ?? 3;
     if (!Number.isInteger(this.maxQualificationAttemptsPerReviewerPool) ||
       this.maxQualificationAttemptsPerReviewerPool < 1) {
@@ -571,6 +650,94 @@ export class CommunityReviewService {
     reviewerId: string,
   ): ReviewerAccountRecord {
     return eligibleAccount(transaction, reviewerId, this.consentPolicy, this.consentPolicy.policyId);
+  }
+
+  private deliveryAudit(
+    transaction: CommunityReviewPersistenceTransaction,
+    eventType: ReviewDeliveryAuditEventType,
+    options: {
+      readonly batchId?: string;
+      readonly assignmentId?: string;
+      readonly reviewerId?: string;
+      readonly reasonCode?: string;
+    } = {},
+  ): void {
+    transaction.insertReviewDeliveryAuditEvent({
+      eventId: this.nextId(this.auditEventIdGenerator),
+      eventType,
+      ...(options.batchId === undefined ? {} : { batchId: options.batchId }),
+      ...(options.assignmentId === undefined ? {} : { assignmentId: options.assignmentId }),
+      ...(options.reviewerId === undefined ? {} : { reviewerId: options.reviewerId }),
+      ...(options.reasonCode === undefined ? {} : { reasonCode: options.reasonCode }),
+      occurredAt: this.now(),
+    });
+  }
+
+  private async loadReviewBatchTasks(
+    transaction: CommunityReviewPersistenceTransaction,
+    batch: ReviewBatchRecord,
+  ): Promise<readonly CommunityReviewVisibleTask[]> {
+    const store = this.reviewBatchMaterialStore;
+    if (store === undefined) throw new CommunityReviewServiceError("review_batch_material_not_found");
+    const lookup = batchMaterialLookup(
+      batch,
+      transaction.getSealedBatchPayloadReference(batch.batchId),
+    );
+    let tasks: readonly CommunityReviewVisibleTask[];
+    try {
+      tasks = parseCommunityReviewVisibleTasks(await store.loadVisibleTasksForBatch(lookup));
+    } catch (error) {
+      if (error instanceof ReviewBatchMaterialError && error.code === "not_found") {
+        throw new CommunityReviewServiceError("review_batch_material_not_found");
+      }
+      if (error instanceof CommunityReviewServiceError) throw error;
+      throw new CommunityReviewServiceError("review_batch_material_invalid");
+    }
+    if (communityReviewVisibleTaskSetFingerprint(tasks) !== lookup.visibleTaskSetFingerprint) {
+      throw new CommunityReviewServiceError("review_batch_material_invalid");
+    }
+    return tasks;
+  }
+
+  private eligibleReceiptForBatch(
+    transaction: CommunityReviewPersistenceTransaction,
+    batch: ReviewBatchRecord,
+    reviewerId: string,
+  ): CommunityReviewQualificationReceipt {
+    const matching = transaction.listQualificationReceipts(reviewerId)
+      .filter((stored) => receiptMatchesBatch(transaction, stored, batch.manifest, reviewerId));
+    const first = matching[0];
+    if (first === undefined) {
+      throw new CommunityReviewServiceError("qualification_receipt_not_authoritative");
+    }
+    return authoritativeReceipt(transaction, first.receipt);
+  }
+
+  private chooseEligibleBatch(
+    transaction: CommunityReviewPersistenceTransaction,
+    reviewerId: string,
+    requestedBatchId: string | undefined,
+  ): { readonly batch: ReviewBatchRecord; readonly receipt: CommunityReviewQualificationReceipt } {
+    const batches = transaction.listBatches()
+      .filter((batch) => batch.state === "OPEN" &&
+        (requestedBatchId === undefined || batch.batchId === requestedBatchId));
+    if (requestedBatchId !== undefined && transaction.getBatch(requestedBatchId) === undefined) {
+      throw new CommunityReviewServiceError("batch_not_found");
+    }
+    if (requestedBatchId !== undefined && batches.length === 0) {
+      throw new CommunityReviewServiceError("batch_not_open");
+    }
+    for (const batch of batches) {
+      try {
+        return { batch, receipt: this.eligibleReceiptForBatch(transaction, batch, reviewerId) };
+      } catch (error) {
+        if (!(error instanceof CommunityReviewServiceError) ||
+          error.code !== "qualification_receipt_not_authoritative") throw error;
+      }
+    }
+    throw new CommunityReviewServiceError(requestedBatchId === undefined
+      ? "no_eligible_review_batch"
+      : "qualification_receipt_not_authoritative");
   }
 
   private async loadQualificationMaterial(pool: QualificationPoolRecord): Promise<{
@@ -1628,33 +1795,45 @@ export class CommunityReviewService {
     });
   }
 
-  async assignReviewer(
-    input: AssignCommunityReviewReviewerInput,
+  /**
+   * Issue an assignment only from service-selected eligible material. The
+   * caller supplies no receipt or task set; both are resolved from private
+   * authority inside the serialized transaction.
+   */
+  async getOrCreateOwnEligibleAssignment(
+    input: GetOrCreateOwnEligibleAssignmentInput,
   ): Promise<CommunityReviewAssignmentResult> {
     opaqueId(input.reviewerId);
-    const receipt = parseReceipt(input.qualificationReceipt);
-    return this.persistence.transaction((transaction) => {
-      const batch = batchOrThrow(transaction, input.batchId);
-      if (batch.state !== "OPEN") throw new CommunityReviewServiceError("batch_not_open");
+    if (input.batchId !== undefined) required(input.batchId);
+    return this.persistence.transaction(async (transaction) => {
       this.activeReviewerAccount(transaction, input.reviewerId);
-      const authoritative = authoritativeReceipt(transaction, receipt);
-      if (authoritative.reviewerId !== input.reviewerId) {
-        throw new CommunityReviewServiceError("reviewer_not_authorized");
-      }
-      const assignment = buildCommunityReviewAssignment({
-        manifest: batch.manifest,
-        reviewerId: input.reviewerId,
-        qualificationReceipt: authoritative,
-        tasks: input.visibleTasks,
-      });
-      const packet = buildCommunityReviewReviewerPacket(assignment, input.visibleTasks);
-      const existing = transaction.getAssignmentByBatchReviewer(input.batchId, input.reviewerId);
-      if (existing !== undefined) {
-        if (same(existing.assignment, assignment) && same(existing.packet, packet)) {
-          return { assignment: existing.assignment, packet: existing.packet };
+      const requestedExisting = input.batchId === undefined
+        ? undefined
+        : transaction.getAssignmentByBatchReviewer(input.batchId, input.reviewerId);
+      if (requestedExisting !== undefined) {
+        if (requestedExisting.assignment.assignmentState === "withdrawn") {
+          throw new CommunityReviewServiceError("assignment_withdrawn");
         }
-        throw new CommunityReviewServiceError("duplicate_assignment");
+        // An explicit retry of an existing assignment is not a new issuance;
+        // preserve its exact P3 packet even after the batch lifecycle advances.
+        return { assignment: requestedExisting.assignment, packet: requestedExisting.packet };
       }
+      const chosen = this.chooseEligibleBatch(transaction, input.reviewerId, input.batchId);
+      const existing = transaction.getAssignmentByBatchReviewer(chosen.batch.batchId, input.reviewerId);
+      if (existing !== undefined) {
+        if (existing.assignment.assignmentState === "withdrawn") {
+          throw new CommunityReviewServiceError("assignment_withdrawn");
+        }
+        return { assignment: existing.assignment, packet: existing.packet };
+      }
+      const tasks = await this.loadReviewBatchTasks(transaction, chosen.batch);
+      const assignment = buildCommunityReviewAssignment({
+        manifest: chosen.batch.manifest,
+        reviewerId: input.reviewerId,
+        qualificationReceipt: chosen.receipt,
+        tasks,
+      });
+      const packet = buildCommunityReviewReviewerPacket(assignment, tasks);
       const timestamp = this.now();
       const stored = transaction.insertAssignment({
         assignment,
@@ -1662,8 +1841,20 @@ export class CommunityReviewService {
         assignedAt: timestamp,
         updatedAt: timestamp,
       });
+      this.deliveryAudit(transaction, "assignment_issued", {
+        batchId: stored.assignment.batchId,
+        assignmentId: stored.assignment.assignmentId,
+        reviewerId: stored.assignment.reviewerId,
+      });
       return { assignment: stored.assignment, packet: stored.packet };
     });
+  }
+
+  /** Compatibility name for trusted callers; authority remains service-controlled. */
+  async assignReviewer(
+    input: AssignCommunityReviewReviewerInput,
+  ): Promise<CommunityReviewAssignmentResult> {
+    return this.getOrCreateOwnEligibleAssignment(input);
   }
 
   /** Reviewer-facing read returns only the stored positive-allowlist packet. */
@@ -1678,6 +1869,11 @@ export class CommunityReviewService {
       if (stored.assignment.assignmentState !== "assigned") {
         throw new CommunityReviewServiceError("assignment_withdrawn");
       }
+      this.deliveryAudit(transaction, "assignment_retrieved", {
+        batchId: stored.assignment.batchId,
+        assignmentId: stored.assignment.assignmentId,
+        reviewerId: stored.assignment.reviewerId,
+      });
       return stored.packet;
     });
   }
@@ -1733,11 +1929,17 @@ export class CommunityReviewService {
         throw new CommunityReviewServiceError("submission_already_exists");
       }
       const assignment = withdrawCommunityReviewAssignment(stored.assignment);
-      return transaction.updateAssignment({
+      const updated = transaction.updateAssignment({
         ...stored,
         assignment,
         updatedAt: this.now(),
-      }).assignment;
+      });
+      this.deliveryAudit(transaction, "assignment_withdrawn", {
+        batchId: assignment.batchId,
+        assignmentId: assignment.assignmentId,
+        reviewerId: assignment.reviewerId,
+      });
+      return updated.assignment;
     });
   }
 

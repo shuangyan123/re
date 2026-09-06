@@ -1,4 +1,4 @@
-# Community Review Service P4-A / P4-B / P4-C
+# Community Review Service P4-A / P4-B / P4-C / P4-D
 
 Status:
 
@@ -6,6 +6,7 @@ Status:
 P4-A Service Foundation — PASS
 P4-B Authentication & Reviewer Identity — PASS
 P4-C Sealed Qualification Authority — PASS
+P4-D Blind Delivery / Assignment — PASS
 ```
 
 The broader status remains:
@@ -28,7 +29,7 @@ P3 remains the provider-independent protocol in `src/community-review/` and
 `src/contracts/`. It owns the versioned envelopes, canonical SHA-256
 fingerprints, positive-allowlist review packet, exact atomic submissions, and
 the pure `SEALED -> OPEN -> CLOSED -> FROZEN` review lifecycle. P3 contracts
-and fingerprints were not changed by P4-C.
+and fingerprints were not changed by P4-C or P4-D.
 
 P4 owns the private/runtime boundary around those helpers:
 
@@ -37,7 +38,8 @@ P4 owns the private/runtime boundary around those helpers:
 - append-only consent history and current-policy authorization;
 - reviewer/operator separation and account lifecycle;
 - sealed qualification definitions, material references, pool state, attempts,
-  server-side evaluation, and authoritative receipt persistence; and
+  server-side evaluation, and authoritative receipt persistence;
+- authenticated blind assignment delivery from sealed review material; and
 - transaction ordering, uniqueness, anti-replay checks, narrow audit metadata,
   and deterministic in-memory behavior for synthetic tests.
 
@@ -237,6 +239,107 @@ rewrite a previously persisted P3 envelope; those changes affect future
 authorization. A receipt authority status, if later revoked operationally,
 would be service state outside the immutable P3 content.
 
+## Blind delivery and assignment authority (P4-D)
+
+P4-D turns the P4-A assignment primitives into a service-controlled delivery
+boundary. The reviewer-facing path is:
+
+```text
+authenticated principal
+  -> private reviewer account
+  -> ACTIVE account and current consent
+  -> service-authoritative P4-C receipt
+  -> exact eligibility match
+  -> oldest OPEN eligible batch
+  -> private visible-task load and fingerprint verification
+  -> transactional P3 assignment and positive-allowlist packet
+```
+
+The service operation is `getOrCreateOwnEligibleAssignment`. A caller may give
+an optional batch ID as an operational hint, but may not supply a qualification
+receipt, visible task set, reviewer identity, score, or packet content. The
+authenticated application facade resolves the private reviewer account and
+passes only its service-issued opaque reviewer ID to the service.
+
+### Sealed material boundary
+
+`ReviewBatchMaterialStore` is the narrow private substitution boundary for
+review batches. It receives an opaque sealed-source reference plus the P3
+batch identity commitments and returns only
+`CommunityReviewVisibleTask[]`. It never receives or returns a reviewer packet
+request containing private source material. The deterministic
+`InMemoryReviewBatchMaterialStore` is test-only synthetic infrastructure; no
+real active campaign or private task bank is committed here.
+
+Before assignment construction, the service verifies the stored batch record,
+sealed-source reference, batch fingerprint, instrument identity, review locale,
+qualification eligibility, source fingerprint, and visible task-set
+fingerprint. It parses the returned positive projection and recomputes the
+P3-visible task fingerprint. A missing or mismatched material record fails
+closed and rolls back the assignment transaction; the manifest is never
+regenerated from caller input.
+
+### Eligibility and deterministic selection
+
+Every assignment requires these independent authorities:
+
+```text
+ACTIVE reviewer account
+current consent for the active policy
+authoritative stored P4-C receipt owned by that reviewer
+matching protocol, qualification, pool, definition, instrument, and locale
+OPEN batch
+one assignment per reviewer and batch
+```
+
+The receipt must match the batch's complete qualification binding, not merely a
+`qualified` status. Qualification-pool retirement, consent revocation, or
+account disablement does not rewrite an already-issued P3 assignment; those
+authorities gate new reviewer actions. New assignments require a currently
+eligible receipt and an OPEN batch.
+
+When no batch ID is supplied, the service considers only OPEN batches for
+which the reviewer passes all receipt checks and selects the oldest batch by
+the repository's deterministic creation ordering. A supplied batch ID narrows
+the same eligibility check; it does not grant access to an arbitrary hidden
+batch. No marketplace, recommender, expected-outcome steering, prior-reviewer
+data, or agreement statistic participates in selection.
+
+### Assignment transaction, idempotency, and lifecycle
+
+The in-memory repository serializes the complete operation. The intended
+PostgreSQL boundary is one transaction that locks the reviewer authority and
+batch, checks ACTIVE/current consent and exact receipt eligibility, asserts
+OPEN, loads and verifies private visible material, builds the existing P3
+assignment and packet, and persists them together. Migration
+`004_blind_delivery_assignment_authority.sql` adds narrow delivery audit
+records while preserving the existing database-level
+`UNIQUE(batch_id, reviewer_id)` assignment constraint from migration 001.
+
+The same reviewer/batch retry returns the exact persisted assignment and
+packet, including stable assignment and packet fingerprints. A withdrawn
+assignment cannot be silently replaced. Concurrent duplicate requests are
+serialized by the repository and remain subject to the database uniqueness
+constraint. Assignment issuance that loses the OPEN-to-CLOSED/FROZEN race
+fails without leaving a partial assignment. Existing P3 close and freeze
+helpers remain authoritative; P4-D does not productionize submission or
+close orchestration.
+
+Reviewer retrieval and withdrawal are authenticated own-assignment operations.
+The application facade derives ownership from the authentication mapping, so a
+request cannot substitute another reviewer ID. Retrieval returns the exact
+stored positive-allowlist packet and records only a narrow operational event.
+Withdrawal changes the P3 assignment state, preserves provenance for close
+coverage, requires the authenticated owner and an OPEN batch, and is rejected
+after an accepted submission. Account/consent changes gate later actions but
+do not delete assignment history.
+
+Delivery audit records contain only event type, opaque batch/assignment/
+reviewer IDs where needed, a bounded reason code, and a timestamp. They never
+contain packet contents, visible task material, sealed-source data, answer
+keys, credentials, tokens, cookies, auth subjects, evaluator fields, or other
+reviewer information.
+
 ## Access, privacy, and audit
 
 Reviewer-facing operations are limited to creating, reading, submitting, and
@@ -297,7 +400,11 @@ attempt-limit races, same-attempt submission races, cross-owner and
 cross-pool/version/locale/instrument replay, consent/account/pool authority,
 retirement ordering, receipt idempotency, caller-created receipt rejection,
 audit privacy, and the authenticated application facade. Existing P4-A/P4-B
-tests remain green.
+tests remain green. P4-D service tests additionally cover authenticated
+assignment, oldest-eligible-batch selection, exact retry idempotency, private
+material fingerprint mismatch rollback, SEALED/CLOSED/FROZEN state gates,
+and runtime packet blindness. All fixtures are synthetic and unmistakably
+non-evidence.
 
 Run the isolated harness with:
 
@@ -310,22 +417,24 @@ The root benchmark remains provider-free. Its expected unavailable-provider
 behavior is unchanged; P4-C does not add model calls or turn unavailable Judge
 errors into an official score.
 
-## Explicit exclusions and P4-D handoff
+## Explicit exclusions and P4-E handoff
 
-P4-C does not implement or claim:
+P4-D does not implement or claim:
 
 - public reviewer signup or intake;
 - a deployed identity provider, hosted PostgreSQL, private hosted secret
   store, or production deployment;
 - a real qualification bank, real reviewer qualification, or public launch;
 - reviewer payments, abuse controls, or retention/deletion execution;
-- public review queue or assignment delivery, campaign scheduling, reviewer
-  dashboard, marketplace, or blind batch campaign (P4-D);
+- production submission endpoint, accepted-submission transaction expansion,
+  campaign scheduling, reviewer dashboard, marketplace, or blind campaign
+  operations beyond synthetic assignment delivery;
 - majority voting, gold labels, adjudication, Judge comparison, calibration,
   accuracy claims, reference generation, or leaderboard scoring (P5); or
 - a Review Workspace integration or root-package export.
 
-P4-D remains the separately scoped blind delivery/assignment phase. P5
+P4-D blind delivery/assignment is complete only as an isolated synthetic
+service boundary. P4-E Production Submission / Close remains not started. P5
 Community calibration remains not started. The next phase must preserve the
 private material boundary and the distinction between P3 validity and P4
 authority.

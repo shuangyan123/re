@@ -57,9 +57,8 @@ export interface AuthenticatedReviewerProvisionInput extends AuthenticatedReques
 }
 
 export interface AuthenticatedReviewerAssignmentInput extends AuthenticatedRequest {
-  readonly batchId: string;
-  readonly qualificationReceipt: unknown;
-  readonly visibleTasks: AssignCommunityReviewReviewerInput["visibleTasks"];
+  /** Optional hint; the service chooses only an actually eligible OPEN batch. */
+  readonly batchId?: string;
 }
 
 export interface AuthenticatedReviewerPacketRequest extends AuthenticatedRequest {
@@ -224,15 +223,19 @@ export class CommunityReviewApplicationService {
     return this.service.withdrawReviewerAccount(lifecycle);
   }
 
-  async assignReviewer(input: AuthenticatedReviewerAssignmentInput): Promise<CommunityReviewAssignmentResult> {
+  async getOrCreateOwnEligibleAssignment(
+    input: AuthenticatedReviewerAssignmentInput,
+  ): Promise<CommunityReviewAssignmentResult> {
     const account = await this.reviewer(input);
     const assignment: AssignCommunityReviewReviewerInput = {
-      batchId: input.batchId,
       reviewerId: account.reviewerId,
-      qualificationReceipt: input.qualificationReceipt,
-      visibleTasks: input.visibleTasks,
+      ...(input.batchId === undefined ? {} : { batchId: input.batchId }),
     };
-    return this.service.assignReviewer(assignment);
+    return this.service.getOrCreateOwnEligibleAssignment(assignment);
+  }
+
+  async assignReviewer(input: AuthenticatedReviewerAssignmentInput): Promise<CommunityReviewAssignmentResult> {
+    return this.getOrCreateOwnEligibleAssignment(input);
   }
 
   async getReviewerPacket(input: AuthenticatedReviewerPacketRequest): Promise<CommunityReviewReviewerPacket> {

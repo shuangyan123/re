@@ -3,7 +3,6 @@ import { test } from "node:test";
 
 import {
   buildCommunityReviewInstrumentIdentity,
-  buildCommunityReviewQualificationReceipt,
   communityReviewAtomicIdentityKey,
   communityReviewFingerprint,
   createCommunityReviewBatch,
@@ -21,12 +20,16 @@ import {
   CommunityReviewService,
   CommunityReviewServiceError,
   InMemoryCommunityReviewRepository,
+  InMemoryQualificationMaterialStore,
+  InMemoryReviewBatchMaterialStore,
+  QUALIFICATION_PASS_RULE_ID,
+  qualificationDefinitionFingerprint,
   StaticOperatorAuthorizer,
   SyntheticAuthenticationAdapter,
 } from "../src/index.js";
 import type {
-  QualificationAttemptRecord,
-  QualificationPoolRecord,
+  QualificationPrivateAnswer,
+  QualificationVisibleItem,
 } from "../src/index.js";
 
 const syntheticFixture = {
@@ -58,12 +61,24 @@ const tasks: CommunityReviewVisibleTask[] = [
 ];
 
 const guideFingerprint = communityReviewFingerprint({ guideText: "Synthetic auth guide." });
-const definitionFingerprint = communityReviewFingerprint({ definition: "Synthetic auth definition." });
+const qualificationItems: QualificationVisibleItem[] = [{
+  caseId: "auth-qualification-case",
+  rubricId: "auth-qualification-rubric",
+  requirementId: "auth-qualification-requirement",
+  prompt: "Classify the synthetic qualification reply.",
+}];
+const qualificationAnswers: QualificationPrivateAnswer[] = qualificationItems.map((item) => ({
+  caseId: item.caseId,
+  rubricId: item.rubricId,
+  requirementId: item.requirementId,
+  status: "SATISFIED" as const,
+}));
 const rawBearerCredential = "Bearer eyJ.synthetic.jwt";
 
 function clock(): () => string {
   let tick = 0;
-  return () => "2026-09-06T00:10:" + String(tick++).padStart(2, "0") + ".000Z";
+  const start = Date.parse("2026-09-06T00:10:00.000Z");
+  return () => new Date(start + tick++ * 1000).toISOString();
 }
 
 function serviceError(code: CommunityReviewServiceError["code"]): (error: unknown) => boolean {
@@ -80,23 +95,40 @@ function annotations(packet: CommunityReviewReviewerPacket): CommunityReviewAnno
   }))));
 }
 
-function receipt(
+async function qualifyReviewer(
+  service: CommunityReviewService,
   reviewerId: string,
-  instrument: ReturnType<typeof buildCommunityReviewInstrumentIdentity>,
+  qualificationId: string,
+  qualificationVersion: string,
   qualificationPoolId: string,
-  qualificationDefinitionFingerprint: string,
-): CommunityReviewQualificationReceipt {
-  return buildCommunityReviewQualificationReceipt({
-    dataKind: "synthetic-fixture",
-    fixture: syntheticFixture,
-    qualificationId: "synthetic-auth-qualification",
-    qualificationVersion: "v1",
-    qualificationPoolId,
-    qualificationPoolVersion: "v1",
-    qualificationDefinitionFingerprint,
+  qualificationPoolVersion: string,
+  instrument: ReturnType<typeof buildCommunityReviewInstrumentIdentity>,
+): Promise<CommunityReviewQualificationReceipt> {
+  const issue = await service.createQualificationAttempt({
     reviewerId,
-    instrument,
+    qualificationId,
+    qualificationVersion,
+    poolId: qualificationPoolId,
+    poolVersion: qualificationPoolVersion,
+    instrumentFingerprint: instrument.fingerprint,
+    reviewLocale: instrument.reviewLocale,
   });
+  await service.submitQualificationAttempt({
+    reviewerId,
+    attemptId: issue.attemptId,
+    attemptNonce: issue.attemptNonce,
+    packetFingerprint: issue.packet.packetFingerprint,
+    responses: issue.packet.items.map((item) => ({
+      caseId: item.caseId,
+      rubricId: item.rubricId,
+      requirementId: item.requirementId,
+      status: "SATISFIED" as const,
+    })),
+  });
+  return (await service.issueQualificationReceipt({
+    reviewerId,
+    attemptId: issue.attemptId,
+  })).receipt;
 }
 
 interface AuthenticatedSetup {
@@ -122,9 +154,54 @@ interface AuthenticatedSetup {
 
 async function makeSetup(): Promise<AuthenticatedSetup> {
   const repository = new InMemoryCommunityReviewRepository();
+  const materialStore = new InMemoryReviewBatchMaterialStore();
+  const instrument = buildCommunityReviewInstrumentIdentity({
+    guideFingerprint,
+    canonicalLocale: "en",
+    reviewLocale: "en",
+  });
+  const qualificationId = "synthetic-auth-qualification";
+  const qualificationVersion = "v1";
+  const qualificationPoolId = "synthetic-auth-pool";
+  const qualificationPoolVersion = "v1";
+  const definitionFingerprint = qualificationDefinitionFingerprint({
+    qualificationId,
+    qualificationVersion,
+    qualificationPoolId,
+    qualificationPoolVersion,
+    instrumentId: instrument.instrumentId,
+    instrumentVersion: instrument.instrumentVersion,
+    instrumentFingerprint: instrument.fingerprint,
+    reviewLocale: instrument.reviewLocale,
+    passRuleId: QUALIFICATION_PASS_RULE_ID,
+    items: qualificationItems,
+  });
+  const qualificationMaterialStore = new InMemoryQualificationMaterialStore();
+  qualificationMaterialStore.register({
+    identity: {
+      qualificationId,
+      qualificationVersion,
+      qualificationPoolId,
+      qualificationPoolVersion,
+      qualificationDefinitionFingerprint: definitionFingerprint,
+      instrumentId: instrument.instrumentId,
+      instrumentVersion: instrument.instrumentVersion,
+      instrumentFingerprint: instrument.fingerprint,
+      reviewLocale: instrument.reviewLocale,
+      sealedDefinitionReference: "synthetic://auth-definition",
+      privateAnswerKeyReference: "synthetic://auth-answer-key",
+    },
+    visibleMaterial: {
+      passRuleId: QUALIFICATION_PASS_RULE_ID,
+      items: qualificationItems,
+    },
+    privateAnswerKey: { answers: qualificationAnswers },
+  });
   const service = new CommunityReviewService(repository, {
     clock: clock(),
     consentPolicy: policy,
+    qualificationMaterialStore,
+    reviewBatchMaterialStore: materialStore,
   });
   const principals = {
     operator: { provider: "synthetic", subject: "operator-subject" },
@@ -161,57 +238,62 @@ async function makeSetup(): Promise<AuthenticatedSetup> {
   await application.recordConsent({ authenticationInput: "reviewer-a-token" });
   await application.recordConsent({ authenticationInput: "reviewer-b-token" });
 
-  const instrument = buildCommunityReviewInstrumentIdentity({
-    guideFingerprint,
-    canonicalLocale: "en",
-    reviewLocale: "en",
-  });
-  const pool: QualificationPoolRecord = {
+  await service.registerQualificationPool({
     dataKind: "synthetic-fixture",
     fixture: syntheticFixture,
-    qualificationId: "synthetic-auth-qualification",
-    qualificationVersion: "v1",
-    poolId: "synthetic-auth-pool",
-    poolVersion: "v1",
+    qualificationId,
+    qualificationVersion,
+    poolId: qualificationPoolId,
+    poolVersion: qualificationPoolVersion,
     definitionFingerprint,
     instrumentFingerprint: instrument.fingerprint,
     reviewLocale: instrument.reviewLocale,
-    state: "OPEN",
+    instrument,
+    state: "DRAFT",
     sealedDefinitionReference: "synthetic://auth-definition",
     privateAnswerKeyReference: "synthetic://auth-answer-key",
-    createdAt: "2026-09-06T00:00:00.000Z",
-    updatedAt: "2026-09-06T00:00:00.000Z",
-  };
-  await service.registerQualificationPool(pool);
-  const reviewerAccounts = [accounts.reviewerA, accounts.reviewerB, accounts.reviewerC];
-  await repository.transaction((transaction) => {
-    for (const [index, account] of reviewerAccounts.entries()) {
-      const attempt: QualificationAttemptRecord = {
-        attemptId: "synthetic-auth-attempt-" + index,
-        reviewerId: account.reviewerId,
-        poolId: pool.poolId,
-        poolVersion: pool.poolVersion,
-        nonceHash: "synthetic-auth-nonce-" + index,
-        state: "QUALIFIED",
-        result: "qualified",
-        startedAt: "2026-09-06T00:01:00.000Z",
-        submittedAt: "2026-09-06T00:02:00.000Z",
-      };
-      transaction.insertQualificationAttempt(attempt);
-    }
   });
-  const receipts = reviewerAccounts.map((account) => receipt(
-    account.reviewerId,
-    instrument,
-    pool.poolId,
-    pool.definitionFingerprint,
-  ));
-  for (const [index, qualificationReceipt] of receipts.entries()) {
-    await service.registerAuthoritativeQualificationReceipt({
-      attemptId: "synthetic-auth-attempt-" + index,
-      receipt: qualificationReceipt,
+  await service.sealQualificationPool({
+    poolId: qualificationPoolId,
+    poolVersion: qualificationPoolVersion,
+  });
+  await service.activateQualificationPool({
+    poolId: qualificationPoolId,
+    poolVersion: qualificationPoolVersion,
+  });
+  const reviewerAccounts = [accounts.reviewerA, accounts.reviewerB, accounts.reviewerC];
+  // Seed C's service-issued qualification through the legacy account
+  // projection, then reset that projection so consent remains a separate
+  // authority in the application assertions below.
+  await repository.transaction((transaction) => {
+    const account = transaction.getReviewerAccount(accounts.reviewerC.internalId);
+    assert.ok(account);
+    transaction.updateReviewerAccount({
+      ...account,
+      consentVersion: policy.policyVersion,
+      consentState: "CONSENTED",
     });
+  });
+  const receipts: CommunityReviewQualificationReceipt[] = [];
+  for (const account of reviewerAccounts) {
+    receipts.push(await qualifyReviewer(
+      service,
+      account.reviewerId,
+      qualificationId,
+      qualificationVersion,
+      qualificationPoolId,
+      qualificationPoolVersion,
+      instrument,
+    ));
   }
+  await repository.transaction((transaction) => {
+    const account = transaction.getReviewerAccount(accounts.reviewerC.internalId);
+    assert.ok(account);
+    transaction.updateReviewerAccount({
+      ...account,
+      consentState: "NOT_CONSENTED",
+    });
+  });
 
   const batchId = "synthetic-auth-batch";
   const sealed = createCommunityReviewBatch({
@@ -220,17 +302,22 @@ async function makeSetup(): Promise<AuthenticatedSetup> {
     qualificationEligibility: {
       qualificationProtocolId: "community-review-qualification",
       qualificationProtocolVersion: "0.1.0",
-      qualificationId: pool.qualificationId,
-      qualificationVersion: pool.qualificationVersion,
-      qualificationPoolId: pool.poolId,
-      qualificationPoolVersion: pool.poolVersion,
-      qualificationDefinitionFingerprint: pool.definitionFingerprint,
+      qualificationId,
+      qualificationVersion,
+      qualificationPoolId,
+      qualificationPoolVersion,
+      qualificationDefinitionFingerprint: definitionFingerprint,
     },
     sealedSourceFingerprint: communityReviewFingerprint({ source: "synthetic-auth-source" }),
     tasks,
     dataKind: "synthetic-fixture",
     fixture: syntheticFixture,
     batchPurpose: "pilot",
+  });
+  materialStore.register({
+    manifest: sealed,
+    sealedSourceReference: "synthetic://auth-source",
+    tasks,
   });
   await application.createBatch({
     authenticationInput: "operator-token",
@@ -241,14 +328,10 @@ async function makeSetup(): Promise<AuthenticatedSetup> {
   const assignedA = await application.assignReviewer({
     authenticationInput: "reviewer-a-token",
     batchId,
-    qualificationReceipt: receipts[0],
-    visibleTasks: tasks,
   });
   const assignedB = await application.assignReviewer({
     authenticationInput: "reviewer-b-token",
     batchId,
-    qualificationReceipt: receipts[1],
-    visibleTasks: tasks,
   });
   return {
     repository,
@@ -330,8 +413,6 @@ test("authentication, consent, and qualification remain separate authorities", a
     setup.application.assignReviewer({
       authenticationInput: "reviewer-c-token",
       batchId: setup.batchId,
-      qualificationReceipt: setup.receipts[2],
-      visibleTasks: tasks,
     }),
     serviceError("consent_required"),
   );
@@ -358,8 +439,6 @@ test("consent for another policy cannot satisfy the active review policy", async
     setup.application.assignReviewer({
       authenticationInput: "reviewer-c-token",
       batchId: setup.batchId,
-      qualificationReceipt: setup.receipts[2],
-      visibleTasks: tasks,
     }),
     serviceError("consent_required"),
   );
@@ -416,8 +495,6 @@ test("revoked consent, stale consent, withdrawn accounts, and disabled accounts 
     setup.application.assignReviewer({
       authenticationInput: "reviewer-c-token",
       batchId: setup.batchId,
-      qualificationReceipt: setup.receipts[2],
-      visibleTasks: tasks,
     }),
     serviceError("consent_stale"),
   );
@@ -464,16 +541,12 @@ test("reviewer-owned reads and writes derive ownership from auth, ignoring forge
     } as never),
     serviceError("reviewer_not_authorized"),
   );
-  await assert.rejects(
-    setup.application.assignReviewer({
+  const assignment = await setup.application.assignReviewer({
       authenticationInput: "reviewer-a-token",
       batchId: setup.batchId,
-      qualificationReceipt: setup.receipts[1],
-      visibleTasks: tasks,
       reviewerId: setup.accounts.reviewerB.reviewerId,
-    } as never),
-    serviceError("reviewer_not_authorized"),
-  );
+    } as never);
+  assert.equal(assignment.assignment.reviewerId, setup.accounts.reviewerA.reviewerId);
 });
 
 test("unauthenticated, unknown, and provider-mismatched principals are rejected before reviewer lookup", async () => {
