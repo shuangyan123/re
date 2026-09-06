@@ -130,6 +130,7 @@ interface Setup {
   readonly repository: CommunityReviewPersistence;
   readonly service: CommunityReviewService;
   readonly batchId: string;
+  readonly reviewerIds: readonly string[];
   readonly qualificationAttemptIds: readonly string[];
   readonly assignments: readonly CommunityReviewAssignment[];
   readonly packets: readonly CommunityReviewReviewerPacket[];
@@ -143,7 +144,7 @@ function deterministicClock(): () => string {
 async function makeSetup(
   repository: CommunityReviewPersistence,
   suffix: string,
-  reviewerIds: readonly string[] = ["reviewer-a", "reviewer-b"],
+  reviewerIds: readonly string[] = [`reviewer-a-${suffix}`, `reviewer-b-${suffix}`],
 ): Promise<Setup> {
   const reviewInstrument = instrument();
   const reviewEligibility = eligibility(suffix, reviewInstrument);
@@ -253,7 +254,7 @@ async function makeSetup(
     assignments.push(result.assignment);
     packets.push(result.packet);
   }
-  return { repository, service, batchId, qualificationAttemptIds, assignments, packets };
+  return { repository, service, batchId, reviewerIds, qualificationAttemptIds, assignments, packets };
 }
 
 async function completeAndFreeze(setup: Setup): Promise<void> {
@@ -408,9 +409,10 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
   test("advisory and row locks serialize attempt, assignment, submission, close, withdrawal, and freeze races", async () => {
     const receiptRace = await makeSetup(activeRepository(), "pg-receipt-race");
     const receiptAttemptId = receiptRace.qualificationAttemptIds[0]!;
+    const receiptReviewerId = receiptRace.reviewerIds[0]!;
     const receiptResults = await Promise.all([
-      receiptRace.service.issueQualificationReceipt({ reviewerId: "reviewer-a", attemptId: receiptAttemptId }),
-      receiptRace.service.issueQualificationReceipt({ reviewerId: "reviewer-a", attemptId: receiptAttemptId }),
+      receiptRace.service.issueQualificationReceipt({ reviewerId: receiptReviewerId, attemptId: receiptAttemptId }),
+      receiptRace.service.issueQualificationReceipt({ reviewerId: receiptReviewerId, attemptId: receiptAttemptId }),
     ]);
     assert.equal(new Set(receiptResults.map((result) => result.receiptFingerprint)).size, 1);
     const receiptRows = await activePool().query<{ readonly count: string }>(
@@ -420,10 +422,11 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
     assert.equal(receiptRows.rows[0]?.count, "1");
 
     const attempts = await makeSetup(activeRepository(), "pg-attempt-race");
+    const attemptsReviewerId = attempts.reviewerIds[0]!;
     const attemptOutcomes = await Promise.all(Array.from({ length: 4 }, async () => {
       try {
         return await attempts.service.createQualificationAttempt({
-          reviewerId: "reviewer-a",
+          reviewerId: attemptsReviewerId,
           qualificationId: "community-review-gate-pg-attempt-race",
           qualificationVersion: "0.1.0",
           poolId: "community-review-pool-pg-attempt-race",
@@ -438,10 +441,10 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
     assert.equal(attemptOutcomes.filter((value) => typeof value !== "object" || value === null || !("attemptId" in value)).length, 2);
 
     const assignmentOutcomes = await Promise.all(Array.from({ length: 6 }, () =>
-      attempts.service.assignReviewer({ batchId: attempts.batchId, reviewerId: "reviewer-a" })));
+      attempts.service.assignReviewer({ batchId: attempts.batchId, reviewerId: attemptsReviewerId })));
     assert.equal(new Set(assignmentOutcomes.map((value) => value.assignment.assignmentId)).size, 1);
 
-    const submitClose = await makeSetup(activeRepository(), "pg-submit-close-race", ["reviewer-a", "reviewer-b"]);
+    const submitClose = await makeSetup(activeRepository(), "pg-submit-close-race");
     await submitClose.service.submitReview({
       batchId: submitClose.batchId,
       assignmentId: submitClose.assignments[1]!.assignmentId,
