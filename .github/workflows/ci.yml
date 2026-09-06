@@ -27,10 +27,14 @@ jobs:
         run: npm run test:governance
       - name: Typecheck
         run: npm run typecheck
+      - name: Typecheck Community Review service foundation
+        run: npm run typecheck:community-review-service
       - name: Lint
         run: npm run lint
       - name: Test
         run: npm test
+      - name: Test Community Review service foundation
+        run: npm run test:community-review-service
       - name: Build
         run: npm run build
       - name: Run provider-free Quickstart

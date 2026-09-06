@@ -123,13 +123,21 @@ P3 status: **READY FOR P4 COMMUNITY REVIEW SERVICE**. This does not mean that
 the service exists, that real reviewers have qualified, that a batch has been
 reviewed, or that any calibration or leaderboard claim is available.
 
-### P4 Community Review Service — NOT STARTED
+### P4 Community Review Service — IN PROGRESS (P4-A foundation only)
 
-- [ ] Authenticated issuer and server-side qualification receipts
-- [ ] Sealed assignment delivery, reviewer consent, withdrawal, retention, and
-      anti-replay state
+- [x] P4-A isolated service/runtime boundary and private persistence model
+- [x] P4-A PostgreSQL migration semantics, typed repository, and synthetic
+      transaction/concurrency harness
+- [x] P4-A authoritative qualification-receipt persistence boundary and
+      positive-allowlist packet firewall
+- [ ] Authenticated production issuer and real qualification workflow
+- [ ] Sealed production assignment delivery, reviewer consent, withdrawal,
+      retention, and operational anti-replay controls
 - [ ] Real reviewer intake and operational abuse controls
 - [ ] Fresh sealed community batches and review service APIs
+
+P4-A status: **COMMUNITY REVIEW SERVICE FOUNDATION — PASS**. The foundation is
+synthetic/local and does not deploy a service or open public reviewer intake.
 
 ### Later Community Review phases — NOT STARTED
 

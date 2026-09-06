@@ -1,0 +1,11 @@
+{
+  "name": "@tutorbench/community-review-service-foundation",
+  "private": true,
+  "type": "module",
+  "description": "Isolated P4-A Community Review service foundation; not a public package.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/services/community-review-service/tests/*.test.js"
+  }
+}
