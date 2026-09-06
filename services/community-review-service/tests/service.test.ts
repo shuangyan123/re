@@ -1,0 +1,620 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import {
+  BenchmarkConfigurationError,
+  parseCommunityReviewVisibleTask,
+} from "../../../src/contracts/index.js";
+import {
+  buildCommunityReviewInstrumentIdentity,
+  buildCommunityReviewQualificationReceipt,
+  buildCommunityReviewSubmission,
+  closeCommunityReviewBatch,
+  communityReviewAtomicIdentityKey,
+  communityReviewFingerprint,
+  createCommunityReviewBatch,
+  freezeCommunityReviewPool,
+} from "../../../src/community-review/index.js";
+import type {
+  CommunityReviewAnnotation,
+  CommunityReviewAssignment,
+  CommunityReviewBatchPurpose,
+  CommunityReviewQualificationEligibility,
+  CommunityReviewQualificationReceipt,
+  CommunityReviewReviewerPacket,
+  CommunityReviewVisibleTask,
+} from "../../../src/contracts/community-review.js";
+import {
+  CommunityReviewService,
+  CommunityReviewServiceError,
+  InMemoryCommunityReviewRepository,
+} from "../src/index.js";
+import type {
+  QualificationAttemptRecord,
+  QualificationPoolRecord,
+} from "../src/index.js";
+
+const syntheticFixture = {
+  synthetic: true as const,
+  notHumanCalibrationData: true as const,
+  notCommunityReviewEvidence: true as const,
+};
+
+const tasks: CommunityReviewVisibleTask[] = [
+  parseCommunityReviewVisibleTask({
+    caseId: "case-alpha",
+    learningObjective: "Compare a tutor reply with visible learner needs.",
+    studentProfile: "Synthetic learner at introductory level.",
+    conversationHistory: "No earlier turns.",
+    studentMessage: "Explain the next step.",
+    problemContext: "A short synthetic practice problem.",
+    rubrics: [{
+      id: "reply-quality",
+      criterion: "The reply should support the learner's next step.",
+      requirements: [
+        { id: "req-clarity", description: "The reply is clear enough to follow." },
+        { id: "req-action", description: "The reply gives a useful next action." },
+      ],
+    }],
+    tutorResponse: "The tutor offers a concise next step and a check.",
+  }),
+  parseCommunityReviewVisibleTask({
+    caseId: "case-beta",
+    learningObjective: "Compare a tutor reply with visible learner needs.",
+    studentProfile: "Synthetic learner at introductory level.",
+    conversationHistory: "No earlier turns.",
+    studentMessage: "Explain the next step.",
+    problemContext: "A short synthetic practice problem.",
+    rubrics: [{
+      id: "reply-quality",
+      criterion: "The reply should support the learner's next step.",
+      requirements: [
+        { id: "req-clarity", description: "The reply is clear enough to follow." },
+        { id: "req-action", description: "The reply gives a useful next action." },
+      ],
+    }],
+    tutorResponse: "The tutor explains one step and invites a quick check.",
+  }),
+];
+
+const guideFingerprint = communityReviewFingerprint({
+  guideText: "Synthetic Community Review service guide.",
+});
+const qualificationDefinitionFingerprint = communityReviewFingerprint({
+  definition: "Synthetic qualification definition.",
+});
+
+function clock(): () => string {
+  let tick = 0;
+  return () => `2026-09-06T00:00:${String(tick++).padStart(2, "0")}.000Z`;
+}
+
+function eligibility(suffix: string): CommunityReviewQualificationEligibility {
+  return {
+    qualificationProtocolId: "community-review-qualification",
+    qualificationProtocolVersion: "0.1.0",
+    qualificationId: `community-review-gate-${suffix}`,
+    qualificationVersion: "0.1.0",
+    qualificationPoolId: `community-review-pool-${suffix}`,
+    qualificationPoolVersion: "0.1.0",
+    qualificationDefinitionFingerprint: suffix === "main"
+      ? qualificationDefinitionFingerprint
+      : communityReviewFingerprint({ definition: `Synthetic qualification definition ${suffix}.` }),
+  };
+}
+
+function instrument() {
+  return buildCommunityReviewInstrumentIdentity({
+    guideFingerprint,
+    canonicalLocale: "en",
+    reviewLocale: "en",
+  });
+}
+
+function receipt(
+  reviewerId: string,
+  reviewInstrument: ReturnType<typeof instrument>,
+  reviewEligibility: CommunityReviewQualificationEligibility,
+): CommunityReviewQualificationReceipt {
+  return buildCommunityReviewQualificationReceipt({
+    dataKind: "synthetic-fixture",
+    fixture: syntheticFixture,
+    qualificationId: reviewEligibility.qualificationId,
+    qualificationVersion: reviewEligibility.qualificationVersion,
+    qualificationPoolId: reviewEligibility.qualificationPoolId,
+    qualificationPoolVersion: reviewEligibility.qualificationPoolVersion,
+    qualificationDefinitionFingerprint: reviewEligibility.qualificationDefinitionFingerprint,
+    reviewerId,
+    instrument: reviewInstrument,
+  });
+}
+
+function annotations(
+  packet: CommunityReviewReviewerPacket,
+  disagreementKey?: string,
+): CommunityReviewAnnotation[] {
+  return packet.tasks.flatMap((task) => task.rubrics.flatMap((rubric) => rubric.requirements.map((requirement) => {
+    const identity = {
+      caseId: task.caseId,
+      rubricId: rubric.id,
+      requirementId: requirement.id,
+    };
+    return {
+      ...identity,
+      status: communityReviewAtomicIdentityKey(identity) === disagreementKey
+        ? "OMITTED_OR_INCOMPLETE" as const
+        : "SATISFIED" as const,
+      evidence: `${packet.reviewerId} observed the visible reply.`,
+    };
+  })));
+}
+
+interface CommunityReviewServiceTestSetup {
+  readonly repository: InMemoryCommunityReviewRepository;
+  readonly service: CommunityReviewService;
+  readonly batchId: string;
+  readonly instrument: ReturnType<typeof instrument>;
+  readonly eligibility: CommunityReviewQualificationEligibility;
+  readonly sealed: ReturnType<typeof createCommunityReviewBatch>;
+  readonly open: ReturnType<typeof createCommunityReviewBatch>;
+  readonly assignments: readonly CommunityReviewAssignment[];
+  readonly packets: readonly CommunityReviewReviewerPacket[];
+  readonly receipts: readonly CommunityReviewQualificationReceipt[];
+}
+
+async function makeSetup(options: {
+  readonly suffix?: string;
+  readonly reviewers?: readonly string[];
+  readonly batchPurpose?: CommunityReviewBatchPurpose;
+} = {}): Promise<CommunityReviewServiceTestSetup> {
+  const suffix = options.suffix ?? "main";
+  const reviewers = options.reviewers ?? ["reviewer-a", "reviewer-b"];
+  const reviewInstrument = instrument();
+  const reviewEligibility = eligibility(suffix);
+  const repository = new InMemoryCommunityReviewRepository();
+  const service = new CommunityReviewService(repository, { clock: clock() });
+  for (const reviewerId of reviewers) {
+    await service.registerReviewerAccount({
+      internalId: `internal-${reviewerId}-${suffix}`,
+      reviewerId,
+      privateAuthSubjectReference: `synthetic-auth-${reviewerId}-${suffix}`,
+      consentVersion: "synthetic-consent-v1",
+    });
+  }
+  const pool: QualificationPoolRecord = {
+    dataKind: "synthetic-fixture",
+    fixture: syntheticFixture,
+    qualificationId: reviewEligibility.qualificationId,
+    qualificationVersion: reviewEligibility.qualificationVersion,
+    poolId: reviewEligibility.qualificationPoolId,
+    poolVersion: reviewEligibility.qualificationPoolVersion,
+    definitionFingerprint: reviewEligibility.qualificationDefinitionFingerprint,
+    instrumentFingerprint: reviewInstrument.fingerprint,
+    reviewLocale: reviewInstrument.reviewLocale,
+    state: "OPEN",
+    sealedDefinitionReference: `synthetic://qualification-definition/${suffix}`,
+    privateAnswerKeyReference: `synthetic://qualification-answer-key/${suffix}`,
+    createdAt: "2026-09-06T00:00:00.000Z",
+    updatedAt: "2026-09-06T00:00:00.000Z",
+  };
+  await service.registerQualificationPool(pool);
+  await repository.transaction((transaction) => {
+    for (const reviewerId of reviewers) {
+      const attempt: QualificationAttemptRecord = {
+        attemptId: `attempt-${reviewerId}-${suffix}`,
+        reviewerId,
+        poolId: pool.poolId,
+        poolVersion: pool.poolVersion,
+        nonceHash: `synthetic-nonce-${reviewerId}-${suffix}`,
+        state: "QUALIFIED",
+        result: "qualified",
+        startedAt: "2026-09-06T00:00:00.000Z",
+        submittedAt: "2026-09-06T00:01:00.000Z",
+      };
+      transaction.insertQualificationAttempt(attempt);
+    }
+  });
+  const receipts = reviewers.map((reviewerId) => receipt(reviewerId, reviewInstrument, reviewEligibility));
+  for (let index = 0; index < reviewers.length; index += 1) {
+    await service.registerAuthoritativeQualificationReceipt({
+      attemptId: `attempt-${reviewers[index]!}-${suffix}`,
+      receipt: receipts[index],
+    });
+  }
+  const batchId = `community-review-batch-${suffix}`;
+  const sealed = createCommunityReviewBatch({
+    batchId,
+    instrument: reviewInstrument,
+    qualificationEligibility: reviewEligibility,
+    sealedSourceFingerprint: communityReviewFingerprint({ sealedSource: `synthetic-${suffix}` }),
+    tasks,
+    dataKind: "synthetic-fixture",
+    fixture: syntheticFixture,
+    batchPurpose: options.batchPurpose ?? "interpretable",
+  });
+  await service.createBatch({
+    manifest: sealed,
+    sealedSourceReference: `synthetic://sealed-source/${suffix}`,
+  });
+  const openedRecord = await service.openBatch(batchId);
+  const opened = openedRecord.manifest;
+  const results = await Promise.all(reviewers.map((reviewerId, index) => service.assignReviewer({
+    batchId,
+    reviewerId,
+    qualificationReceipt: receipts[index],
+    visibleTasks: tasks,
+  })));
+  return {
+    repository,
+    service,
+    batchId,
+    instrument: reviewInstrument,
+    eligibility: reviewEligibility,
+    sealed,
+    open: opened,
+    assignments: results.map((result) => result.assignment),
+    packets: results.map((result) => result.packet),
+    receipts,
+  };
+}
+
+function serviceError(code: CommunityReviewServiceError["code"]): (error: unknown) => boolean {
+  return (error: unknown): boolean => error instanceof CommunityReviewServiceError && error.code === code;
+}
+
+function p3Invalid(error: unknown): boolean {
+  return error instanceof BenchmarkConfigurationError && error.code === "community_review_invalid";
+}
+
+test("P4-A persists typed P3 records and preserves fingerprints through a round trip", async () => {
+  const setup = await makeSetup();
+  const firstAssignment = setup.assignments[0]!;
+  const firstPacket = setup.packets[0]!;
+  const firstReceipt = setup.receipts[0]!;
+  const roundTrip = await setup.repository.transaction((transaction) => ({
+    batch: transaction.getBatch(setup.batchId),
+    source: transaction.getSealedBatchPayloadReference(setup.batchId),
+    assignment: transaction.getAssignment(firstAssignment.assignmentId),
+    receipt: transaction.getQualificationReceipt(firstReceipt.receiptFingerprint),
+  }));
+  assert.equal(roundTrip.batch?.manifest.batchFingerprint, setup.sealed.batchFingerprint);
+  assert.equal(roundTrip.source?.visibleTaskSetFingerprint, setup.sealed.visibleTaskSetFingerprint);
+  assert.equal(roundTrip.assignment?.packet.packetFingerprint, firstPacket.packetFingerprint);
+  assert.equal(roundTrip.receipt?.receiptFingerprint, firstReceipt.receiptFingerprint);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(roundTrip.assignment?.packet)),
+    firstPacket,
+  );
+  assert.doesNotMatch(JSON.stringify(roundTrip.assignment?.packet), /groundTruth|knownMisconception|answerKey|judgeResult/iu);
+});
+
+test("same reviewer assignment is serialized and idempotent while duplicate storage is rejected", async () => {
+  const setup = await makeSetup();
+  const result = await Promise.all([
+    setup.service.assignReviewer({
+      batchId: setup.batchId,
+      reviewerId: "reviewer-a",
+      qualificationReceipt: setup.receipts[0],
+      visibleTasks: tasks,
+    }),
+    setup.service.assignReviewer({
+      batchId: setup.batchId,
+      reviewerId: "reviewer-a",
+      qualificationReceipt: setup.receipts[0],
+      visibleTasks: tasks,
+    }),
+  ]);
+  assert.equal(result[0]!.assignment.assignmentId, result[1]!.assignment.assignmentId);
+  await assert.rejects(
+    setup.repository.transaction((transaction) => transaction.insertAssignment({
+      assignment: result[0]!.assignment,
+      packet: result[0]!.packet,
+      assignedAt: "2026-09-06T00:02:00.000Z",
+      updatedAt: "2026-09-06T00:02:00.000Z",
+    })),
+    serviceError("repository_conflict"),
+  );
+});
+
+test("simultaneous submissions have one accepted row and conflicting replacement is rejected", async () => {
+  const setup = await makeSetup();
+  const packet = setup.packets[0]!;
+  const input = {
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+    annotations: annotations(packet),
+  } as const;
+  const submissions = await Promise.all([
+    setup.service.submitReview(input),
+    setup.service.submitReview(input),
+  ]);
+  assert.equal(submissions[0]!.submissionFingerprint, submissions[1]!.submissionFingerprint);
+  const stored = await setup.repository.transaction((transaction) => transaction.listAcceptedSubmissions(setup.batchId));
+  assert.equal(stored.length, 1);
+  await assert.rejects(
+    setup.service.submitReview({
+      ...input,
+      annotations: annotations(packet, communityReviewAtomicIdentityKey({
+        caseId: "case-alpha",
+        rubricId: "reply-quality",
+        requirementId: "req-action",
+      })),
+    }),
+    serviceError("replacement_submission"),
+  );
+  const afterReplacement = await setup.repository.transaction((transaction) => transaction.listAcceptedSubmissions(setup.batchId));
+  assert.equal(afterReplacement.length, 1);
+  assert.equal(afterReplacement[0]!.submission.submissionFingerprint, submissions[0]!.submissionFingerprint);
+});
+
+test("wrong owner, cross-assignment, and cross-batch replay are rejected", async () => {
+  const setup = await makeSetup();
+  const packet = setup.packets[0]!;
+  await assert.rejects(
+    setup.service.getReviewerPacket({ assignmentId: setup.assignments[0]!.assignmentId, reviewerId: "reviewer-b" }),
+    serviceError("reviewer_not_authorized"),
+  );
+  await assert.rejects(
+    setup.service.submitReview({
+      batchId: setup.batchId,
+      assignmentId: setup.assignments[1]!.assignmentId,
+      reviewerId: "reviewer-a",
+      annotations: annotations(packet),
+    }),
+    serviceError("reviewer_not_authorized"),
+  );
+  const otherSealed = createCommunityReviewBatch({
+    batchId: "community-review-batch-cross-replay",
+    instrument: setup.instrument,
+    qualificationEligibility: setup.eligibility,
+    sealedSourceFingerprint: communityReviewFingerprint({ sealedSource: "synthetic-cross-replay" }),
+    tasks,
+    dataKind: "synthetic-fixture",
+    fixture: syntheticFixture,
+    batchPurpose: "pilot",
+  });
+  await setup.service.createBatch({
+    manifest: otherSealed,
+    sealedSourceReference: "synthetic://sealed-source/cross-replay",
+  });
+  await setup.service.openBatch(otherSealed.batchId);
+  await setup.service.assignReviewer({
+    batchId: otherSealed.batchId,
+    reviewerId: "reviewer-a",
+    qualificationReceipt: setup.receipts[0],
+    visibleTasks: tasks,
+  });
+  await assert.rejects(
+    setup.service.submitReview({
+      batchId: otherSealed.batchId,
+      assignmentId: setup.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+      annotations: annotations(packet),
+    }),
+    serviceError("reviewer_not_authorized"),
+  );
+});
+
+test("an unregistered but valid P3 receipt cannot become authoritative", async () => {
+  const setup = await makeSetup();
+  await setup.service.registerReviewerAccount({
+    internalId: "internal-reviewer-c",
+    reviewerId: "reviewer-c",
+    privateAuthSubjectReference: "synthetic-auth-reviewer-c",
+    consentVersion: "synthetic-consent-v1",
+  });
+  const unregistered = receipt("reviewer-c", setup.instrument, setup.eligibility);
+  assert.doesNotThrow(() => buildCommunityReviewSubmission(
+    setup.packets[0]!,
+    annotations(setup.packets[0]!),
+  ));
+  await assert.rejects(
+    setup.service.assignReviewer({
+      batchId: setup.batchId,
+      reviewerId: "reviewer-c",
+      qualificationReceipt: unregistered,
+      visibleTasks: tasks,
+    }),
+    serviceError("qualification_receipt_not_authoritative"),
+  );
+});
+
+test("failed P3 validation rolls back without accepting a partial submission", async () => {
+  const setup = await makeSetup();
+  await assert.rejects(
+    setup.service.submitReview({
+      batchId: setup.batchId,
+      assignmentId: setup.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+      annotations: annotations(setup.packets[0]!).slice(1),
+    }),
+    p3Invalid,
+  );
+  const stored = await setup.repository.transaction((transaction) => transaction.listAcceptedSubmissions(setup.batchId));
+  assert.deepEqual(stored, []);
+});
+
+test("close and freeze persist exact P3 outputs and are idempotent", async () => {
+  const setup = await makeSetup();
+  const expectedSubmissions = setup.packets.map((packet) => buildCommunityReviewSubmission(packet, annotations(packet)));
+  for (const [index, submission] of expectedSubmissions.entries()) {
+    await setup.service.submitReview({
+      batchId: setup.batchId,
+      assignmentId: setup.assignments[index]!.assignmentId,
+      reviewerId: setup.assignments[index]!.reviewerId,
+      annotations: submission.annotations,
+    });
+  }
+  const expectedClose = closeCommunityReviewBatch(setup.open, setup.assignments, expectedSubmissions);
+  const actualClose = await setup.service.closeBatch(setup.batchId);
+  assert.deepEqual(actualClose.manifest, expectedClose.manifest);
+  assert.deepEqual(actualClose.closeRecord, expectedClose.closeRecord);
+  assert.deepEqual(actualClose.acceptedSubmissions, expectedClose.acceptedSubmissions);
+  assert.deepEqual(await setup.service.closeBatch(setup.batchId), actualClose);
+  await assert.rejects(
+    setup.service.submitReview({
+      batchId: setup.batchId,
+      assignmentId: setup.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+      annotations: annotations(setup.packets[0]!),
+    }),
+    serviceError("batch_not_open"),
+  );
+
+  const expectedPool = freezeCommunityReviewPool(expectedClose);
+  const actualPool = await setup.service.freezeBatch(setup.batchId);
+  assert.deepEqual(actualPool, expectedPool);
+  assert.deepEqual(await setup.service.freezeBatch(setup.batchId), actualPool);
+  assert.deepEqual(await setup.service.closeBatch(setup.batchId), actualClose);
+  const persisted = await setup.repository.transaction((transaction) => ({
+    batch: transaction.getBatch(setup.batchId),
+    close: transaction.getBatchCloseRecord(setup.batchId),
+    pool: transaction.getFrozenReviewPool(setup.batchId),
+  }));
+  assert.equal(persisted.batch?.state, "FROZEN");
+  assert.equal(persisted.close?.closeRecord.closeFingerprint, expectedClose.closeRecord.closeFingerprint);
+  assert.equal(persisted.pool?.frozenPool.freezeFingerprint, expectedPool.freezeFingerprint);
+  await assert.rejects(
+    setup.service.submitReview({
+      batchId: setup.batchId,
+      assignmentId: setup.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+      annotations: annotations(setup.packets[0]!),
+    }),
+    serviceError("batch_not_open"),
+  );
+});
+
+test("submission and close race is ordered by the batch transaction", async () => {
+  const closeFirst = await makeSetup({ suffix: "close-first", batchPurpose: "pilot" });
+  await closeFirst.service.submitReview({
+    batchId: closeFirst.batchId,
+    assignmentId: closeFirst.assignments[1]!.assignmentId,
+    reviewerId: "reviewer-b",
+    annotations: annotations(closeFirst.packets[1]!),
+  });
+  const closeFirstResults = await Promise.allSettled([
+    closeFirst.service.closeBatch(closeFirst.batchId),
+    closeFirst.service.submitReview({
+      batchId: closeFirst.batchId,
+      assignmentId: closeFirst.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+      annotations: annotations(closeFirst.packets[0]!),
+    }),
+  ]);
+  assert.equal(closeFirstResults[0]!.status, "fulfilled");
+  assert.equal(closeFirstResults[1]!.status, "rejected");
+  const closeFirstStored = await closeFirst.repository.transaction((transaction) => ({
+    batch: transaction.getBatch(closeFirst.batchId),
+    submissions: transaction.listAcceptedSubmissions(closeFirst.batchId),
+  }));
+  assert.equal(closeFirstStored.batch?.state, "CLOSED");
+  assert.equal(closeFirstStored.submissions.length, 1);
+
+  const submitFirst = await makeSetup({ suffix: "submit-first", batchPurpose: "pilot" });
+  await submitFirst.service.submitReview({
+    batchId: submitFirst.batchId,
+    assignmentId: submitFirst.assignments[1]!.assignmentId,
+    reviewerId: "reviewer-b",
+    annotations: annotations(submitFirst.packets[1]!),
+  });
+  const submitFirstResults = await Promise.all([
+    submitFirst.service.submitReview({
+      batchId: submitFirst.batchId,
+      assignmentId: submitFirst.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+      annotations: annotations(submitFirst.packets[0]!),
+    }),
+    submitFirst.service.closeBatch(submitFirst.batchId),
+  ]);
+  assert.equal(submitFirstResults[0].submissionDisposition, "accepted-before-close");
+  assert.equal(submitFirstResults[1].manifest.state, "CLOSED");
+  const submitFirstStored = await submitFirst.repository.transaction((transaction) => transaction.listAcceptedSubmissions(submitFirst.batchId));
+  assert.equal(submitFirstStored.length, 2);
+});
+
+test("withdrawal and packet retrieval retain the blindness firewall", async () => {
+  const setup = await makeSetup({ suffix: "withdrawal", batchPurpose: "pilot" });
+  const packet = await setup.service.getReviewerPacket({
+    assignmentId: setup.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+  });
+  assert.equal(packet.packetFingerprint, setup.packets[0]!.packetFingerprint);
+  assert.doesNotMatch(JSON.stringify(packet), /groundTruth|knownMisconception|expectedStatus|reference|consensus|adjudication|judge|otherReviewer|answerKey/iu);
+  const withdrawn = await setup.service.withdrawAssignment({
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+  });
+  assert.equal(withdrawn.assignmentState, "withdrawn");
+  assert.deepEqual(await setup.service.withdrawAssignment({
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+  }), withdrawn);
+  await assert.rejects(
+    setup.service.getReviewerPacket({
+      assignmentId: setup.assignments[0]!.assignmentId,
+      reviewerId: "reviewer-a",
+    }),
+    serviceError("assignment_withdrawn"),
+  );
+  await setup.service.submitReview({
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[1]!.assignmentId,
+    reviewerId: "reviewer-b",
+    annotations: annotations(setup.packets[1]!),
+  });
+  const close = await setup.service.closeBatch(setup.batchId);
+  assert.equal(close.closeRecord.coverage.coverageStatus, "incomplete");
+  assert.equal(close.closeRecord.coverage.withdrawnAssignmentCount, 1);
+});
+
+test("repository uniqueness covers nonce replay and duplicate accepted submissions", async () => {
+  const setup = await makeSetup();
+  const duplicateNonce = await assert.rejects(
+    setup.repository.transaction((transaction) => transaction.insertQualificationAttempt({
+      attemptId: "attempt-duplicate-nonce",
+      reviewerId: "reviewer-a",
+      poolId: setup.eligibility.qualificationPoolId,
+      poolVersion: setup.eligibility.qualificationPoolVersion,
+      nonceHash: "synthetic-nonce-reviewer-a-main",
+      state: "QUALIFIED",
+      result: "qualified",
+      startedAt: "2026-09-06T00:00:00.000Z",
+      submittedAt: "2026-09-06T00:01:00.000Z",
+    })),
+    serviceError("repository_conflict"),
+  );
+  assert.equal(duplicateNonce, undefined);
+
+  const submission = await setup.service.submitReview({
+    batchId: setup.batchId,
+    assignmentId: setup.assignments[0]!.assignmentId,
+    reviewerId: "reviewer-a",
+    annotations: annotations(setup.packets[0]!),
+  });
+  await assert.rejects(
+    setup.repository.transaction((transaction) => transaction.insertAcceptedSubmission({
+      submission,
+      acceptedAt: "2026-09-06T00:03:00.000Z",
+    })),
+    serviceError("repository_conflict"),
+  );
+
+  const duplicateReceipt = setup.receipts[0]!;
+  await assert.rejects(
+    setup.repository.transaction((transaction) => transaction.insertQualificationReceipt({
+      receiptFingerprint: duplicateReceipt.receiptFingerprint,
+      attemptId: "attempt-reviewer-a-main",
+      reviewerId: duplicateReceipt.reviewerId,
+      poolId: duplicateReceipt.qualificationPoolId,
+      poolVersion: duplicateReceipt.qualificationPoolVersion,
+      receipt: duplicateReceipt,
+      authorityState: "authoritative",
+      issuedAt: "2026-09-06T00:04:00.000Z",
+    })),
+    serviceError("repository_conflict"),
+  );
+});

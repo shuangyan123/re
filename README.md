@@ -216,7 +216,10 @@ human-human agreement, and explicit-policy public evidence. The protocol is
 implemented. Status: **Protocol defined; Community Review service not yet
 open.** It is **READY FOR P4 COMMUNITY REVIEW SERVICE**; no P4 service is
 deployed, no public reviewer intake is open, and no real qualification or
-review campaign is running.
+review campaign is running. The isolated P4-A service foundation is
+implemented for synthetic/local validation; the broader P4 service remains in
+progress. See the [P4-A service foundation guide](docs/community-review-service.md)
+for its explicit persistence, authority, and non-deployment boundary.
 
 P3 does not turn the historical Human Reference qualification fixture or Pilot
 artifacts into secure public evidence. Agreement is consistency evidence, not

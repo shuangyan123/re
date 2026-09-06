@@ -72,6 +72,8 @@
     "website:build": "npm run build && node dist/src/cli/website-build.js",
     "website:dev": "npm run website:build && node dist/src/cli/website-server.js",
     "test:governance": "node scripts/validate-governance.mjs",
+    "typecheck:community-review-service": "tsc -p services/community-review-service/tsconfig.json --noEmit",
+    "test:community-review-service": "tsc -p services/community-review-service/tsconfig.json && node --test services/community-review-service/dist/services/community-review-service/tests/*.test.js",
     "test:package": "npm run build && node scripts/package-consumer-smoke.mjs",
     "test:website": "npm run website:build && node scripts/website-artifact-smoke.mjs",
     "release:verify": "node scripts/verify-release-candidate.mjs"
