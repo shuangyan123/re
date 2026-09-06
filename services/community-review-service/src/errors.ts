@@ -11,7 +11,18 @@ export type CommunityReviewServiceErrorCode =
   | "consent_revoked"
   | "consent_stale"
   | "qualification_pool_not_found"
+  | "qualification_pool_not_active"
+  | "qualification_pool_invalid_state"
+  | "qualification_material_not_found"
+  | "qualification_material_invalid"
   | "qualification_attempt_not_found"
+  | "qualification_attempt_not_owner"
+  | "qualification_attempt_already_submitted"
+  | "qualification_attempt_limit"
+  | "qualification_packet_invalid"
+  | "qualification_response_invalid"
+  | "qualification_not_qualified"
+  | "qualification_receipt_not_issued"
   | "qualification_receipt_invalid"
   | "qualification_receipt_not_authoritative"
   | "batch_not_found"
@@ -38,7 +49,18 @@ const messages: Record<CommunityReviewServiceErrorCode, string> = {
   consent_revoked: "Current Community Review consent has been revoked.",
   consent_stale: "Current Community Review consent is for a stale policy version.",
   qualification_pool_not_found: "Community Review qualification pool was not found.",
+  qualification_pool_not_active: "Community Review qualification pool is not active for new attempts.",
+  qualification_pool_invalid_state: "Community Review qualification pool cannot make that state transition.",
+  qualification_material_not_found: "Sealed Community Review qualification material was not found.",
+  qualification_material_invalid: "Sealed Community Review qualification material failed validation.",
   qualification_attempt_not_found: "Community Review qualification attempt was not found.",
+  qualification_attempt_not_owner: "Community Review qualification attempt does not belong to this reviewer.",
+  qualification_attempt_already_submitted: "Community Review qualification attempt has already been submitted.",
+  qualification_attempt_limit: "Community Review qualification attempt limit was reached.",
+  qualification_packet_invalid: "Community Review qualification packet is invalid.",
+  qualification_response_invalid: "Community Review qualification response is incomplete or invalid.",
+  qualification_not_qualified: "Community Review qualification attempt did not qualify.",
+  qualification_receipt_not_issued: "Community Review qualification receipt has not been issued.",
   qualification_receipt_invalid: "Community Review qualification receipt is invalid.",
   qualification_receipt_not_authoritative:
     "Community Review qualification receipt is not authoritative in service persistence.",

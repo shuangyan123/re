@@ -1,10 +1,11 @@
-# Community Review Service P4-A / P4-B
+# Community Review Service P4-A / P4-B / P4-C
 
 Status:
 
 ```text
 P4-A Service Foundation — PASS
 P4-B Authentication & Reviewer Identity — PASS
+P4-C Sealed Qualification Authority — PASS
 ```
 
 The broader status remains:
@@ -16,35 +17,33 @@ Real Community Review campaign — NOT STARTED
 P5 Community calibration — NOT STARTED
 ```
 
-This document describes the P4-A foundation and the P4-B authentication
-boundary. It is not evidence that a service is deployed, that a production
-identity provider is connected, or that a real reviewer has qualified or
-submitted a review.
+This document describes an isolated service boundary and its synthetic test
+adapter. It is not evidence that a service is deployed, that PostgreSQL or a
+production identity provider is connected, or that a real reviewer has
+qualified or submitted a review.
 
 ## P3 and P4 responsibility boundary
 
 P3 remains the provider-independent protocol in `src/community-review/` and
-`src/contracts/`. It owns the versioned envelopes, canonical fingerprints,
-positive-allowlist packet projection, exact atomic submissions, and the pure
-`SEALED -> OPEN -> CLOSED -> FROZEN` lifecycle helpers.
+`src/contracts/`. It owns the versioned envelopes, canonical SHA-256
+fingerprints, positive-allowlist review packet, exact atomic submissions, and
+the pure `SEALED -> OPEN -> CLOSED -> FROZEN` review lifecycle. P3 contracts
+and fingerprints were not changed by P4-C.
 
 P4 owns the private/runtime boundary around those helpers:
 
 - authenticated-principal mapping to private reviewer accounts and
   service-issued opaque reviewer IDs;
 - append-only consent history and current-policy authorization;
-- minimal account lifecycle and reviewer/operator authorization;
-- qualification-pool, attempt, and authoritative-receipt persistence;
-- sealed-batch source references, assignments, packets, accepted submissions,
-  close records, and frozen pools;
-- transaction ordering, uniqueness, anti-replay checks, and rollback behavior;
-  and
-- a deterministic in-memory adapter used only by synthetic tests.
+- reviewer/operator separation and account lifecycle;
+- sealed qualification definitions, material references, pool state, attempts,
+  server-side evaluation, and authoritative receipt persistence; and
+- transaction ordering, uniqueness, anti-replay checks, narrow audit metadata,
+  and deterministic in-memory behavior for synthetic tests.
 
-P4 calls P3 functions. It does not create a second lifecycle, reimplement
-fingerprint semantics, or reinterpret agreement. Agreement is not correctness;
-consensus is not gold; adjudication is not automatic truth; qualification is
-not calibration; blindness is not accuracy.
+Qualification is an eligibility mechanism. It is not calibration, correctness
+validation of a tutor, a Human Reference, consensus, adjudication, a Judge
+score, or a leaderboard result.
 
 ## Runtime and package boundary
 
@@ -54,204 +53,251 @@ Service-only runtime code lives in:
 services/community-review-service/
 ```
 
-The directory has its own `package.json` and `tsconfig.json`. Its build emits
-under the service directory and imports the existing P3 source boundary. The
-root package's `files` allowlist remains unchanged and includes only
-`dist/src/` plus the explicitly listed public assets, so service runtime code
-is not shipped by the normal `tutor-benchmark` npm artifact. The service
-package is private and is not a publishable product.
+The service has its own `package.json` and `tsconfig.json`. Its build output is
+under the service directory and the root package `files` allowlist remains
+limited to the public `dist/src/` tree and listed assets. The service package
+is private and is not published or exported by `tutor-benchmark@0.1.0`.
 
-P4-B exposes no public HTTP product, public signup flow, OAuth callback UI,
-payment flow, rate limiter, deployment, or hosted database connection. The
-provider-independent `AuthenticationAdapter` reduces credentials to only
-`provider + subject`; the synthetic adapter is test-only. Future HTTP
-handlers must call `CommunityReviewApplicationService`, which authenticates
-the request, resolves the private mapping, checks account state and current
-consent, and only then calls the existing P4-A operation.
-The lower-level P4-A methods retain opaque `reviewerId` parameters for trusted
-internal transactions; they are not an authentication boundary or a public
-HTTP surface.
+P4-B remains the authentication boundary: `AuthenticationAdapter` reduces an
+external credential to `{ provider, subject }`, the private mapping resolves
+that principal to a stable service-issued opaque reviewer ID, and the
+application facade checks account state and current consent before invoking a
+reviewer-owned operation. The synthetic adapter is test-only. No OAuth UI,
+public signup, payment flow, public HTTP product, or hosted identity provider
+is part of this phase. Lower-level methods retain opaque reviewer IDs only for
+trusted internal transactions.
+
+## Sealed qualification architecture
+
+The active flow is:
+
+```text
+authenticated reviewer
+  -> provisioned opaque reviewer account
+  -> current consent
+  -> ACTIVE sealed qualification pool validated against server-side metadata
+  -> service-created attempt and one-time nonce
+  -> positive allowlist qualification packet
+  -> structured responses
+  -> private answer-key evaluation inside the service transaction
+  -> QUALIFIED or NOT_QUALIFIED attempt
+  -> P3 receipt built by the service
+  -> persisted authoritative receipt bound to that attempt
+```
+
+`QualificationMaterialStore` is the private substitution boundary. It exposes
+only `loadVisiblePacket` and `loadPrivateAnswerKey` to trusted service code.
+The synthetic `InMemoryQualificationMaterialStore` contains unmistakably
+synthetic material for tests. A production implementation must resolve the
+opaque references through a private material store; no hosted secret store is
+part of P4-C.
+
+The qualification definition is versioned by qualification ID/version, pool
+ID/version, full instrument identity, review locale, versioned pass-rule ID,
+and the visible item set. The service computes deterministic SHA-256
+fingerprints using the same canonical JSON convention as P3. The answer-key
+commitment additionally binds the definition, pool, locale, instrument, and
+normalized private statuses. Changing visible material, a guide/instrument,
+locale, pass rule, or answer key therefore cannot silently retain the same
+authority identity.
+
+Historical public qualification fixtures and Pilot material remain
+historical/training material. They are not loaded by the P4-C active material
+store and are not secure public qualification banks.
+
+## Qualification pool lifecycle
+
+New P4-C pools use:
+
+```text
+DRAFT -> SEALED -> ACTIVE -> RETIRED
+```
+
+`DRAFT` is private setup and cannot issue attempts. `SEALED` records the
+definition fingerprint, visible-item fingerprint, answer-key commitment,
+instrument identity, and pass-rule ID; the service does not mutate these
+semantic fields afterward. `ACTIVE` permits new attempts. `RETIRED` permits no
+new attempts but preserves existing attempt and receipt history. An attempt
+that was already issued may finish evaluation after retirement, so retirement
+does not rewrite accepted historical authority.
+
+The legacy `OPEN` state is retained only for P4-A synthetic rows already
+constructed without the P4-C material commitment. It is not an active P4-C
+pool and cannot use the new qualification issuer.
 
 ## Persistence model
 
-`services/community-review-service/migrations/001_community_review_service.sql`
-defines the P4-A PostgreSQL semantics. P4-B adds
-`002_auth_identity_consent.sql`. JSON columns contain only validated P3
-objects; private source and authentication material are kept outside those
-objects.
+`003_sealed_qualification_authority.sql` adds the following PostgreSQL design
+boundary without rewriting migrations 001 or 002:
 
 | Record | Stored boundary | Important constraint |
 | --- | --- | --- |
-| `reviewer_accounts` | service-issued opaque reviewer ID, private mapping reference, lifecycle status, current-consent projection | reviewer ID is unique; account creation does not grant consent |
-| `reviewer_auth_identities` | private auth provider and external subject mapped to one internal account | `UNIQUE(auth_provider, auth_subject)`, one mapping per account, no token or claims payload |
-| `reviewer_consent_events` | append-only policy/version acceptance or revocation events | current validity is the latest event for the reviewer/policy tuple |
-| `reviewer_auth_audit_events` | event type, internal account, opaque reviewer ID, provider, reason code, timestamp | no subject, token, cookie, JWT, password, or raw claims |
-| `qualification_pools` | qualification/pool identity, definition and instrument fingerprints, locale, state, private definition/key references | references are not answer-key content; synthetic fixtures are explicitly marked |
-| `qualification_attempts` | reviewer, pool version, attempt state/result, timestamps, nonce hash | nonce replay is unique per reviewer/pool/nonce |
-| `qualification_receipts` | exact P3 receipt keyed by `receiptFingerprint`, attempt and pool binding, authority state | one receipt per attempt and fingerprint; only an authoritative persisted row is trusted |
-| `review_batches` | exact P3 manifest, state version, opaque sealed-source reference | batch ID/fingerprint are unique and manifest state matches the row state |
-| `sealed_batch_payload_references` | private source lookup reference and visible task-set fingerprint | source payload is not stored in the public repository or reviewer response |
-| `review_assignments` | exact P3 assignment and its visible packet | `UNIQUE(batch_id, reviewer_id)` and stable assignment identity |
-| `review_submissions` | exact accepted P3 submission and acceptance timestamp | `UNIQUE(assignment_id)`, `UNIQUE(batch_id, reviewer_id)`, and no replacement overwrite |
-| `rejected_submission_attempts` | optional audit metadata and sanitized fingerprint only | raw rejected payloads are never persisted |
-| `review_batch_closes` | one exact P3 CLOSED manifest and close record per batch | close fingerprint and batch are unique |
-| `frozen_review_pools` | one exact P3 frozen pool per batch | freeze fingerprint and batch are unique |
+| `qualification_pools` | versioned identity, instrument binding, visible-set fingerprint, opaque material references, private answer-key commitment, lifecycle timestamps | P4-C sealed states require committed metadata; semantic fields are immutable after sealing |
+| `qualification_attempts` | reviewer/pool binding, nonce hash, packet binding, structured status projection, evaluation result and timestamps | state/result checks, complete binding checks, pool-wide nonce uniqueness, no raw nonce |
+| `qualification_receipts` | exact P3 receipt, attempt/reviewer/pool binding, authority state and issue time | one row per attempt and unique receipt fingerprint; receipt status must be `qualified` |
+| `qualification_authority_audit_events` | event type plus opaque reviewer/attempt/pool bindings and reason code | no answer key, raw response, credentials, claims, or private material |
 
-The in-memory adapter mirrors these keys and rejects the same duplicate
-operations. It is a deterministic test adapter, not production storage and
-not a claim that PostgreSQL has been provisioned.
+Qualification responses are persisted only as bounded structured status
+projections needed for authority and provenance. Optional reviewer evidence is
+not persisted by the service. Hidden reasoning, provider payloads, credentials,
+cookies, tokens, and raw authentication claims are never part of these records.
 
-## Transaction and concurrency semantics
+The P4-A/P4-B tables remain in the same service boundary: reviewer accounts,
+private authentication mappings, append-only consent events, auth audit events,
+sealed batch source references, assignments, accepted/rejected submissions,
+batch close records, and frozen pools. Their existing P3 identity, uniqueness,
+rollback, and `SEALED -> OPEN -> CLOSED -> FROZEN` semantics are unchanged.
 
-The production design locks the batch row before reading or changing any
-assignment/submission snapshot:
+## Reviewer-visible qualification packet
 
-```text
-Accept submission:
-  BEGIN
-  SELECT review_batches ... FOR UPDATE
-  assert OPEN
-  load own assignment, packet, and authoritative receipt
-  call P3 submission construction/validation
-  INSERT accepted submission under both uniqueness constraints
-  COMMIT
+The packet is constructed from a dedicated positive allowlist. It contains only
+the attempt ID, qualification and pool version, review locale, the four-field
+instrument eligibility binding, and visible items consisting of an atomic
+identity plus a prompt. It does not serialize an internal definition and then
+remove fields.
 
-Close batch:
-  BEGIN
-  SELECT review_batches ... FOR UPDATE
-  assert OPEN
-  load exact assignments and accepted submissions
-  call P3 closeCommunityReviewBatch
-  INSERT the close record
-  transition the batch to CLOSED
-  COMMIT
+The packet excludes `expectedStatus`, `expectedAnswer`, `answerKey`, answer-key
+commitment, private material references, `reference`, `gold`, consensus,
+adjudication, Judge fields, internal notes, scoring rules, other attempts, and
+other reviewer data. Runtime serialization tests inspect the actual packet,
+not just TypeScript types.
 
-Freeze batch:
-  BEGIN
-  SELECT review_batches ... FOR UPDATE
-  assert CLOSED
-  load the authoritative close record and accepted submissions
-  call P3 freezeCommunityReviewPool
-  INSERT the frozen pool
-  transition the batch to FROZEN
-  COMMIT
-```
+## Attempt lifecycle and response rules
 
-The local adapter serializes transaction callbacks and commits a cloned state
-only after the callback succeeds. A thrown P3 or service error discards the
-clone. This is intentionally a conservative equivalent for the synthetic
-harness; a future PostgreSQL adapter must use row locks and the migration's
-constraints rather than treating the in-memory adapter as a database.
-
-A submit/close race therefore has one of two valid outcomes: a submission
-commits while the batch is still `OPEN` and is included by close, or close
-commits first and the submission is rejected. No submission can be accepted
-after the batch row has transitioned out of `OPEN`.
-
-Identical repeated assignment and submission requests may return the already
-stored identical P3 result. A conflicting second payload is rejected as a
-replacement and cannot overwrite accepted evidence. Close and freeze are
-similarly idempotent only by returning their stored exact P3 output.
-
-## Qualification authority and anti-replay
-
-A P3 receipt is an eligibility envelope, not proof of server issuance. The
-service therefore does not manufacture a receipt from caller JSON. To register
-authority, a trusted setup/issuer boundary must provide:
-
-1. an existing `QUALIFIED` attempt with `result: qualified`;
-2. the matching reviewer account and qualification-pool version;
-3. an exact, P3-validated receipt; and
-4. matching definition, instrument, locale, and provenance fields.
-
-At assignment and submission time the service looks up the receipt by its
-`receiptFingerprint`, checks that the stored row is still authoritative, and
-compares the complete stored receipt with the caller's P3 envelope. A valid
-locally constructed but unregistered receipt is rejected. Raw nonces and
-answer keys do not enter P3 artifacts; answer-key and definition references
-remain private placeholders for a later issuer/qualification phase.
-
-## Authentication, identity, consent, and lifecycle
-
-The authenticated application path is:
+The P4-C persisted lifecycle is:
 
 ```text
-external credential
-  -> AuthenticationAdapter
-  -> { provider, subject }
-  -> private reviewer_auth_identities mapping
-  -> service-issued opaque reviewerId
-  -> account-state and current-consent authorization
-  -> existing P4-A operation
+ISSUED -> SUBMITTED -> QUALIFIED
+                    \-> NOT_QUALIFIED
 ```
 
-The adapter is provider-independent and returns only the minimal principal.
-P4-B includes a synthetic adapter for tests, not a deployed OAuth provider.
-The external subject and provider are private persistence data; the opaque
-reviewer ID is random, stable for the mapped account, and contains no
-provider, subject, username, or contact data. Reviewer-facing request types do
-not accept a reviewer ID as proof of ownership.
+`CREATED` is available as a persistence state for a future split create/issue
+transaction, while the current service atomically creates and issues one
+attempt. Legacy `STARTED`/`REJECTED` records are accepted only as historical
+P4-A compatibility data and cannot produce a new P4-C receipt.
 
-Newly provisioned accounts start `ACTIVE` and `NOT_CONSENTED`. The
-minimal lifecycle is:
+Attempt creation requires an authenticated, `ACTIVE` account, current consent,
+an `ACTIVE` pool, and matching qualification version, pool version, instrument
+fingerprint, and review locale. The reviewer cannot supply an owner identity,
+answer key, expected assessment, or result. The service generates the raw
+nonce, returns it for that attempt, and persists only its SHA-256 digest.
 
-- `ACTIVE`: may act only with current consent and the applicable
-  qualification authority.
-- `WITHDRAWN`: cannot receive or submit reviewer work; historical accepted
-  protocol artifacts remain unchanged.
-- `DISABLED`: cannot perform reviewer actions; this operational state does
-  not invalidate historical evidence.
+Responses must be complete and contain exactly one valid status for every
+visible atomic identity. Missing, duplicate, extra, wrong-owner, cross-attempt,
+or malformed responses are rejected before any attempt mutation. Evidence, if
+accepted by the input boundary, is capped at 500 characters and is not a
+request for chain-of-thought.
 
-Consent is a separate append-only authority. `recordConsent` and
-`revokeConsent` create events for a policy ID/version, while
-`getCurrentConsent` derives the current snapshot. Reviewer actions reject
-missing, revoked, or stale consent. Authentication, consent, and
-qualification are intentionally independent.
+The synthetic default limit is three attempts per reviewer/pool; it is
+configurable for a deployment or test. Every issued attempt consumes one slot,
+including a failed qualification. Limit checks and inserts run in the same
+serialized transaction. Re-submitting an evaluated attempt, replacing its
+response, reusing its nonce, or using another reviewer's nonce fails.
 
-Withdrawal uses P3's existing `withdrawCommunityReviewAssignment` helper and
-is allowed only before an accepted submission and while the batch is open.
-Account withdrawal and operator disablement do not rewrite submissions or
-frozen pools. Account creation, consent changes, mapping creation, and
-lifecycle transitions emit narrow audit metadata without raw credentials.
+The only P4-C pass rule is the versioned deterministic rule
+`all-required-items-correct@1`: every submitted status must equal the private
+status for the exact visible item set. No percentage, majority vote, Judge,
+accuracy, calibration, or reference result is calculated.
 
-The application facade reserves batch creation/open/close/freeze, authoritative
-receipt registration, qualification-pool registration, and account disablement
-for a separate operator authorizer. A reviewer principal is not an operator
-principal.
+## Server-side evaluation and receipt authority
 
-## Blindness and privacy firewall
+Submission/evaluation follows this order:
 
-Reviewer packet construction starts from the persisted P3
-`CommunityReviewReviewerPacket`, which is already a positive visible
-projection. The service never serializes a hidden evaluator object and then
-deletes fields. Reviewer-facing reads verify the opaque owner and return only
-that packet.
+```text
+lock attempt
+-> verify owner, nonce, packet fingerprint, pool/version/locale/instrument
+-> load sealed visible material and private answer key
+-> verify definition and answer-key commitments
+-> validate complete response set
+-> persist sanitized response projection
+-> derive QUALIFIED or NOT_QUALIFIED with the versioned rule
+```
 
-The service and tests reject or keep outside reviewer-facing responses fields
-such as `groundTruth`, `knownMisconception`, `expectedStatus`, `reference`,
-`consensus`, `adjudication`, Judge fields, other-reviewer material, and
-qualification answer keys. The public repository contains only synthetic
-fixtures and opaque deterministic references; it contains no real reviewer
-identity, submission, credential, cookie, token, database export, production
-secret, chat log, or hidden reasoning.
+An authoritative receipt is built with the existing
+`buildCommunityReviewQualificationReceipt` function only after the same
+reviewer-owned attempt is service-evaluated as `QUALIFIED`. It binds the exact
+P3 qualification ID/version, pool/version, definition fingerprint, reviewer,
+locale, and instrument. The service does not accept a caller-created receipt
+or a caller-computed pass result as authority.
 
-## Synthetic integration harness
+P3 protocol validity and P4 service authority remain distinct:
 
-The targeted service tests cover:
+```text
+P3-valid receipt
+  != automatically service-issued
 
-- repository round trips and P3 fingerprint preservation;
-- reviewer/pool/attempt/receipt authority bindings and nonce replay;
-- assignment uniqueness and concurrent idempotency;
-- simultaneous submissions, duplicate and replacement rejection;
-- wrong-owner, cross-assignment, and cross-batch replay;
-- submit/close ordering in both transaction orders;
-- P3 validation rollback, close/freeze exact-output persistence, and repeated
-  close/freeze calls;
-- withdrawal behavior and positive-allowlist blindness;
-- the inability of an unregistered P3 receipt to become authoritative;
-- authenticated principal mapping, opaque-ID stability, consent versioning,
-  account lifecycle, operator separation, forged-owner rejection, and
-  credential non-persistence.
+authoritative receipt
+  = P3-valid receipt + evaluated attempt + persisted binding + anti-replay state
+```
+
+Receipt issuance is idempotent for the same attempt and exact stored receipt.
+A second conflicting fingerprint or attempt binding is rejected. Pool
+retirement, later account disablement, or later consent revocation does not
+rewrite a previously persisted P3 envelope; those changes affect future
+authorization. A receipt authority status, if later revoked operationally,
+would be service state outside the immutable P3 content.
+
+## Access, privacy, and audit
+
+Reviewer-facing operations are limited to creating, reading, submitting, and
+receiving results/receipts for the authenticated reviewer's own attempt. The
+application facade derives the opaque reviewer ID from the P4-B authentication
+mapping and ignores caller-supplied owner fields. Operators alone may register,
+seal, activate, retire, or inspect pool metadata. Operator authorization is
+separate from reviewer identity.
+
+Qualification audit events record only pool registration/state transitions,
+attempt issuance, response submission, pass/fail, and receipt issuance with
+opaque IDs and sanitized reason codes. They never record raw answer keys,
+responses when not required, tokens, cookies, JWTs, claims, private material,
+or hidden reasoning. No production retention/deletion policy is invented in
+P4-C; retention execution remains later service work.
+
+## Transaction and concurrency model
+
+The in-memory adapter serializes transaction callbacks and commits a cloned
+state only after success. A thrown validation or P3/service error rolls back
+all mutations. Its maps mirror PostgreSQL uniqueness for pool identity, pool
+nonce, attempt, receipt fingerprint, and receipt-per-attempt.
+
+The PostgreSQL implementation boundary is intended to use row locks:
+
+```text
+Create attempt:
+  BEGIN; lock reviewer/account and active pool; count attempts; insert issued
+  attempt with nonce hash; COMMIT.
+
+Submit/evaluate:
+  BEGIN; SELECT attempt and pool FOR UPDATE; validate against private material;
+  insert the response projection; transition through SUBMITTED to the result;
+  COMMIT.
+
+Issue receipt:
+  BEGIN; lock qualified attempt; build and P3-validate the receipt; insert the
+  unique attempt/fingerprint binding; COMMIT.
+```
+
+Submission versus retirement is serialized: either evaluation commits before
+retirement or an already-issued attempt is evaluated under the explicitly
+permitted retired-pool rule. Two submissions cannot produce two final states;
+two receipt issuances cannot produce two rows.
+
+The existing P4-A batch operations retain their row-lock design: accepting a
+submission and closing a batch serialize on the batch row, while freezing a
+batch requires the exact stored close record. A submission is either committed
+while the batch is `OPEN` and included in close, or rejected after close; no
+late or replacement submission overwrites accepted evidence.
+
+## Synthetic testing and gates
+
+`qualification.test.ts` uses a fresh synthetic pool and private in-memory key.
+It covers pool sealing/immutability, packet blindness by runtime serialization,
+complete/duplicate/extra response rejection, server-side pass/fail, nonce and
+attempt-limit races, same-attempt submission races, cross-owner and
+cross-pool/version/locale/instrument replay, consent/account/pool authority,
+retirement ordering, receipt idempotency, caller-created receipt rejection,
+audit privacy, and the authenticated application facade. Existing P4-A/P4-B
+tests remain green.
 
 Run the isolated harness with:
 
@@ -260,21 +306,26 @@ npm run typecheck:community-review-service
 npm run test:community-review-service
 ```
 
-## Explicit exclusions and next phases
+The root benchmark remains provider-free. Its expected unavailable-provider
+behavior is unchanged; P4-C does not add model calls or turn unavailable Judge
+errors into an official score.
 
-P4-A/P4-B does not implement or claim:
+## Explicit exclusions and P4-D handoff
+
+P4-C does not implement or claim:
 
 - public reviewer signup or intake;
-- a deployed production identity provider, hosted PostgreSQL, or production
-  deployment;
-- real qualification or an active answer-key pool;
-- reviewer payments, abuse controls, retention execution, or deployment;
+- a deployed identity provider, hosted PostgreSQL, private hosted secret
+  store, or production deployment;
+- a real qualification bank, real reviewer qualification, or public launch;
+- reviewer payments, abuse controls, or retention/deletion execution;
+- public review queue or assignment delivery, campaign scheduling, reviewer
+  dashboard, marketplace, or blind batch campaign (P4-D);
 - majority voting, gold labels, adjudication, Judge comparison, calibration,
-  accuracy claims, reference generation, leaderboard scoring, or verified
-  model submission.
+  accuracy claims, reference generation, or leaderboard scoring (P5); or
+- a Review Workspace integration or root-package export.
 
-P4-C may add a separately scoped qualification authority. P4-B does not add a
-private answer key, active sealed qualification campaign, public reviewer
-intake, real reviewer data, or a production issuer. P5 calibration remains not
-started. A frozen synthetic pool remains test material and is not Community
-Review evidence.
+P4-D remains the separately scoped blind delivery/assignment phase. P5
+Community calibration remains not started. The next phase must preserve the
+private material boundary and the distinction between P3 validity and P4
+authority.

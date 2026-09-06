@@ -1,7 +1,8 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import {
   buildCommunityReviewAssignment,
+  buildCommunityReviewQualificationReceipt,
   buildCommunityReviewReviewerPacket,
   buildCommunityReviewSubmission,
   closeCommunityReviewBatch,
@@ -34,6 +35,8 @@ import type {
   CommunityReviewPersistence,
   CommunityReviewPersistenceTransaction,
   FrozenReviewPoolRecord,
+  QualificationAttemptRecord,
+  QualificationAuthorityAuditEventType,
   QualificationPoolRecord,
   QualificationReceiptRecord,
   ReviewerAuthIdentityRecord,
@@ -44,6 +47,29 @@ import type {
   ReviewBatchRecord,
   SealedBatchPayloadReferenceRecord,
 } from "./persistence.js";
+import {
+  QUALIFICATION_PASS_RULE_ID,
+  buildQualificationVisiblePacket,
+  evaluateQualification,
+  parseQualificationPrivateAnswerKey,
+  parseQualificationResponses,
+  parseQualificationVisibleMaterial,
+  qualificationAnswerKeyCommitment,
+  qualificationDefinitionFingerprint,
+  qualificationResponseFingerprint,
+  qualificationVisibleTaskSetFingerprint,
+  QualificationMaterialError,
+  QualificationResponseError,
+} from "./qualification.js";
+import type {
+  QualificationEvaluation,
+  QualificationMaterialIdentity,
+  QualificationMaterialStore,
+  QualificationPrivateAnswerKey,
+  QualificationResponse,
+  QualificationVisibleMaterial,
+  QualificationVisiblePacket,
+} from "./qualification.js";
 
 const opaqueIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u;
 const fingerprintPattern = /^sha256:[0-9a-f]{64}$/u;
@@ -109,6 +135,19 @@ function validPolicy(policy: ReviewerConsentPolicy): void {
 
 function randomOpaqueId(): string {
   return randomBytes(32).toString("hex");
+}
+
+function randomAttemptNonce(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+function hashAttemptNonce(value: string): string {
+  return `sha256:${createHash("sha256").update(value, "utf8").digest("hex")}`;
+}
+
+function validAttemptNonce(value: string): void {
+  if (typeof value !== "string" || value.length < 16 || value.length > 512 ||
+    value.includes("\u0000")) throw new CommunityReviewServiceError("qualification_response_invalid");
 }
 
 function accountOrThrow(
@@ -252,14 +291,49 @@ function assignmentOrThrow(
   return assignment;
 }
 
+function qualificationPoolOrThrow(
+  transaction: CommunityReviewPersistenceTransaction,
+  poolId: string,
+  poolVersion: string,
+): QualificationPoolRecord {
+  const pool = transaction.getQualificationPool(poolId, poolVersion);
+  if (pool === undefined) throw new CommunityReviewServiceError("qualification_pool_not_found");
+  return pool;
+}
+
+function qualificationMaterialIdentity(pool: QualificationPoolRecord): QualificationMaterialIdentity {
+  const instrument = pool.instrument;
+  if (instrument === undefined || pool.state === "OPEN") {
+    throw new CommunityReviewServiceError("qualification_material_invalid");
+  }
+  return {
+    qualificationId: pool.qualificationId,
+    qualificationVersion: pool.qualificationVersion,
+    qualificationPoolId: pool.poolId,
+    qualificationPoolVersion: pool.poolVersion,
+    qualificationDefinitionFingerprint: pool.definitionFingerprint,
+    instrumentId: instrument.instrumentId,
+    instrumentVersion: instrument.instrumentVersion,
+    instrumentFingerprint: pool.instrumentFingerprint,
+    reviewLocale: pool.reviewLocale,
+    sealedDefinitionReference: pool.sealedDefinitionReference,
+    privateAnswerKeyReference: pool.privateAnswerKeyReference,
+  };
+}
+
 export interface CommunityReviewServiceOptions {
   readonly clock?: () => string;
   readonly consentPolicy?: ReviewerConsentPolicy;
+  readonly qualificationMaterialStore?: QualificationMaterialStore;
+  /** Maximum issued/evaluated attempts counted for one reviewer and pool. */
+  readonly maxQualificationAttemptsPerReviewerPool?: number;
   readonly reviewerIdGenerator?: OpaqueIdGenerator;
   readonly internalIdGenerator?: OpaqueIdGenerator;
   readonly authIdentityIdGenerator?: OpaqueIdGenerator;
   readonly consentEventIdGenerator?: OpaqueIdGenerator;
   readonly auditEventIdGenerator?: OpaqueIdGenerator;
+  readonly attemptIdGenerator?: OpaqueIdGenerator;
+  readonly attemptNonceGenerator?: () => string;
 }
 
 export interface RegisterReviewerAccountInput {
@@ -309,9 +383,64 @@ export interface RegisterQualificationPoolInput {
   readonly definitionFingerprint: string;
   readonly instrumentFingerprint: string;
   readonly reviewLocale: string;
+  readonly instrument?: QualificationPoolRecord["instrument"];
   readonly state?: QualificationPoolRecord["state"];
+  readonly visibleTaskSetFingerprint?: QualificationPoolRecord["visibleTaskSetFingerprint"];
+  readonly answerKeyCommitment?: QualificationPoolRecord["answerKeyCommitment"];
+  readonly passRuleId?: QualificationPoolRecord["passRuleId"];
+  readonly stateVersion?: QualificationPoolRecord["stateVersion"];
+  readonly sealedAt?: QualificationPoolRecord["sealedAt"];
+  readonly retiredAt?: QualificationPoolRecord["retiredAt"];
   readonly sealedDefinitionReference: string;
   readonly privateAnswerKeyReference: string;
+}
+
+export interface QualificationPoolRequest {
+  readonly poolId: string;
+  readonly poolVersion: string;
+}
+
+export interface CreateQualificationAttemptInput extends QualificationPoolRequest {
+  readonly reviewerId: string;
+  readonly qualificationId: string;
+  readonly qualificationVersion: string;
+  readonly instrumentFingerprint: string;
+  readonly reviewLocale: string;
+}
+
+export interface QualificationAttemptIssue {
+  readonly attemptId: string;
+  /** Returned once; only its SHA-256 digest is persisted. */
+  readonly attemptNonce: string;
+  readonly packet: QualificationVisiblePacket;
+}
+
+export interface QualificationAttemptView {
+  readonly attemptId: string;
+  readonly reviewerId: string;
+  readonly qualificationId: string;
+  readonly qualificationVersion: string;
+  readonly qualificationPoolId: string;
+  readonly qualificationPoolVersion: string;
+  readonly reviewLocale: string;
+  readonly instrumentFingerprint: string;
+  readonly packetFingerprint?: string;
+  readonly state: QualificationAttemptRecord["state"];
+  readonly result?: QualificationAttemptRecord["result"];
+  readonly submittedAt?: string;
+  readonly evaluatedAt?: string;
+  readonly receiptFingerprint?: string;
+}
+
+export interface QualificationAttemptRequest {
+  readonly reviewerId: string;
+  readonly attemptId: string;
+}
+
+export interface SubmitQualificationAttemptInput extends QualificationAttemptRequest {
+  readonly attemptNonce: string;
+  readonly packetFingerprint: string;
+  readonly responses: readonly unknown[];
 }
 
 export interface RegisterAuthoritativeQualificationReceiptInput {
@@ -363,11 +492,15 @@ export interface WithdrawCommunityReviewAssignmentInput {
 export class CommunityReviewService {
   private readonly now: () => string;
   private readonly consentPolicy: ReviewerConsentPolicy;
+  private readonly qualificationMaterialStore: QualificationMaterialStore | undefined;
+  private readonly maxQualificationAttemptsPerReviewerPool: number;
   private readonly reviewerIdGenerator: OpaqueIdGenerator;
   private readonly internalIdGenerator: OpaqueIdGenerator;
   private readonly authIdentityIdGenerator: OpaqueIdGenerator;
   private readonly consentEventIdGenerator: OpaqueIdGenerator;
   private readonly auditEventIdGenerator: OpaqueIdGenerator;
+  private readonly attemptIdGenerator: OpaqueIdGenerator;
+  private readonly attemptNonceGenerator: () => string;
 
   constructor(
     private readonly persistence: CommunityReviewPersistence,
@@ -376,11 +509,19 @@ export class CommunityReviewService {
     this.now = options.clock ?? (() => new Date().toISOString());
     this.consentPolicy = options.consentPolicy ?? DEFAULT_REVIEWER_CONSENT_POLICY;
     validPolicy(this.consentPolicy);
+    this.qualificationMaterialStore = options.qualificationMaterialStore;
+    this.maxQualificationAttemptsPerReviewerPool = options.maxQualificationAttemptsPerReviewerPool ?? 3;
+    if (!Number.isInteger(this.maxQualificationAttemptsPerReviewerPool) ||
+      this.maxQualificationAttemptsPerReviewerPool < 1) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
     this.reviewerIdGenerator = options.reviewerIdGenerator ?? randomOpaqueId;
     this.internalIdGenerator = options.internalIdGenerator ?? randomOpaqueId;
     this.authIdentityIdGenerator = options.authIdentityIdGenerator ?? randomOpaqueId;
     this.consentEventIdGenerator = options.consentEventIdGenerator ?? randomOpaqueId;
     this.auditEventIdGenerator = options.auditEventIdGenerator ?? randomOpaqueId;
+    this.attemptIdGenerator = options.attemptIdGenerator ?? randomOpaqueId;
+    this.attemptNonceGenerator = options.attemptNonceGenerator ?? randomAttemptNonce;
   }
 
   getReviewerConsentPolicy(): ReviewerConsentPolicy {
@@ -430,6 +571,103 @@ export class CommunityReviewService {
     reviewerId: string,
   ): ReviewerAccountRecord {
     return eligibleAccount(transaction, reviewerId, this.consentPolicy, this.consentPolicy.policyId);
+  }
+
+  private async loadQualificationMaterial(pool: QualificationPoolRecord): Promise<{
+    readonly identity: QualificationMaterialIdentity;
+    readonly visibleMaterial: QualificationVisibleMaterial;
+    readonly privateAnswerKey: QualificationPrivateAnswerKey;
+    readonly visibleTaskSetFingerprint: string;
+    readonly answerKeyCommitment: string;
+  }> {
+    const store = this.qualificationMaterialStore;
+    if (store === undefined) throw new CommunityReviewServiceError("qualification_material_not_found");
+    const identity = qualificationMaterialIdentity(pool);
+    let visibleMaterial: QualificationVisibleMaterial;
+    let privateAnswerKey: QualificationPrivateAnswerKey;
+    try {
+      visibleMaterial = parseQualificationVisibleMaterial(await store.loadVisiblePacket(identity));
+      privateAnswerKey = parseQualificationPrivateAnswerKey(await store.loadPrivateAnswerKey(identity));
+    } catch (error) {
+      if (error instanceof QualificationMaterialError) {
+        throw new CommunityReviewServiceError(error.code === "not_found"
+          ? "qualification_material_not_found"
+          : "qualification_material_invalid");
+      }
+      throw new CommunityReviewServiceError("qualification_material_invalid");
+    }
+    const instrument = pool.instrument;
+    if (instrument === undefined) {
+      throw new CommunityReviewServiceError("qualification_material_invalid");
+    }
+    const computedDefinitionFingerprint = qualificationDefinitionFingerprint({
+      qualificationId: pool.qualificationId,
+      qualificationVersion: pool.qualificationVersion,
+      qualificationPoolId: pool.poolId,
+      qualificationPoolVersion: pool.poolVersion,
+      instrumentId: instrument.instrumentId,
+      instrumentVersion: instrument.instrumentVersion,
+      instrumentFingerprint: pool.instrumentFingerprint,
+      reviewLocale: pool.reviewLocale,
+      passRuleId: visibleMaterial.passRuleId,
+      items: visibleMaterial.items,
+    });
+    const visibleTaskSetFingerprint = qualificationVisibleTaskSetFingerprint(visibleMaterial.items);
+    const answerKeyCommitment = qualificationAnswerKeyCommitment({
+      identity,
+      passRuleId: visibleMaterial.passRuleId,
+      answers: privateAnswerKey.answers,
+    });
+    if (computedDefinitionFingerprint !== pool.definitionFingerprint ||
+      pool.visibleTaskSetFingerprint !== undefined && pool.visibleTaskSetFingerprint !== visibleTaskSetFingerprint ||
+      pool.answerKeyCommitment !== undefined && pool.answerKeyCommitment !== answerKeyCommitment) {
+      throw new CommunityReviewServiceError("qualification_material_invalid");
+    }
+    try {
+      // This validates exact item/key coverage before a packet can be issued.
+      evaluateQualification(visibleMaterial, privateAnswerKey, privateAnswerKey.answers.map((item) => ({
+        caseId: item.caseId,
+        rubricId: item.rubricId,
+        requirementId: item.requirementId,
+        status: item.status,
+      })));
+    } catch (error) {
+      if (error instanceof QualificationMaterialError) {
+        throw new CommunityReviewServiceError("qualification_material_invalid");
+      }
+      throw error;
+    }
+    return {
+      identity,
+      visibleMaterial,
+      privateAnswerKey,
+      visibleTaskSetFingerprint,
+      answerKeyCommitment,
+    };
+  }
+
+  private projectQualificationAttempt(
+    transaction: CommunityReviewPersistenceTransaction,
+    attempt: QualificationAttemptRecord,
+  ): QualificationAttemptView {
+    const pool = qualificationPoolOrThrow(transaction, attempt.poolId, attempt.poolVersion);
+    const receipt = transaction.getQualificationReceiptByAttempt(attempt.attemptId);
+    return {
+      attemptId: attempt.attemptId,
+      reviewerId: attempt.reviewerId,
+      qualificationId: pool.qualificationId,
+      qualificationVersion: pool.qualificationVersion,
+      qualificationPoolId: attempt.poolId,
+      qualificationPoolVersion: attempt.poolVersion,
+      reviewLocale: attempt.reviewLocale ?? pool.reviewLocale,
+      instrumentFingerprint: attempt.instrumentFingerprint ?? pool.instrumentFingerprint,
+      ...(attempt.packetFingerprint === undefined ? {} : { packetFingerprint: attempt.packetFingerprint }),
+      state: attempt.state,
+      ...(attempt.result === undefined ? {} : { result: attempt.result }),
+      ...(attempt.submittedAt === undefined ? {} : { submittedAt: attempt.submittedAt }),
+      ...(attempt.evaluatedAt === undefined ? {} : { evaluatedAt: attempt.evaluatedAt }),
+      ...(receipt === undefined ? {} : { receiptFingerprint: receipt.receiptFingerprint }),
+    };
   }
 
   /**
@@ -786,7 +1024,7 @@ export class CommunityReviewService {
     });
   }
 
-  /** Trusted setup boundary for a sealed or synthetic qualification pool. */
+  /** Trusted operator/setup boundary for qualification pool metadata. */
   async registerQualificationPool(
     input: RegisterQualificationPoolInput,
   ): Promise<QualificationPoolRecord> {
@@ -803,8 +1041,11 @@ export class CommunityReviewService {
       input.dataKind === "community-review" && input.fixture !== undefined) {
       throw new CommunityReviewServiceError("invalid_service_record");
     }
+    // P4-A callers without P4-C instrument/material metadata remain legacy;
+    // a new caller enters private DRAFT setup and must explicitly activate it.
+    const state = input.state ?? (input.instrument === undefined ? "OPEN" : "DRAFT");
     const timestamp = this.now();
-    const expected = {
+    const expected: QualificationPoolRecord = {
       dataKind: input.dataKind,
       ...(input.fixture === undefined ? {} : { fixture: input.fixture }),
       qualificationId: input.qualificationId,
@@ -814,13 +1055,24 @@ export class CommunityReviewService {
       definitionFingerprint: input.definitionFingerprint,
       instrumentFingerprint: input.instrumentFingerprint,
       reviewLocale: input.reviewLocale,
-      state: input.state ?? "OPEN" as const,
+      ...(input.instrument === undefined ? {} : { instrument: input.instrument }),
+      state,
+      ...(input.visibleTaskSetFingerprint === undefined ? {} : {
+        visibleTaskSetFingerprint: input.visibleTaskSetFingerprint,
+      }),
+      ...(input.answerKeyCommitment === undefined ? {} : {
+        answerKeyCommitment: input.answerKeyCommitment,
+      }),
+      ...(input.passRuleId === undefined ? {} : { passRuleId: input.passRuleId }),
+      stateVersion: input.stateVersion ?? 0,
+      ...(input.sealedAt === undefined ? {} : { sealedAt: input.sealedAt }),
+      ...(input.retiredAt === undefined ? {} : { retiredAt: input.retiredAt }),
       sealedDefinitionReference: input.sealedDefinitionReference,
       privateAnswerKeyReference: input.privateAnswerKeyReference,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    return this.persistence.transaction((transaction) => {
+    return this.persistence.transaction(async (transaction) => {
       const existing = transaction.getQualificationPool(input.poolId, input.poolVersion);
       if (existing !== undefined) {
         if (same({ ...existing, createdAt: undefined, updatedAt: undefined }, {
@@ -830,13 +1082,452 @@ export class CommunityReviewService {
         })) return existing;
         throw new CommunityReviewServiceError("repository_conflict");
       }
-      return transaction.insertQualificationPool(expected);
+      if (state !== "DRAFT" && state !== "OPEN") {
+        const material = await this.loadQualificationMaterial(expected);
+        if (expected.visibleTaskSetFingerprint !== material.visibleTaskSetFingerprint ||
+          expected.answerKeyCommitment !== material.answerKeyCommitment ||
+          expected.passRuleId !== material.visibleMaterial.passRuleId) {
+          throw new CommunityReviewServiceError("qualification_material_invalid");
+        }
+      }
+      const stored = transaction.insertQualificationPool(expected);
+      this.qualificationAudit(transaction, "pool_registered", {
+        poolId: stored.poolId,
+        poolVersion: stored.poolVersion,
+      });
+      return stored;
+    });
+  }
+
+  private qualificationAudit(
+    transaction: CommunityReviewPersistenceTransaction,
+    eventType: QualificationAuthorityAuditEventType,
+    options: {
+      readonly reviewerId?: string;
+      readonly attemptId?: string;
+      readonly poolId?: string;
+      readonly poolVersion?: string;
+      readonly reasonCode?: string;
+    } = {},
+  ): void {
+    transaction.insertQualificationAuthorityAuditEvent({
+      eventId: this.nextId(this.auditEventIdGenerator),
+      eventType,
+      ...(options.reviewerId === undefined ? {} : { reviewerId: options.reviewerId }),
+      ...(options.attemptId === undefined ? {} : { attemptId: options.attemptId }),
+      ...(options.poolId === undefined ? {} : { poolId: options.poolId }),
+      ...(options.poolVersion === undefined ? {} : { poolVersion: options.poolVersion }),
+      ...(options.reasonCode === undefined ? {} : { reasonCode: options.reasonCode }),
+      occurredAt: this.now(),
+    });
+  }
+
+  async getQualificationPool(input: QualificationPoolRequest): Promise<QualificationPoolRecord> {
+    required(input.poolId);
+    required(input.poolVersion);
+    return this.persistence.transaction((transaction) =>
+      qualificationPoolOrThrow(transaction, input.poolId, input.poolVersion));
+  }
+
+  async sealQualificationPool(input: QualificationPoolRequest): Promise<QualificationPoolRecord> {
+    required(input.poolId);
+    required(input.poolVersion);
+    return this.persistence.transaction(async (transaction) => {
+      const pool = qualificationPoolOrThrow(transaction, input.poolId, input.poolVersion);
+      if (pool.state === "SEALED") return pool;
+      if (pool.state !== "DRAFT") {
+        throw new CommunityReviewServiceError("qualification_pool_invalid_state");
+      }
+      const material = await this.loadQualificationMaterial(pool);
+      const timestamp = this.now();
+      const sealed = transaction.updateQualificationPool({
+        ...pool,
+        state: "SEALED",
+        visibleTaskSetFingerprint: material.visibleTaskSetFingerprint,
+        answerKeyCommitment: material.answerKeyCommitment,
+        passRuleId: material.visibleMaterial.passRuleId,
+        stateVersion: (pool.stateVersion ?? 0) + 1,
+        sealedAt: timestamp,
+        updatedAt: timestamp,
+      });
+      this.qualificationAudit(transaction, "pool_sealed", {
+        poolId: sealed.poolId,
+        poolVersion: sealed.poolVersion,
+      });
+      return sealed;
+    });
+  }
+
+  async activateQualificationPool(input: QualificationPoolRequest): Promise<QualificationPoolRecord> {
+    required(input.poolId);
+    required(input.poolVersion);
+    return this.persistence.transaction(async (transaction) => {
+      const pool = qualificationPoolOrThrow(transaction, input.poolId, input.poolVersion);
+      if (pool.state === "ACTIVE") return pool;
+      if (pool.state !== "SEALED") {
+        throw new CommunityReviewServiceError("qualification_pool_invalid_state");
+      }
+      await this.loadQualificationMaterial(pool);
+      const timestamp = this.now();
+      const active = transaction.updateQualificationPool({
+        ...pool,
+        state: "ACTIVE",
+        stateVersion: (pool.stateVersion ?? 0) + 1,
+        updatedAt: timestamp,
+      });
+      this.qualificationAudit(transaction, "pool_activated", {
+        poolId: active.poolId,
+        poolVersion: active.poolVersion,
+      });
+      return active;
+    });
+  }
+
+  async retireQualificationPool(input: QualificationPoolRequest): Promise<QualificationPoolRecord> {
+    required(input.poolId);
+    required(input.poolVersion);
+    return this.persistence.transaction((transaction) => {
+      const pool = qualificationPoolOrThrow(transaction, input.poolId, input.poolVersion);
+      if (pool.state === "RETIRED") return pool;
+      if (pool.state !== "ACTIVE") {
+        throw new CommunityReviewServiceError("qualification_pool_invalid_state");
+      }
+      const timestamp = this.now();
+      const retired = transaction.updateQualificationPool({
+        ...pool,
+        state: "RETIRED",
+        stateVersion: (pool.stateVersion ?? 0) + 1,
+        retiredAt: timestamp,
+        updatedAt: timestamp,
+      });
+      this.qualificationAudit(transaction, "pool_retired", {
+        poolId: retired.poolId,
+        poolVersion: retired.poolVersion,
+      });
+      return retired;
+    });
+  }
+
+  /** Create and issue one reviewer-owned attempt from an ACTIVE sealed pool. */
+  async createQualificationAttempt(
+    input: CreateQualificationAttemptInput,
+  ): Promise<QualificationAttemptIssue> {
+    opaqueId(input.reviewerId);
+    required(input.qualificationId);
+    required(input.qualificationVersion);
+    required(input.poolId);
+    required(input.poolVersion);
+    fingerprint(input.instrumentFingerprint);
+    required(input.reviewLocale);
+    return this.persistence.transaction(async (transaction) => {
+      this.activeReviewerAccount(transaction, input.reviewerId);
+      const pool = qualificationPoolOrThrow(transaction, input.poolId, input.poolVersion);
+      if (pool.state !== "ACTIVE") {
+        throw new CommunityReviewServiceError("qualification_pool_not_active");
+      }
+      if (pool.qualificationId !== input.qualificationId ||
+        pool.qualificationVersion !== input.qualificationVersion ||
+        pool.instrumentFingerprint !== input.instrumentFingerprint ||
+        pool.reviewLocale !== input.reviewLocale) {
+        throw new CommunityReviewServiceError("qualification_pool_not_active");
+      }
+      if (transaction.listQualificationAttempts(input.reviewerId, input.poolId, input.poolVersion).length >=
+        this.maxQualificationAttemptsPerReviewerPool) {
+        throw new CommunityReviewServiceError("qualification_attempt_limit");
+      }
+      const material = await this.loadQualificationMaterial(pool);
+      let attemptId: string | undefined;
+      for (let count = 0; count < 8 && attemptId === undefined; count += 1) {
+        const candidate = this.nextId(this.attemptIdGenerator);
+        if (transaction.getQualificationAttempt(candidate) === undefined) attemptId = candidate;
+      }
+      let attemptNonce: string | undefined;
+      let nonceHash: string | undefined;
+      const existingAttempts = transaction.listQualificationAttempts(
+        input.reviewerId,
+        input.poolId,
+        input.poolVersion,
+      );
+      for (let count = 0; count < 8 && attemptNonce === undefined; count += 1) {
+        const candidate = this.attemptNonceGenerator();
+        validAttemptNonce(candidate);
+        const candidateHash = hashAttemptNonce(candidate);
+        if (!existingAttempts.some((attempt) => attempt.nonceHash === candidateHash)) {
+          attemptNonce = candidate;
+          nonceHash = candidateHash;
+        }
+      }
+      if (attemptId === undefined || attemptNonce === undefined || nonceHash === undefined) {
+        throw new CommunityReviewServiceError("repository_conflict");
+      }
+      const packet = buildQualificationVisiblePacket({
+        attemptId,
+        identity: material.identity,
+        visibleMaterial: material.visibleMaterial,
+      });
+      const timestamp = this.now();
+      const attempt = transaction.insertQualificationAttempt({
+        attemptId,
+        reviewerId: input.reviewerId,
+        poolId: input.poolId,
+        poolVersion: input.poolVersion,
+        nonceHash,
+        state: "ISSUED",
+        startedAt: timestamp,
+        issuedAt: timestamp,
+        qualificationDefinitionFingerprint: pool.definitionFingerprint,
+        instrumentFingerprint: pool.instrumentFingerprint,
+        reviewLocale: pool.reviewLocale,
+        packetFingerprint: packet.packetFingerprint,
+      });
+      if (attempt.state !== "ISSUED") {
+        throw new CommunityReviewServiceError("invalid_service_record");
+      }
+      this.qualificationAudit(transaction, "attempt_issued", {
+        reviewerId: attempt.reviewerId,
+        attemptId: attempt.attemptId,
+        poolId: attempt.poolId,
+        poolVersion: attempt.poolVersion,
+      });
+      return { attemptId, attemptNonce, packet };
+    });
+  }
+
+  /** Rebuilds only the positive visible packet for the owning reviewer. */
+  async getQualificationPacket(input: QualificationAttemptRequest): Promise<QualificationVisiblePacket> {
+    opaqueId(input.reviewerId);
+    required(input.attemptId);
+    return this.persistence.transaction(async (transaction) => {
+      this.activeReviewerAccount(transaction, input.reviewerId);
+      const attempt = transaction.getQualificationAttempt(input.attemptId);
+      if (attempt === undefined) throw new CommunityReviewServiceError("qualification_attempt_not_found");
+      if (attempt.reviewerId !== input.reviewerId) {
+        throw new CommunityReviewServiceError("qualification_attempt_not_owner");
+      }
+      const pool = qualificationPoolOrThrow(transaction, attempt.poolId, attempt.poolVersion);
+      if (pool.state !== "ACTIVE" && pool.state !== "RETIRED") {
+        throw new CommunityReviewServiceError("qualification_pool_not_active");
+      }
+      const material = await this.loadQualificationMaterial(pool);
+      const packet = buildQualificationVisiblePacket({
+        attemptId: attempt.attemptId,
+        identity: material.identity,
+        visibleMaterial: material.visibleMaterial,
+      });
+      if (attempt.packetFingerprint !== undefined && attempt.packetFingerprint !== packet.packetFingerprint) {
+        throw new CommunityReviewServiceError("qualification_packet_invalid");
+      }
+      return packet;
+    });
+  }
+
+  /**
+   * Evaluates only the server-loaded private answer key. Caller JSON can
+   * provide responses, but never a score, result, or expected assessment.
+   */
+  async submitQualificationAttempt(
+    input: SubmitQualificationAttemptInput,
+  ): Promise<QualificationAttemptView> {
+    opaqueId(input.reviewerId);
+    required(input.attemptId);
+    validAttemptNonce(input.attemptNonce);
+    fingerprint(input.packetFingerprint);
+    return this.persistence.transaction(async (transaction) => {
+      this.activeReviewerAccount(transaction, input.reviewerId);
+      const attempt = transaction.getQualificationAttempt(input.attemptId);
+      if (attempt === undefined) throw new CommunityReviewServiceError("qualification_attempt_not_found");
+      if (attempt.reviewerId !== input.reviewerId) {
+        throw new CommunityReviewServiceError("qualification_attempt_not_owner");
+      }
+      if (attempt.state !== "ISSUED") {
+        throw new CommunityReviewServiceError("qualification_attempt_already_submitted");
+      }
+      if (hashAttemptNonce(input.attemptNonce) !== attempt.nonceHash) {
+        throw new CommunityReviewServiceError("qualification_response_invalid");
+      }
+      const pool = qualificationPoolOrThrow(transaction, attempt.poolId, attempt.poolVersion);
+      if (pool.state !== "ACTIVE" && pool.state !== "RETIRED") {
+        throw new CommunityReviewServiceError("qualification_pool_not_active");
+      }
+      if (attempt.qualificationDefinitionFingerprint !== pool.definitionFingerprint ||
+        attempt.instrumentFingerprint !== pool.instrumentFingerprint ||
+        attempt.reviewLocale !== pool.reviewLocale) {
+        throw new CommunityReviewServiceError("qualification_packet_invalid");
+      }
+      const material = await this.loadQualificationMaterial(pool);
+      const packet = buildQualificationVisiblePacket({
+        attemptId: attempt.attemptId,
+        identity: material.identity,
+        visibleMaterial: material.visibleMaterial,
+      });
+      if (packet.packetFingerprint !== input.packetFingerprint ||
+        attempt.packetFingerprint !== packet.packetFingerprint) {
+        throw new CommunityReviewServiceError("qualification_packet_invalid");
+      }
+      let responses: QualificationResponse[];
+      try {
+        responses = parseQualificationResponses(material.visibleMaterial.items, input.responses);
+      } catch (error) {
+        if (error instanceof QualificationResponseError) {
+          throw new CommunityReviewServiceError("qualification_response_invalid");
+        }
+        throw new CommunityReviewServiceError("qualification_material_invalid");
+      }
+      let evaluation: QualificationEvaluation;
+      try {
+        evaluation = evaluateQualification(material.visibleMaterial, material.privateAnswerKey, responses);
+      } catch (error) {
+        if (error instanceof QualificationMaterialError) {
+          throw new CommunityReviewServiceError("qualification_material_invalid");
+        }
+        throw new CommunityReviewServiceError("qualification_response_invalid");
+      }
+      const submittedAt = this.now();
+      const submitted = transaction.updateQualificationAttempt({
+        ...attempt,
+        state: "SUBMITTED",
+        submittedAt,
+        responses: evaluation.responses,
+        responseFingerprint: qualificationResponseFingerprint(evaluation.responses),
+      });
+      const evaluated = transaction.updateQualificationAttempt({
+        ...submitted,
+        state: evaluation.result === "qualified" ? "QUALIFIED" : "NOT_QUALIFIED",
+        result: evaluation.result,
+        evaluatedAt: this.now(),
+        evaluationRuleId: evaluation.evaluationRuleId,
+        ...(evaluation.result === "not-qualified" ? { failureCode: "qualification_items_incorrect" } : {}),
+      });
+      this.qualificationAudit(transaction, "response_submitted", {
+        reviewerId: evaluated.reviewerId,
+        attemptId: evaluated.attemptId,
+        poolId: evaluated.poolId,
+        poolVersion: evaluated.poolVersion,
+      });
+      this.qualificationAudit(transaction, evaluation.result === "qualified"
+        ? "qualification_passed"
+        : "qualification_failed", {
+        reviewerId: evaluated.reviewerId,
+        attemptId: evaluated.attemptId,
+        poolId: evaluated.poolId,
+        poolVersion: evaluated.poolVersion,
+        ...(evaluation.result === "not-qualified" ? { reasonCode: "qualification_items_incorrect" } : {}),
+      });
+      return this.projectQualificationAttempt(transaction, evaluated);
+    });
+  }
+
+  async getQualificationAttempt(input: QualificationAttemptRequest): Promise<QualificationAttemptView> {
+    opaqueId(input.reviewerId);
+    required(input.attemptId);
+    return this.persistence.transaction((transaction) => {
+      this.activeReviewerAccount(transaction, input.reviewerId);
+      const attempt = transaction.getQualificationAttempt(input.attemptId);
+      if (attempt === undefined) throw new CommunityReviewServiceError("qualification_attempt_not_found");
+      if (attempt.reviewerId !== input.reviewerId) {
+        throw new CommunityReviewServiceError("qualification_attempt_not_owner");
+      }
+      return this.projectQualificationAttempt(transaction, attempt);
+    });
+  }
+
+  /** Build a P3 receipt from a service-evaluated attempt, never from caller JSON. */
+  async issueQualificationReceipt(
+    input: QualificationAttemptRequest,
+  ): Promise<QualificationReceiptRecord> {
+    opaqueId(input.reviewerId);
+    required(input.attemptId);
+    return this.persistence.transaction((transaction) => {
+      accountOrThrow(transaction, input.reviewerId);
+      const attempt = transaction.getQualificationAttempt(input.attemptId);
+      if (attempt === undefined) throw new CommunityReviewServiceError("qualification_attempt_not_found");
+      if (attempt.reviewerId !== input.reviewerId) {
+        throw new CommunityReviewServiceError("qualification_attempt_not_owner");
+      }
+      const existing = transaction.getQualificationReceiptByAttempt(input.attemptId);
+      if (existing !== undefined) return existing;
+      if (attempt.state === "NOT_QUALIFIED" || attempt.result === "not-qualified") {
+        throw new CommunityReviewServiceError("qualification_not_qualified");
+      }
+      if (attempt.state !== "QUALIFIED" || attempt.result !== "qualified" ||
+        attempt.evaluationRuleId !== QUALIFICATION_PASS_RULE_ID ||
+        attempt.responses === undefined || attempt.evaluatedAt === undefined) {
+        throw new CommunityReviewServiceError("qualification_receipt_not_authoritative");
+      }
+      const pool = qualificationPoolOrThrow(transaction, attempt.poolId, attempt.poolVersion);
+      if (pool.state !== "ACTIVE" && pool.state !== "RETIRED" ||
+        pool.passRuleId !== QUALIFICATION_PASS_RULE_ID ||
+        pool.visibleTaskSetFingerprint === undefined || pool.answerKeyCommitment === undefined ||
+        attempt.qualificationDefinitionFingerprint !== pool.definitionFingerprint ||
+        attempt.instrumentFingerprint !== pool.instrumentFingerprint ||
+        attempt.reviewLocale !== pool.reviewLocale || pool.instrument === undefined) {
+        throw new CommunityReviewServiceError("qualification_receipt_not_authoritative");
+      }
+      let receipt: CommunityReviewQualificationReceipt;
+      try {
+        receipt = buildCommunityReviewQualificationReceipt({
+          dataKind: pool.dataKind,
+          ...(pool.fixture === undefined ? {} : { fixture: pool.fixture }),
+          qualificationId: pool.qualificationId,
+          qualificationVersion: pool.qualificationVersion,
+          qualificationPoolId: pool.poolId,
+          qualificationPoolVersion: pool.poolVersion,
+          qualificationDefinitionFingerprint: pool.definitionFingerprint,
+          reviewerId: attempt.reviewerId,
+          instrument: pool.instrument,
+        });
+      } catch {
+        throw new CommunityReviewServiceError("qualification_receipt_invalid");
+      }
+      const existingByFingerprint = transaction.getQualificationReceipt(receipt.receiptFingerprint);
+      if (existingByFingerprint !== undefined) {
+        if (existingByFingerprint.attemptId === input.attemptId && same(existingByFingerprint.receipt, receipt)) {
+          return existingByFingerprint;
+        }
+        throw new CommunityReviewServiceError("repository_conflict");
+      }
+      const stored = transaction.insertQualificationReceipt({
+        receiptFingerprint: receipt.receiptFingerprint,
+        attemptId: input.attemptId,
+        reviewerId: attempt.reviewerId,
+        poolId: pool.poolId,
+        poolVersion: pool.poolVersion,
+        receipt,
+        authorityState: "authoritative",
+        issuedAt: this.now(),
+      });
+      this.qualificationAudit(transaction, "receipt_issued", {
+        reviewerId: stored.reviewerId,
+        attemptId: stored.attemptId,
+        poolId: stored.poolId,
+        poolVersion: stored.poolVersion,
+      });
+      return stored;
+    });
+  }
+
+  async getQualificationReceipt(input: QualificationAttemptRequest): Promise<CommunityReviewQualificationReceipt> {
+    opaqueId(input.reviewerId);
+    required(input.attemptId);
+    return this.persistence.transaction((transaction) => {
+      accountOrThrow(transaction, input.reviewerId);
+      const attempt = transaction.getQualificationAttempt(input.attemptId);
+      if (attempt === undefined) throw new CommunityReviewServiceError("qualification_attempt_not_found");
+      if (attempt.reviewerId !== input.reviewerId) {
+        throw new CommunityReviewServiceError("qualification_attempt_not_owner");
+      }
+      const stored = transaction.getQualificationReceiptByAttempt(input.attemptId);
+      if (stored === undefined || stored.authorityState !== "authoritative") {
+        throw new CommunityReviewServiceError("qualification_receipt_not_issued");
+      }
+      return stored.receipt;
     });
   }
 
   /**
    * Registers an issuer-produced P3 receipt only after a qualified attempt is
-   * already persisted. This method never creates a receipt from JSON.
+   * already persisted. This legacy migration boundary exists for P4-A
+   * synthetic rows; P4-C active pools use issueQualificationReceipt().
    */
   async registerAuthoritativeQualificationReceipt(
     input: RegisterAuthoritativeQualificationReceiptInput,
@@ -850,6 +1541,10 @@ export class CommunityReviewService {
       if (pool === undefined) throw new CommunityReviewServiceError("qualification_pool_not_found");
       // Qualification issuance is a separate authority from reviewer consent.
       accountOrThrow(transaction, receipt.reviewerId);
+      if (pool.state !== "OPEN" || attempt.state !== "QUALIFIED" || attempt.result !== "qualified" ||
+        attempt.evaluationRuleId !== undefined || attempt.responses !== undefined) {
+        throw new CommunityReviewServiceError("qualification_receipt_not_authoritative");
+      }
       if (attempt.state !== "QUALIFIED" || attempt.result !== "qualified" ||
         attempt.reviewerId !== receipt.reviewerId || attempt.poolId !== receipt.qualificationPoolId ||
         attempt.poolVersion !== receipt.qualificationPoolVersion ||

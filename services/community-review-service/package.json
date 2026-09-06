@@ -2,7 +2,7 @@
   "name": "@tutorbench/community-review-service-foundation",
   "private": true,
   "type": "module",
-  "description": "Isolated P4-A/P4-B Community Review service boundary; not a public package.",
+  "description": "Isolated P4-A/P4-B/P4-C Community Review service boundary; not a public package.",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json",

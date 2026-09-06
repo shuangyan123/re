@@ -4,12 +4,17 @@ import type {
   CommunityReviewBatchManifest,
   CommunityReviewDataKind,
   CommunityReviewFingerprint,
+  CommunityReviewInstrumentIdentity,
   CommunityReviewReviewerPacket,
   CommunityReviewQualificationReceipt,
   CommunityReviewSubmission,
   CommunityReviewSyntheticFixtureMarker,
   FrozenCommunityReviewPool,
 } from "../../../src/contracts/community-review.js";
+import type {
+  QualificationPassRuleId,
+  QualificationStoredResponse,
+} from "./qualification.js";
 
 export type ServiceTimestamp = string;
 
@@ -74,7 +79,31 @@ export interface AuthAuditEventRecord {
   readonly occurredAt: ServiceTimestamp;
 }
 
-export type QualificationPoolState = "SEALED" | "OPEN" | "RETIRED";
+export type QualificationAuthorityAuditEventType =
+  | "pool_registered"
+  | "pool_sealed"
+  | "pool_activated"
+  | "pool_retired"
+  | "attempt_issued"
+  | "response_submitted"
+  | "qualification_passed"
+  | "qualification_failed"
+  | "receipt_issued";
+
+/** Narrow qualification audit metadata; it never contains answers or responses. */
+export interface QualificationAuthorityAuditEventRecord {
+  readonly eventId: string;
+  readonly eventType: QualificationAuthorityAuditEventType;
+  readonly reviewerId?: string;
+  readonly attemptId?: string;
+  readonly poolId?: string;
+  readonly poolVersion?: string;
+  readonly reasonCode?: string;
+  readonly occurredAt: ServiceTimestamp;
+}
+
+/** OPEN is retained only for P4-A synthetic rows; P4-C uses ACTIVE. */
+export type QualificationPoolState = "DRAFT" | "SEALED" | "ACTIVE" | "RETIRED" | "OPEN";
 
 export interface QualificationPoolRecord {
   readonly dataKind: CommunityReviewDataKind;
@@ -86,7 +115,16 @@ export interface QualificationPoolRecord {
   readonly definitionFingerprint: CommunityReviewFingerprint;
   readonly instrumentFingerprint: CommunityReviewFingerprint;
   readonly reviewLocale: string;
+  /** Full P3 instrument identity is required for service-issued receipts. */
+  readonly instrument?: CommunityReviewInstrumentIdentity;
   readonly state: QualificationPoolState;
+  readonly visibleTaskSetFingerprint?: CommunityReviewFingerprint;
+  /** Private answer-key commitment; never returned in reviewer packets. */
+  readonly answerKeyCommitment?: CommunityReviewFingerprint;
+  readonly passRuleId?: QualificationPassRuleId;
+  readonly stateVersion?: number;
+  readonly sealedAt?: ServiceTimestamp;
+  readonly retiredAt?: ServiceTimestamp;
   /** Opaque references; the definition and answer key are not repository assets. */
   readonly sealedDefinitionReference: string;
   readonly privateAnswerKeyReference: string;
@@ -95,10 +133,15 @@ export interface QualificationPoolRecord {
 }
 
 export type QualificationAttemptState =
-  | "STARTED"
+  | "CREATED"
+  | "ISSUED"
+  | "SUBMITTED"
   | "QUALIFIED"
-  | "REJECTED"
+  | "NOT_QUALIFIED"
   | "EXPIRED";
+/** Legacy state names are accepted only for historical P4-A test records. */
+export type LegacyQualificationAttemptState = "STARTED" | "REJECTED";
+export type StoredQualificationAttemptState = QualificationAttemptState | LegacyQualificationAttemptState;
 export type QualificationAttemptResult = "qualified" | "not-qualified";
 
 export interface QualificationAttemptRecord {
@@ -108,10 +151,21 @@ export interface QualificationAttemptRecord {
   readonly poolVersion: string;
   /** A replay-resistant nonce hash; the raw nonce is outside this boundary. */
   readonly nonceHash: string;
-  readonly state: QualificationAttemptState;
+  readonly state: StoredQualificationAttemptState;
   readonly result?: QualificationAttemptResult;
   readonly startedAt: ServiceTimestamp;
+  readonly issuedAt?: ServiceTimestamp;
   readonly submittedAt?: ServiceTimestamp;
+  readonly evaluatedAt?: ServiceTimestamp;
+  readonly qualificationDefinitionFingerprint?: CommunityReviewFingerprint;
+  readonly instrumentFingerprint?: CommunityReviewFingerprint;
+  readonly reviewLocale?: string;
+  readonly packetFingerprint?: CommunityReviewFingerprint;
+  /** Sanitized structured statuses only; no evidence or hidden reasoning. */
+  readonly responses?: readonly QualificationStoredResponse[];
+  readonly responseFingerprint?: CommunityReviewFingerprint;
+  readonly evaluationRuleId?: QualificationPassRuleId;
+  readonly failureCode?: string;
 }
 
 export type QualificationReceiptAuthorityState = "authoritative" | "revoked";
@@ -208,15 +262,29 @@ export interface CommunityReviewPersistenceTransaction {
   insertReviewerConsent(record: ReviewerConsentRecord): ReviewerConsentRecord;
   insertAuthAuditEvent(record: AuthAuditEventRecord): AuthAuditEventRecord;
   listAuthAuditEvents(internalId?: string): readonly AuthAuditEventRecord[];
+  insertQualificationAuthorityAuditEvent(
+    record: QualificationAuthorityAuditEventRecord,
+  ): QualificationAuthorityAuditEventRecord;
+  listQualificationAuthorityAuditEvents(
+    poolId?: string,
+    poolVersion?: string,
+  ): readonly QualificationAuthorityAuditEventRecord[];
 
   getQualificationPool(poolId: string, poolVersion: string): QualificationPoolRecord | undefined;
   insertQualificationPool(record: QualificationPoolRecord): QualificationPoolRecord;
+  updateQualificationPool(record: QualificationPoolRecord): QualificationPoolRecord;
 
   getQualificationAttempt(attemptId: string): QualificationAttemptRecord | undefined;
+  listQualificationAttempts(
+    reviewerId: string,
+    poolId: string,
+    poolVersion: string,
+  ): readonly QualificationAttemptRecord[];
   insertQualificationAttempt(record: QualificationAttemptRecord): QualificationAttemptRecord;
   updateQualificationAttempt(record: QualificationAttemptRecord): QualificationAttemptRecord;
 
   getQualificationReceipt(receiptFingerprint: string): QualificationReceiptRecord | undefined;
+  getQualificationReceiptByAttempt(attemptId: string): QualificationReceiptRecord | undefined;
   insertQualificationReceipt(record: QualificationReceiptRecord): QualificationReceiptRecord;
 
   getBatch(batchId: string): ReviewBatchRecord | undefined;
