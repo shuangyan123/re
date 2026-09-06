@@ -25,6 +25,9 @@ export type CommunityReviewServiceErrorCode =
   | "qualification_receipt_not_issued"
   | "qualification_receipt_invalid"
   | "qualification_receipt_not_authoritative"
+  | "no_eligible_review_batch"
+  | "review_batch_material_not_found"
+  | "review_batch_material_invalid"
   | "batch_not_found"
   | "batch_not_open"
   | "batch_not_closed"
@@ -64,6 +67,9 @@ const messages: Record<CommunityReviewServiceErrorCode, string> = {
   qualification_receipt_invalid: "Community Review qualification receipt is invalid.",
   qualification_receipt_not_authoritative:
     "Community Review qualification receipt is not authoritative in service persistence.",
+  no_eligible_review_batch: "No eligible open Community Review batch is available.",
+  review_batch_material_not_found: "Sealed Community Review batch material was not found.",
+  review_batch_material_invalid: "Sealed Community Review batch material failed validation.",
   batch_not_found: "Community Review batch was not found.",
   batch_not_open: "Community Review batch is not open for this operation.",
   batch_not_closed: "Community Review batch is not closed for this operation.",

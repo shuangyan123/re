@@ -102,6 +102,25 @@ export interface QualificationAuthorityAuditEventRecord {
   readonly occurredAt: ServiceTimestamp;
 }
 
+export type ReviewDeliveryAuditEventType =
+  | "assignment_issued"
+  | "assignment_retrieved"
+  | "assignment_withdrawn"
+  | "assignment_issuance_rejected"
+  | "batch_material_mismatch"
+  | "eligibility_rejected";
+
+/** Narrow delivery metadata; packet/source contents never enter this record. */
+export interface ReviewDeliveryAuditEventRecord {
+  readonly eventId: string;
+  readonly eventType: ReviewDeliveryAuditEventType;
+  readonly batchId?: string;
+  readonly assignmentId?: string;
+  readonly reviewerId?: string;
+  readonly reasonCode?: string;
+  readonly occurredAt: ServiceTimestamp;
+}
+
 /** OPEN is retained only for P4-A synthetic rows; P4-C uses ACTIVE. */
 export type QualificationPoolState = "DRAFT" | "SEALED" | "ACTIVE" | "RETIRED" | "OPEN";
 
@@ -270,6 +289,11 @@ export interface CommunityReviewPersistenceTransaction {
     poolVersion?: string,
   ): readonly QualificationAuthorityAuditEventRecord[];
 
+  insertReviewDeliveryAuditEvent(
+    record: ReviewDeliveryAuditEventRecord,
+  ): ReviewDeliveryAuditEventRecord;
+  listReviewDeliveryAuditEvents(batchId?: string): readonly ReviewDeliveryAuditEventRecord[];
+
   getQualificationPool(poolId: string, poolVersion: string): QualificationPoolRecord | undefined;
   insertQualificationPool(record: QualificationPoolRecord): QualificationPoolRecord;
   updateQualificationPool(record: QualificationPoolRecord): QualificationPoolRecord;
@@ -285,9 +309,11 @@ export interface CommunityReviewPersistenceTransaction {
 
   getQualificationReceipt(receiptFingerprint: string): QualificationReceiptRecord | undefined;
   getQualificationReceiptByAttempt(attemptId: string): QualificationReceiptRecord | undefined;
+  listQualificationReceipts(reviewerId: string): readonly QualificationReceiptRecord[];
   insertQualificationReceipt(record: QualificationReceiptRecord): QualificationReceiptRecord;
 
   getBatch(batchId: string): ReviewBatchRecord | undefined;
+  listBatches(): readonly ReviewBatchRecord[];
   insertBatch(record: ReviewBatchRecord): ReviewBatchRecord;
   updateBatch(record: ReviewBatchRecord): ReviewBatchRecord;
 
