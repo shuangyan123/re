@@ -49,7 +49,10 @@ CREATE TABLE community_review_disclosures (
   CHECK (freeze_fingerprint ~ '^sha256:[0-9a-f]{64}$'),
   CHECK (agreement_evidence_persistence_fingerprint ~ '^sha256:[0-9a-f]{64}$'),
   CHECK (jsonb_typeof(disclosure_policy) = 'object'),
-  CHECK (jsonb_object_length(disclosure_policy) = 3),
+  -- PostgreSQL has no jsonb_object_length function; subtracting the exact
+  -- allowlist also rejects extra policy keys while retaining a plain CHECK.
+  CHECK (disclosure_policy - 'publishReviewerIds' - 'publishAtomicAnnotations' -
+    'publishReviewerEvidence' = '{}'::JSONB),
   CHECK (disclosure_policy->>'publishReviewerIds' IS NOT NULL),
   CHECK (disclosure_policy->>'publishAtomicAnnotations' IS NOT NULL),
   CHECK (disclosure_policy->>'publishReviewerEvidence' IS NOT NULL),
@@ -120,7 +123,8 @@ CREATE TABLE community_review_evidence_audit_events (
   CHECK ((
     disclosure_policy IS NULL OR (
       jsonb_typeof(disclosure_policy) = 'object' AND
-      jsonb_object_length(disclosure_policy) = 3 AND
+      disclosure_policy - 'publishReviewerIds' - 'publishAtomicAnnotations' -
+        'publishReviewerEvidence' = '{}'::JSONB AND
       disclosure_policy->>'publishReviewerIds' IS NOT NULL AND
       disclosure_policy->>'publishAtomicAnnotations' IS NOT NULL AND
       disclosure_policy->>'publishReviewerEvidence' IS NOT NULL AND
