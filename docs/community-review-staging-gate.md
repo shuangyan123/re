@@ -23,7 +23,8 @@ to `PASS` by using a local or synthetic substitute.
 
 | Check | Status | Safe evidence |
 | --- | --- | --- |
-| Final `main` baseline | PASS | `069ed96dce753970e7dbee7d65d33cf3f3c53359` |
+| P4-G baseline before L1 preparation | PASS | `069ed96dce753970e7dbee7d65d33cf3f3c53359` |
+| Final `main` containing L1 preparation | PASS | `1a6c293d5a486eeea38bce3347507a417507aef5` |
 | P4-G repository CI | PASS | [Tutor Benchmark CI run 34080088503](https://github.com/shuangyan123/re/actions/runs/34080088503); exact `main` SHA, `quality`, `community-review-postgres`, and `community-review-container` completed successfully |
 | P4-G deployment boundary | PASS | P4-G completed the deployable/readiness boundary; no external deployment was performed, which remains a historical boundary rather than L1 evidence |
 | P4 service status | PASS | Deployment-ready service boundary; see `docs/community-review-service.md` |
