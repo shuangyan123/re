@@ -25,6 +25,10 @@ function databaseConnection(raw, databaseName) {
   return parsed.toString();
 }
 
+function sqlIdentifier(value) {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
 function failure(stage, reason) {
   const error = new Error("backup/restore command failed");
   error.stage = stage;
@@ -62,7 +66,7 @@ try {
   currentStage = "backup_dump";
   run(currentStage, "pg_dump", ["--format=custom", "--file", backupPath, "--dbname", databaseUrl]);
   currentStage = "create_restore_database";
-  run(currentStage, "createdb", ["--dbname", adminConnection, restoreName]);
+  query(currentStage, adminConnection, `CREATE DATABASE ${sqlIdentifier(restoreName)}`);
   try {
     currentStage = "restore_dump";
     run(currentStage, "pg_restore", ["--no-owner", "--exit-on-error", "--dbname", restoreConnection, backupPath]);
@@ -79,7 +83,7 @@ try {
     }
   } finally {
     currentStage = "drop_restore_database";
-    run(currentStage, "dropdb", ["--if-exists", "--dbname", adminConnection, restoreName]);
+    query(currentStage, adminConnection, `DROP DATABASE IF EXISTS ${sqlIdentifier(restoreName)}`);
   }
   currentStage = "backup_file_check";
   const dumpSize = (await readFile(backupPath)).byteLength;
