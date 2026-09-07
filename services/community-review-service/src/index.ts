@@ -3,6 +3,7 @@ export * from "./application.js";
 export * from "./config.js";
 export * from "./errors.js";
 export * from "./filesystem-material.js";
+export * from "./http.js";
 export * from "./in-memory-repository.js";
 export * from "./material.js";
 export * from "./migrations.js";
