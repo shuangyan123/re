@@ -79,6 +79,10 @@ jobs:
         run: npm ci
       - name: Install Community Review service dependencies
         run: npm ci --prefix services/community-review-service
+      - name: Install PostgreSQL client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
       - name: Run PostgreSQL integration and concurrency tests
         env:
           COMMUNITY_REVIEW_DATABASE_URL: postgresql://tutorbench:tutorbench@127.0.0.1:5432/tutorbench_community_review
