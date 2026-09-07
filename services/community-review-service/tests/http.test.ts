@@ -128,6 +128,33 @@ test("reviewer HTTP transport derives ownership from bearer authentication and m
   }
 });
 
+test("reviewer account withdrawal response omits private service identifiers", async () => {
+  const runtime = runtimeForHttp();
+  const server = createCommunityReviewHttpServer(runtime, new CommunityReviewLogger("error"));
+  const address = await listen(server);
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const provisioned = await fetch(`${base}/v1/operator/reviewers`, {
+      method: "POST",
+      headers: jsonAuth("operator-token"),
+      body: JSON.stringify({ principal: { provider: "example-oidc", subject: "reviewer-http" } }),
+    });
+    assert.equal(provisioned.status, 200);
+
+    const withdrawn = await fetch(`${base}/v1/reviewer/account/withdraw`, {
+      method: "POST",
+      headers: auth("reviewer-token"),
+    });
+    assert.equal(withdrawn.status, 200);
+    const body = await withdrawn.json() as { data: Record<string, unknown> };
+    assert.equal(body.data.status, "WITHDRAWN");
+    assert.equal("privateAuthSubjectReference" in body.data, false);
+    assert.equal("internalId" in body.data, false);
+  } finally {
+    await gracefulShutdown(server, runtime, 1000);
+  }
+});
+
 test("HTTP transport fails closed for unknown routes, wrong methods, malformed JSON, and oversized bodies", async () => {
   const runtime = runtimeForHttp();
   const server = createCommunityReviewHttpServer(runtime, new CommunityReviewLogger("error"));
