@@ -90,7 +90,8 @@ export async function assertPrivateMaterialRootUsable(root: string): Promise<voi
     const canonicalCwd = await realpath(process.cwd());
     const cwdRelativeToRoot = relative(canonicalRoot, canonicalCwd);
     if (cwdRelativeToRoot === "" ||
-      (!isAbsolute(cwdRelativeToRoot) && !cwdRelativeToRoot.startsWith(`..${sep}`))) {
+      (!isAbsolute(cwdRelativeToRoot) && cwdRelativeToRoot !== ".." &&
+        !cwdRelativeToRoot.startsWith(`..${sep}`))) {
       throw new Error("private material root contains the workspace");
     }
     const workspaceRelative = relative(canonicalCwd, canonicalRoot);

@@ -16,6 +16,7 @@ import {
   CommunityReviewServiceError,
   FilesystemQualificationMaterialStore,
   FilesystemReviewBatchMaterialStore,
+  assertPrivateMaterialRootUsable,
   ReviewBatchMaterialError,
   QUALIFICATION_PASS_RULE_ID,
   qualificationAnswerKeyCommitment,
@@ -364,6 +365,15 @@ test("filesystem material adapters enforce private references and fingerprints",
       (error: unknown) => error instanceof CommunityReviewServiceError ||
         (typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "invalid"),
     );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("private material roots may be direct children of the runtime working directory", async () => {
+  const root = await mkdtemp(join(process.cwd(), ".community-review-material-root-"));
+  try {
+    await assertPrivateMaterialRootUsable(root);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
