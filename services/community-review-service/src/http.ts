@@ -252,7 +252,7 @@ export async function handleCommunityReviewApiRequest(
     {
       method: "POST",
       pattern: /^\/v1\/reviewer\/account\/withdraw$/u,
-      handler: async () => application.withdrawReviewerAccount({ authenticationInput }),
+      handler: async () => safeReviewerAccount(await application.withdrawReviewerAccount({ authenticationInput })),
     },
     {
       method: "POST",
