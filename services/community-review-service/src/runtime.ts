@@ -44,6 +44,7 @@ import {
 import {
   MigrationVerificationError,
 } from "./migrations.js";
+import { handleCommunityReviewApiRequest } from "./http.js";
 
 export interface CommunityReviewReadinessResult {
   readonly ready: boolean;
@@ -271,6 +272,27 @@ export function createCommunityReviewHttpServer(
     if (length !== undefined && length > runtime.config.requestBodyLimitBytes) {
       request.resume();
       finish(413, { error: "request_too_large" }, "warn");
+      return;
+    }
+    if (route.startsWith("/v1/")) {
+      void handleCommunityReviewApiRequest(
+        runtime.application,
+        request,
+        route,
+        runtime.config.requestBodyLimitBytes,
+      ).then((result) => {
+        if (result === undefined) {
+          request.resume();
+          finish(404, { error: "not_found" }, "warn");
+          return;
+        }
+        if (result.headers !== undefined) {
+          for (const [name, value] of Object.entries(result.headers)) response.setHeader(name, value);
+        }
+        finish(result.status, result.body, result.level ?? "info");
+      }).catch(() => {
+        finish(500, { error: "internal_error", reasonCodes: ["internal_error"] }, "error");
+      });
       return;
     }
     if (request.method !== "GET") {
