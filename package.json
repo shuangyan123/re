@@ -73,7 +73,12 @@
     "website:dev": "npm run website:build && node dist/src/cli/website-server.js",
     "test:governance": "node scripts/validate-governance.mjs",
     "typecheck:community-review-service": "tsc -p services/community-review-service/tsconfig.json --noEmit",
+    "community-review:build": "tsc -p services/community-review-service/tsconfig.json",
+    "community-review:migrate": "npm run community-review:build && node services/community-review-service/dist/services/community-review-service/src/cli.js migrate",
+    "community-review:readiness": "npm run community-review:build && node services/community-review-service/dist/services/community-review-service/src/cli.js readiness",
+    "community-review:serve": "npm run community-review:build && node services/community-review-service/dist/services/community-review-service/src/cli.js serve",
     "test:community-review-service": "tsc -p services/community-review-service/tsconfig.json && node --test services/community-review-service/dist/services/community-review-service/tests/*.test.js",
+    "test:community-review-service:postgres": "tsc -p services/community-review-service/tsconfig.json && node scripts/community-review-postgres-tests.mjs",
     "test:package": "npm run build && node scripts/package-consumer-smoke.mjs",
     "test:website": "npm run website:build && node scripts/website-artifact-smoke.mjs",
     "release:verify": "node scripts/verify-release-candidate.mjs"

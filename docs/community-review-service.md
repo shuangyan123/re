@@ -1,4 +1,4 @@
-# Community Review Service P4-A / P4-B / P4-C / P4-D / P4-E / P4-F
+# Community Review Service P4-A / P4-B / P4-C / P4-D / P4-E / P4-F / P4-G
 
 Status:
 
@@ -9,7 +9,7 @@ P4-C Sealed Qualification Authority   PASS
 P4-D Blind Delivery / Assignment      PASS
 P4-E Production Submission / Close    PASS
 P4-F Freeze / Operational Evidence    PASS
-P4-G Deployment / Readiness           NOT STARTED
+P4-G Deployment / Readiness           PASS
 ```
 
 The broader status remains:
@@ -21,10 +21,11 @@ Real Community Review campaign        NOT STARTED
 P5 Community calibration              NOT STARTED
 ```
 
-This document describes an isolated service boundary and its synthetic test
-adapter. It is not evidence that a service is deployed, that PostgreSQL or a
-production identity provider is connected, or that a real reviewer has
-qualified or submitted a review.
+This document describes an isolated service boundary, its production-capable
+adapters, and the deployment verification contract. No external deployment,
+public reviewer intake, or real campaign was performed in P4-G. A successful
+P4-G check is deployment-readiness evidence, not evidence that a real reviewer
+has qualified or submitted a review.
 
 ## P3 and P4 responsibility boundary
 
@@ -64,19 +65,25 @@ Service-only runtime code lives in:
 services/community-review-service/
 ```
 
-The service has its own `package.json` and `tsconfig.json`. Its build output is
-under the service directory and the root package `files` allowlist remains
-limited to the public `dist/src/` tree and listed assets. The service package
-is private and is not published or exported by `tutor-benchmark@0.1.0`.
+The service has its own `package.json`, lockfile, and `tsconfig.json`. Its build
+output is under the service directory and the root package `files` allowlist
+remains limited to the public `dist/src/` tree and listed assets. The service
+package is private and is not published or exported by
+`tutor-benchmark@0.1.0`. PostgreSQL and JOSE dependencies are isolated in the
+service package; the root package contract and version remain unchanged.
 
 P4-B remains the authentication boundary: `AuthenticationAdapter` reduces an
 external credential to `{ provider, subject }`, the private mapping resolves
 that principal to a stable service-issued opaque reviewer ID, and the
 application facade checks account state and current consent before invoking a
-reviewer-owned operation. The synthetic adapter is test-only. No OAuth UI,
-public signup, payment flow, public HTTP product, or hosted identity provider
-is part of this phase. Lower-level methods retain opaque reviewer IDs only for
-trusted internal transactions.
+reviewer-owned operation. `OidcJwtAuthenticationAdapter` verifies issuer,
+audience, expiry, algorithm, and signature through a remote JWKS endpoint and
+returns only the sanitized principal. Tokens, claims, and provider payloads do
+not enter the service contract. `SyntheticAuthenticationAdapter` is available
+only for explicitly selected test/development configurations. No OAuth UI,
+public signup, payment flow, or public business HTTP API is part of this
+phase. Lower-level methods retain opaque reviewer IDs only for trusted
+internal transactions.
 
 ## Sealed qualification architecture
 
@@ -99,9 +106,12 @@ authenticated reviewer
 `QualificationMaterialStore` is the private substitution boundary. It exposes
 only `loadVisiblePacket` and `loadPrivateAnswerKey` to trusted service code.
 The synthetic `InMemoryQualificationMaterialStore` contains unmistakably
-synthetic material for tests. A production implementation must resolve the
-opaque references through a private material store; no hosted secret store is
-part of P4-C.
+synthetic material for tests. P4-G adds the read-only
+`FilesystemQualificationMaterialStore`, which accepts only relative opaque
+references, resolves them beneath a configured private root, rejects symlink
+escapes and oversized/non-JSON files, and rechecks the definition fingerprint.
+The answer key remains behind this interface and is never returned to a
+reviewer. No hosted secret store is part of this phase.
 
 The qualification definition is versioned by qualification ID/version, pool
 ID/version, full instrument identity, review locale, versioned pass-rule ID,
@@ -277,7 +287,11 @@ review batches. It receives an opaque sealed-source reference plus the P3
 batch identity commitments and returns only
 `CommunityReviewVisibleTask[]`. It never receives or returns a reviewer packet
 request containing private source material. The deterministic
-`InMemoryReviewBatchMaterialStore` is test-only synthetic infrastructure; no
+`InMemoryReviewBatchMaterialStore` is test-only synthetic infrastructure.
+P4-G adds the read-only `FilesystemReviewBatchMaterialStore`, which resolves
+only relative references beneath the configured private root, limits file
+size, rejects path traversal/symlink escapes, parses the positive task
+projection, and rechecks the sealed-source and visible-task fingerprints. No
 real active campaign or private task bank is committed here.
 
 Before assignment construction, the service verifies the stored batch record,
@@ -316,11 +330,12 @@ data, or agreement statistic participates in selection.
 
 ### Assignment transaction, idempotency, and lifecycle
 
-The in-memory repository serializes the complete operation. The intended
-PostgreSQL boundary is one transaction that locks the reviewer authority and
-batch, checks ACTIVE/current consent and exact receipt eligibility, asserts
-OPEN, loads and verifies private visible material, builds the existing P3
-assignment and packet, and persists them together. Migration
+The in-memory repository serializes the complete operation. The PostgreSQL
+adapter executes the same synchronous persistence contract inside one real
+SQL transaction: it acquires a fixed service advisory transaction lock, locks
+every existing authority row in deterministic table order, loads the typed
+snapshot, delegates validation to the existing in-memory transaction
+implementation, then persists the committed delta. Migration
 `004_blind_delivery_assignment_authority.sql` adds narrow delivery audit
 records while preserving the existing database-level
 `UNIQUE(batch_id, reviewer_id)` assignment constraint from migration 001.
@@ -473,12 +488,13 @@ wins with no accepted row, or submission wins and later withdrawal is rejected
 because accepted evidence exists. Failed P3 validation never creates an
 accepted row or acceptance audit event.
 
-The PostgreSQL design uses the compatible lock order `batch -> assignment ->
-accepted submission / close snapshot` for these lifecycle writes. Submission,
-withdrawal, close, and snapshot insertion lock the batch before reading its
-state. The service has no PostgreSQL adapter in this phase; the migration is a
-database-level authority design boundary and the in-memory adapter is a
-deterministic correctness harness, not a claim about PostgreSQL performance.
+The PostgreSQL adapter uses the compatible logical lock order
+`batch -> assignment -> accepted submission / close snapshot` within a
+coarse service-wide advisory transaction lock. It also locks existing
+authority rows in deterministic table order before loading the snapshot. This
+serializes empty-table insert races as well as row updates. The adapter is
+correctness-first and intentionally coarse; deployments must not assume that
+non-idempotent transactions can be retried after an unknown commit outcome.
 
 ## P4-E persistence additions
 
@@ -607,12 +623,11 @@ Migration `006_freeze_operational_evidence.sql` keeps the P4-A
 
 The migration adds insert guards for frozen pools, agreement evidence, and
 disclosures, plus immutable triggers for frozen pools and all P4-F evidence
-records. The SQL has been added and statically reviewed; there is no local
-PostgreSQL runtime or production adapter in this phase, so PostgreSQL
-execution evidence remains a P4-G/infrastructure concern. The deterministic
-in-memory adapter mirrors freeze idempotency, rollback, exact-set checks,
-evidence identity, disclosure append/version semantics, cloning, and audit
-metadata for synthetic tests.
+records. P4-G executes these migrations through the PostgreSQL adapter in
+Node 22/PostgreSQL 16 CI and keeps the deterministic in-memory adapter for
+synthetic tests. The in-memory adapter mirrors freeze idempotency, rollback,
+exact-set checks, evidence identity, disclosure append/version semantics,
+cloning, and audit metadata.
 
 Evidence audit events are limited to `batch_frozen`, freeze retrieval,
 agreement generation/retrieval, disclosure creation, public-artifact
@@ -643,7 +658,8 @@ state only after success. A thrown validation or P3/service error rolls back
 all mutations. Its maps mirror PostgreSQL uniqueness for pool identity, pool
 nonce, attempt, receipt fingerprint, and receipt-per-attempt.
 
-The PostgreSQL implementation boundary is intended to use row locks:
+The PostgreSQL implementation uses one real SQL transaction with a fixed
+advisory lock and deterministic authority-row locks:
 
 ```text
 Create attempt:
@@ -663,7 +679,9 @@ Issue receipt:
 Submission versus retirement is serialized: either evaluation commits before
 retirement or an already-issued attempt is evaluated under the explicitly
 permitted retired-pool rule. Two submissions cannot produce two final states;
-two receipt issuances cannot produce two rows.
+two receipt issuances cannot produce two rows. The repository rolls back the
+SQL transaction on callback or persistence failure and releases the advisory
+lock with the connection.
 
 P4-E extends the row-lock design: accepting a submission, withdrawing an
 assignment, and closing a batch serialize on the same batch boundary. A
@@ -672,6 +690,95 @@ close snapshot, or rejected after close; no late or replacement submission
 overwrites accepted evidence. Existing pure P3 freeze compatibility remains
 available to prior tests; P4-F now adds the operator-authorized operational
 freeze and evidence authority described above.
+
+## P4-G deployment and readiness boundary
+
+P4-G makes the service deployable and mechanically verifiable without
+deploying it. The production path is fail-closed:
+`COMMUNITY_REVIEW_ENV=production` requires
+`COMMUNITY_REVIEW_STORAGE=postgres`, a PostgreSQL URL, TLS, OIDC JWT
+configuration, at least one operator principal, and a private material root.
+It cannot select the in-memory repository or synthetic authentication. The
+development/test fallbacks are available only when explicitly selected by
+typed configuration; they are never a production fallback. PostgreSQL
+certificate verification is also mandatory in production.
+
+The PostgreSQL adapter lives in `src/postgres-repository.ts` and implements the
+existing `CommunityReviewPersistence` contract. It does not create a second
+domain model. Each transaction uses a real `BEGIN`/`COMMIT` or `ROLLBACK`, a
+service advisory lock for empty-table insert races, deterministic authority
+row locks, and the existing transaction validator. JSONB and immutable
+records are written through explicit SQL mappings. Migration files remain
+append-only.
+
+`src/migrations.ts` is the only migration runner. It loads migrations
+`001_...sql` through `006_...sql` in numeric contiguous order, computes a
+SHA-256 checksum for every migration, creates
+`community_review_schema_migrations`, serializes runners with a PostgreSQL
+advisory session lock, applies each missing migration in its own transaction,
+and rejects unknown history, gaps, filename changes, checksum drift, missing
+historical files, and incomplete application. A rerun of the exact migration
+set is idempotent.
+
+The migration runner is intentionally separate from readiness. `migrate` is a
+controlled operator command; `/health/ready` only passes after PostgreSQL is
+reachable and the exact migration history verifies. It never silently runs a
+migration during a health request.
+
+### Runtime and operational checks
+
+The service CLI is built under the isolated service output and supports:
+
+```bash
+npm ci --prefix services/community-review-service
+npm run community-review:migrate
+npm run community-review:readiness
+npm run community-review:serve
+```
+
+The minimal HTTP runtime intentionally exposes only:
+
+```text
+GET /health/live   -> process is serving
+GET /health/ready  -> PostgreSQL, migration history, and private root are ready
+```
+
+Unknown routes and non-GET methods are rejected. Responses carry a request ID,
+no-store/cache and content-type protections, and a bounded request body guard.
+Structured JSON logs contain only timestamp, level, event, route, request ID,
+status, duration, and bounded readiness reason codes. They never include
+authorization headers, JWTs, cookies, subjects, request payloads, database
+URLs, stack traces, or private material. SIGINT/SIGTERM stops accepting work,
+waits for active requests up to the configured bound, closes idle connections,
+and closes the owned PostgreSQL pool.
+
+`services/community-review-service/Dockerfile` builds with Node 22, keeps the
+service dependency tree isolated, creates the private material mount, runs as
+the non-root `node` user, and includes a live-probe health check. The image
+does not contain private material, credentials, `.env` files, results, or
+repository metadata. CI builds it and starts a separate migration command
+before checking both live and ready probes.
+
+### Backup, restore, and rollback
+
+The mechanical smoke is `scripts/community-review-backup-restore.mjs`. It is
+explicitly opt-in, invokes `pg_dump`/`createdb`/`pg_restore`/`dropdb` without a
+shell, restores to a scoped temporary database, checks migration history and a
+service table, verifies a non-empty dump, and removes the temporary database
+and dump in `finally`. It never prints the connection string. The operational
+sequence is documented in `docs/community-review-deployment.md`.
+
+Schema rollback is forward-only: stop intake, preserve the immutable backup,
+deploy a tested compatible application, and add a reviewed forward migration
+for any schema correction. Do not edit an applied SQL file or manually change
+its history checksum. A checksum mismatch or incomplete history is a hard
+readiness failure. A transaction with an unknown commit outcome must not be
+blindly retried; inspect the authoritative database state and use the
+service's idempotent read/retry operation where one exists.
+
+P4-G does not execute an external deployment. Public reviewer intake remains
+closed, no real campaign is started, no public evidence endpoint is exposed,
+and P5 calibration remains outside this phase.
 
 ## Synthetic testing and gates
 
@@ -704,6 +811,7 @@ Run the isolated harness with:
 ```bash
 npm run typecheck:community-review-service
 npm run test:community-review-service
+npm run test:community-review-service:postgres
 ```
 
 The repository-level gates remain applicable to the complete change:
@@ -716,6 +824,7 @@ npm run build
 npm run benchmark
 npm run test:governance
 npm run test:package
+npm run test:website
 git diff --check
 ```
 
@@ -727,11 +836,12 @@ errors into an official score.
 
 P4-E and P4-F implement service semantics only. They do not implement or claim:
 
-- a hosted PostgreSQL adapter, production identity-provider deployment, or
-  private production material store;
+- an external PostgreSQL/identity-provider deployment, public hosting, or
+  managed secret-store provisioning;
 - public reviewer signup/intake, payments, abuse controls, a reviewer
   dashboard, campaign scheduling, or a real Community Review campaign;
-- PostgreSQL execution, production deployment, or public hosting of evidence;
+- a real Community Review campaign, public reviewer intake, or public hosting
+  of evidence;
 - majority voting, agreement-as-correctness, gold/reference labels,
   adjudication, Judge comparison, calibration, accuracy claims, or leaderboard
   scoring (P5), including any conversion of P4-F agreement into correctness;
@@ -739,12 +849,11 @@ P4-E and P4-F implement service semantics only. They do not implement or claim:
   deployment; or
 - any reopening transition after `CLOSED`.
 
-P4-F is complete at the `FROZEN` evidence-authority boundary. The next
-explicit phase is P4-G Deployment / Readiness, which remains **NOT STARTED**;
-P4-F does not host PostgreSQL, deploy an identity provider or secret store,
-open reviewer intake, run a real campaign, publish evidence, or implement a
-retention/erasure operation. P4 Community Review Service remains
-**IN PROGRESS**; public reviewer intake is **NOT OPEN**, the real campaign is
-**NOT STARTED**, and P5 Community calibration is **NOT STARTED**. The frozen
-pool is not a Human Reference, and the next phase must preserve the private
-material boundary and the distinction between P3 validity and P4 authority.
+P4-G is complete at the deployable/readiness boundary. It does not deploy an
+identity provider, secret store, or service externally; open reviewer intake,
+run a real campaign, publish evidence, or implement a retention/erasure
+operation. P4 Community Review Service remains **IN PROGRESS** because public
+reviewer intake is **NOT OPEN** and the real campaign is **NOT STARTED**. P5
+Community calibration is **NOT STARTED**. The frozen pool is not a Human
+Reference, and future work must preserve the private material boundary and
+the distinction between P3 validity and P4 authority.

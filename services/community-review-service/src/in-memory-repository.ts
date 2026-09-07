@@ -20,6 +20,7 @@ import {
   communityReviewAtomicIdentityKey,
 } from "../../../src/community-review/fingerprint.js";
 import { communityReviewAgreementEvidencePersistenceFingerprint } from "./persistence.js";
+import { emptyCommunityReviewPersistenceSnapshot } from "./persistence.js";
 import {
   QUALIFICATION_PASS_RULE_ID,
 } from "./qualification.js";
@@ -36,6 +37,7 @@ import type {
   CommunityReviewDisclosureRecord,
   CommunityReviewEvidenceAuditEventRecord,
   CommunityReviewPersistence,
+  CommunityReviewPersistenceSnapshot,
   CommunityReviewPersistenceTransaction,
   FrozenReviewPoolRecord,
   QualificationAttemptRecord,
@@ -130,6 +132,100 @@ function emptyState(): DatabaseState {
 
 function copy<T>(value: T): T {
   return structuredClone(value);
+}
+
+function stateFromSnapshot(snapshot: CommunityReviewPersistenceSnapshot): DatabaseState {
+  const state = emptyState();
+  for (const record of snapshot.reviewerAccounts) {
+    const stored = copy(record);
+    state.reviewerAccounts.set(record.internalId, stored);
+    state.reviewerIds.set(record.reviewerId, record.internalId);
+  }
+  for (const record of snapshot.reviewerAuthIdentities) {
+    const stored = copy(record);
+    state.reviewerAuthIdentities.set(record.authIdentityId, stored);
+    state.reviewerAuthSubjects.set(authSubjectKey(record.authProvider, record.authSubject), record.authIdentityId);
+    state.reviewerAuthAccounts.set(record.internalId, record.authIdentityId);
+  }
+  for (const record of snapshot.reviewerConsents) {
+    const stored = copy(record);
+    state.reviewerConsents.set(record.consentEventId, stored);
+    const key = consentKey(record.internalId, record.policyId, record.policyVersion);
+    state.reviewerConsentHistory.set(key, [
+      ...(state.reviewerConsentHistory.get(key) ?? []),
+      record.consentEventId,
+    ]);
+  }
+  for (const history of state.reviewerConsentHistory.values()) {
+    history.sort((left, right) => {
+      const leftRecord = state.reviewerConsents.get(left)!;
+      const rightRecord = state.reviewerConsents.get(right)!;
+      return leftRecord.recordedAt.localeCompare(rightRecord.recordedAt) || left.localeCompare(right);
+    });
+  }
+  for (const record of snapshot.authAuditEvents) state.authAuditEvents.set(record.eventId, copy(record));
+  for (const record of snapshot.qualificationAuditEvents) {
+    state.qualificationAuditEvents.set(record.eventId, copy(record));
+  }
+  for (const record of snapshot.reviewDeliveryAuditEvents) {
+    state.reviewDeliveryAuditEvents.set(record.eventId, copy(record));
+  }
+  for (const record of snapshot.reviewSubmissionAuditEvents) {
+    state.reviewSubmissionAuditEvents.set(record.eventId, copy(record));
+  }
+  for (const record of snapshot.qualificationPools) {
+    state.qualificationPools.set(poolKey(record.poolId, record.poolVersion), copy(record));
+  }
+  for (const record of snapshot.qualificationAttempts) {
+    state.qualificationAttempts.set(record.attemptId, copy(record));
+    state.attemptNonces.set(attemptNonceKey(record), record.attemptId);
+  }
+  for (const record of snapshot.qualificationReceipts) {
+    state.qualificationReceipts.set(record.receiptFingerprint, copy(record));
+    state.receiptAttempts.set(record.attemptId, record.receiptFingerprint);
+  }
+  for (const record of snapshot.batches) {
+    state.batches.set(record.batchId, copy(record));
+    state.batchFingerprints.set(record.batchFingerprint, record.batchId);
+  }
+  for (const record of snapshot.sealedBatchPayloadReferences) {
+    state.sealedBatchPayloadReferences.set(record.batchId, copy(record));
+  }
+  for (const record of snapshot.assignments) {
+    state.assignments.set(record.assignment.assignmentId, copy(record));
+    state.assignmentBatchReviewers.set(
+      batchReviewerKey(record.assignment.batchId, record.assignment.reviewerId),
+      record.assignment.assignmentId,
+    );
+  }
+  for (const record of snapshot.acceptedSubmissions) {
+    state.acceptedSubmissions.set(record.submission.assignmentId, copy(record));
+    state.submissionFingerprints.set(record.submission.submissionFingerprint, record.submission.assignmentId);
+    state.submissionBatchReviewers.set(
+      batchReviewerKey(record.submission.batchId, record.submission.reviewerId),
+      record.submission.assignmentId,
+    );
+  }
+  for (const record of snapshot.rejectedSubmissionAttempts) {
+    state.rejectedSubmissionAttempts.set(record.rejectionId, copy(record));
+  }
+  for (const record of snapshot.batchCloseRecords) {
+    state.batchCloseRecords.set(record.batchId, copy(record));
+    state.closeFingerprints.set(record.closeRecord.closeFingerprint, record.batchId);
+  }
+  for (const record of snapshot.frozenReviewPools) {
+    state.frozenReviewPools.set(record.batchId, copy(record));
+    state.freezeFingerprints.set(record.frozenPool.freezeFingerprint, record.batchId);
+  }
+  for (const record of snapshot.agreementEvidence) {
+    state.agreementEvidence.set(record.batchId, copy(record));
+    state.agreementEvidenceFingerprints.set(record.evidencePersistenceFingerprint, record.batchId);
+  }
+  for (const record of snapshot.disclosures) state.disclosures.set(record.disclosureId, copy(record));
+  for (const record of snapshot.evidenceAuditEvents) {
+    state.evidenceAuditEvents.set(record.eventId, copy(record));
+  }
+  return state;
 }
 
 function same(left: unknown, right: unknown): boolean {
@@ -1489,8 +1585,37 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
  * use row locks and the same uniqueness constraints from the migration.
  */
 export class InMemoryCommunityReviewRepository implements CommunityReviewPersistence {
-  private state = emptyState();
+  private state: DatabaseState;
   private transactionTail = Promise.resolve();
+
+  constructor(snapshot: CommunityReviewPersistenceSnapshot = emptyCommunityReviewPersistenceSnapshot()) {
+    this.state = stateFromSnapshot(snapshot);
+  }
+
+  snapshot(): CommunityReviewPersistenceSnapshot {
+    return {
+      reviewerAccounts: [...this.state.reviewerAccounts.values()].map(copy),
+      reviewerAuthIdentities: [...this.state.reviewerAuthIdentities.values()].map(copy),
+      reviewerConsents: [...this.state.reviewerConsents.values()].map(copy),
+      authAuditEvents: [...this.state.authAuditEvents.values()].map(copy),
+      qualificationAuditEvents: [...this.state.qualificationAuditEvents.values()].map(copy),
+      reviewDeliveryAuditEvents: [...this.state.reviewDeliveryAuditEvents.values()].map(copy),
+      reviewSubmissionAuditEvents: [...this.state.reviewSubmissionAuditEvents.values()].map(copy),
+      qualificationPools: [...this.state.qualificationPools.values()].map(copy),
+      qualificationAttempts: [...this.state.qualificationAttempts.values()].map(copy),
+      qualificationReceipts: [...this.state.qualificationReceipts.values()].map(copy),
+      batches: [...this.state.batches.values()].map(copy),
+      sealedBatchPayloadReferences: [...this.state.sealedBatchPayloadReferences.values()].map(copy),
+      assignments: [...this.state.assignments.values()].map(copy),
+      acceptedSubmissions: [...this.state.acceptedSubmissions.values()].map(copy),
+      rejectedSubmissionAttempts: [...this.state.rejectedSubmissionAttempts.values()].map(copy),
+      batchCloseRecords: [...this.state.batchCloseRecords.values()].map(copy),
+      frozenReviewPools: [...this.state.frozenReviewPools.values()].map(copy),
+      agreementEvidence: [...this.state.agreementEvidence.values()].map(copy),
+      disclosures: [...this.state.disclosures.values()].map(copy),
+      evidenceAuditEvents: [...this.state.evidenceAuditEvents.values()].map(copy),
+    };
+  }
 
   async transaction<T>(
     callback: (transaction: CommunityReviewPersistenceTransaction) => Promise<T> | T,

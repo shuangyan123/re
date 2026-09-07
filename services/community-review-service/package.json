@@ -2,10 +2,22 @@
   "name": "@tutorbench/community-review-service-foundation",
   "private": true,
   "type": "module",
-  "description": "Isolated P4-A/P4-B/P4-C/P4-D/P4-E/P4-F Community Review service boundary; not a public package.",
+  "dependencies": {
+    "jose": "6.2.12",
+    "pg": "8.23.0"
+  },
+  "description": "Isolated P4-A/P4-B/P4-C/P4-D/P4-E/P4-F/P4-G Community Review service boundary; not a public package.",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test dist/services/community-review-service/tests/*.test.js"
+    "test": "npm run build && node --test dist/services/community-review-service/tests/*.test.js",
+    "migrate": "npm run build && node dist/services/community-review-service/src/cli.js migrate",
+    "readiness": "npm run build && node dist/services/community-review-service/src/cli.js readiness",
+    "serve": "npm run build && node dist/services/community-review-service/src/cli.js serve"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.5",
+    "@types/pg": "8.15.5",
+    "typescript": "5.7.3"
   }
 }
