@@ -15,7 +15,7 @@ P4-G Deployment / Readiness           PASS
 The broader status remains:
 
 ```text
-P4 COMMUNITY REVIEW SERVICE           IN PROGRESS
+P4 COMMUNITY REVIEW SERVICE           PASS — DEPLOYMENT-READY
 Public reviewer intake                NOT OPEN
 Real Community Review campaign        NOT STARTED
 P5 Community calibration              NOT STARTED
@@ -852,8 +852,8 @@ P4-E and P4-F implement service semantics only. They do not implement or claim:
 P4-G is complete at the deployable/readiness boundary. It does not deploy an
 identity provider, secret store, or service externally; open reviewer intake,
 run a real campaign, publish evidence, or implement a retention/erasure
-operation. P4 Community Review Service remains **IN PROGRESS** because public
-reviewer intake is **NOT OPEN** and the real campaign is **NOT STARTED**. P5
-Community calibration is **NOT STARTED**. The frozen pool is not a Human
-Reference, and future work must preserve the private material boundary and
-the distinction between P3 validity and P4 authority.
+operation. P4 Community Review Service is **PASS — DEPLOYMENT-READY** at this
+boundary. Public reviewer intake remains **NOT OPEN** and the real campaign is
+**NOT STARTED**. P5 Community calibration is **NOT STARTED**. The frozen pool
+is not a Human Reference, and future work must preserve the private material
+boundary and the distinction between P3 validity and P4 authority.
