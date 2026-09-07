@@ -147,4 +147,11 @@ jobs:
             sleep 1
             if [ "$attempt" = "30" ]; then docker logs "$container_id"; exit 1; fi
           done
-          curl --fail --silent http://127.0.0.1:8787/health/ready
+          ready_response="$(curl --silent --show-error --write-out '\n%{http_code}' http://127.0.0.1:8787/health/ready)"
+          ready_status="$(printf '%s\n' "$ready_response" | tail -n 1)"
+          if [ "$ready_status" != "200" ]; then
+            printf '%s\n' "$ready_response"
+            docker logs "$container_id"
+            exit 1
+          fi
+          printf '%s\n' "$ready_response"
