@@ -465,10 +465,19 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
     assert.equal(raceResults[1]!.status, "fulfilled");
     const raceState = await activeRepository().transaction((transaction) => ({
       batch: transaction.getBatch(submitClose.batchId),
+      close: transaction.getBatchCloseRecord(submitClose.batchId),
       submissions: transaction.listAcceptedSubmissions(submitClose.batchId),
     }));
     assert.equal(raceState.batch?.state, "CLOSED");
-    assert.ok(raceState.submissions.length <= 1);
+    assert.ok(raceState.close !== undefined);
+    assert.deepEqual(
+      raceState.submissions.map((record) => record.submission.submissionFingerprint).sort(),
+      [...raceState.close!.closeRecord.acceptedSubmissionFingerprints].sort(),
+    );
+    assert.deepEqual(
+      raceState.submissions.map((record) => record.submission.submissionFingerprint).sort(),
+      raceState.close!.acceptedSubmissions.map((submission) => submission.submissionFingerprint).sort(),
+    );
 
     const withdrawal = await makeSetup(activeRepository(), "pg-withdraw-submit-race");
     const withdrawalAssignment = withdrawal.assignments[0]!;
