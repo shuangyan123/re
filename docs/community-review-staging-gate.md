@@ -187,16 +187,18 @@ starting P5 requires a separate explicit scope and authorization.
 
 ## L2-C2C closed application-intake gate
 
-The L1 record above is historical infrastructure evidence for migrations
-`001` through `006`; it must not be rewritten to imply that migration `007` or
-application behavior was externally verified. L2-C2C adds a separate gate for
-the exact merged main SHA of the application-intake implementation.
+The L1 record above remains historical infrastructure evidence for migrations
+`001` through `006`. It is not rewritten to absorb the later application-intake
+checks. L2-C2C adds a separate gate for the exact merged main SHA of the
+application-intake implementation, and L2-C2C-R below records the narrowly
+scoped migration-recovery evidence.
 
-Current implementation status before private staging verification:
+Current implementation status after exact-main deployment and recovery recheck:
 
 ```text
-Implementation delivery                 PENDING MERGE / then PASS
-Private staging application gate         NOT YET VERIFIED
+Implementation delivery                 PASS — 350b3b95b10d7500383294997f7c43867daacebd
+Migration recovery evidence (L2-C2C-R)   PASS — isolated v6 -> v7 replay
+Private staging application gate         PARTIAL — closed path PASS; full dry run pending
 L2-C2C overall                           NOT YET PASS
 Application intake state                 MUST REMAIN CLOSED
 COMMUNITY_REVIEW_PUBLIC_INTAKE            false
@@ -222,5 +224,81 @@ The L2-C2C staging run must record, without secrets:
 The dry run must not temporarily open the public Railway listener and must use
 only synthetic `.invalid` contact data. Destructive PostgreSQL tests must run
 only against an explicitly isolated database, never against private staging.
-If the exact staging target, backup evidence, or safe localhost-only dry run is
-unavailable, the correct status is **BLOCKED / NOT VERIFIED**, not C2C PASS.
+The recovery evidence below closes the recovery blocker; it does not substitute
+for the still-pending localhost-only `OPEN` dry run or the remaining HTTP and
+authorization checks required for a full C2C PASS.
+
+## L2-C2C-R migration recovery evidence closure
+
+Status: **PASS — pre-migration recovery evidence was available and replayed in
+an isolated Neon branch.** This closes the recovery-evidence blocker only. It
+does not open application intake, authorize a campaign, or change the overall
+L2-C2C status from **NOT YET PASS**.
+
+### Provenance and isolation
+
+- Recovery source: Neon point-in-time branch from the existing production
+  branch of project `tutorbench-community-review-staging`.
+- Isolated branch identifier: `recovery-v6-pre-007-20260908-1900`.
+- Historical point: `2026-09-08 19:00:19 +08:00`, before the first v7 Railway
+  deployment at `2026-09-08T11:17:36Z`; the active Railway database URL was
+  checked to resolve to the same Neon production compute endpoint without
+  recording the URL.
+- Neon history was available for six hours. No production restore was clicked,
+  and no current staging database was overwritten.
+
+### v6 restore and v7 replay checks
+
+The isolated historical branch reported exactly six migration-history rows,
+with migration `007` absent. The six repository Git-blob checksums matched the
+isolated rows:
+
+| Version | Migration | SHA-256 recorded in isolated v6 |
+| ---: | --- | --- |
+| 1 | `001_community_review_service.sql` | `sha256:e35a372e6e4a11c15c84258cf75262fd50409355f94c57a840449f372abcbc22` |
+| 2 | `002_auth_identity_consent.sql` | `sha256:3457ee4bd409bbb866e26a8a9471537c55c9bb1c10db4da80fb8450f68b6603a` |
+| 3 | `003_sealed_qualification_authority.sql` | `sha256:30a5131d5d26bb1722d9c72973822f4704b147e3846916160932a62591729ccb` |
+| 4 | `004_blind_delivery_assignment_authority.sql` | `sha256:28340affe438629cc181fdfe53453fcb515575fb78435eacc9dd6358ce249de2` |
+| 5 | `005_submission_close_authority.sql` | `sha256:1a9d17b8bb9b98c240faaf10c7892906ba9d77756f6f2c132264cfacbf7588b5` |
+| 6 | `006_freeze_operational_evidence.sql` | `sha256:556b6fdd82d062cdc1e7115b45a68d2f1601b185f1e1fb0e2db04dc35f503f9d` |
+
+The pre-007 structural snapshot had 22 public tables and 23 fingerprint
+columns. Existing row counts were `reviewer_accounts=13`, `review_batches=6`,
+`review_assignments=12`, `review_submissions=7`,
+`community_review_agreement_evidence=1`, and
+`community_review_disclosures=0`; the four application-intake tables were
+absent.
+
+The repository migration `007_community_review_application_intake.sql` was
+replayed as one transaction in that isolated v6 branch. The exact Git-blob
+SHA-256 was `sha256:7695f3ef1d4a59033a271048509b78125a172ec274f398382f0b3f6bc923e82d`;
+Neon reported all 10 transaction statements executed successfully. The
+post-replay snapshot reported migration versions `1..7`, all four expected
+application tables, the three expected application indexes, and 37 application
+constraints. New application, contact, idempotency, and audit tables each had
+zero rows. Existing counts remained `13/6/12/7/1/0`; public tables increased to
+26 and fingerprint columns to 25, consistent with the additive migration.
+
+### Active staging recheck
+
+- Current Railway deployment: `f34492ca-662a-4063-aa1f-2dc462a35f7d`, source
+  SHA `350b3b95b10d7500383294997f7c43867daacebd`, `SUCCESS`.
+- Active database migration history reported versions `1..7`; version 7 was
+  recorded with the same repository checksum above.
+- `GET /health/live` and `GET /health/ready` both returned HTTP 200 with
+  `live`/`ready` status.
+- Configuration readback remained `storage=postgres`, `databaseSsl=require`,
+  `authMode=oidc`, `COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED`, and
+  `COMMUNITY_REVIEW_PUBLIC_INTAKE=false`.
+- A synthetic `.invalid` POST to `/v1/applications` returned HTTP 409 with
+  `application_intake_closed`. The four application-related table counts were
+  zero before and after the request.
+- A bounded sample of 17 current deployment log lines contained no connection
+  URI, database environment variable, bearer/cookie material, secret/private
+  key/API-token marker, or email-shaped value.
+
+This evidence is intentionally limited to recovery, additive migration, and
+the deployed closed-state recheck. The full private staging application gate
+remains **PARTIAL / NOT YET PASS** until the safe localhost-only `OPEN` dry run,
+malformed/oversized/method checks, protected reviewer/operator checks, and the
+other items listed above are completed.
