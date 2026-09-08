@@ -1,4 +1,17 @@
 export type CommunityReviewServiceErrorCode =
+  | "application_intake_closed"
+  | "application_intake_paused"
+  | "application_contract_invalid"
+  | "application_idempotency_required"
+  | "application_idempotency_invalid"
+  | "application_idempotency_conflict"
+  | "application_rate_limited"
+  | "application_not_found"
+  | "application_not_active"
+  | "application_decision_invalid"
+  | "application_decision_conflict"
+  | "application_withdrawal_not_authorized"
+  | "application_retention_invalid"
   | "authentication_required"
   | "authentication_failed"
   | "authentication_subject_not_found"
@@ -46,6 +59,19 @@ export type CommunityReviewServiceErrorCode =
   | "invalid_service_record";
 
 const messages: Record<CommunityReviewServiceErrorCode, string> = {
+  application_intake_closed: "Community Review participation applications are closed.",
+  application_intake_paused: "Community Review participation applications are temporarily paused.",
+  application_contract_invalid: "Community Review participation application is invalid.",
+  application_idempotency_required: "A valid application idempotency key is required.",
+  application_idempotency_invalid: "The application idempotency key is invalid.",
+  application_idempotency_conflict: "The application idempotency key was reused for a different application.",
+  application_rate_limited: "Application submission rate limit exceeded.",
+  application_not_found: "Community Review participation application was not found.",
+  application_not_active: "Community Review participation application is no longer active.",
+  application_decision_invalid: "The requested application decision is invalid.",
+  application_decision_conflict: "The application already has a different manual decision.",
+  application_withdrawal_not_authorized: "Application withdrawal authorization was not accepted.",
+  application_retention_invalid: "Application retention data is invalid.",
   authentication_required: "Community Review authentication is required.",
   authentication_failed: "Community Review authentication failed.",
   authentication_subject_not_found: "Authenticated Community Review principal is not provisioned.",

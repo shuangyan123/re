@@ -1,11 +1,12 @@
 # Community Review Participation Application Contract / Launch Gate
 
-Status: **L2-C2B contract defined; public application intake remains CLOSED.**
+Status: **L2-C2C implementation delivered in code; private staging verification is a separate gate. Public application intake remains CLOSED.**
 
 This document defines the small, versioned contract that a future manual
 invitation workflow may use and the hard gate that must be satisfied before
-public applications can move from `CLOSED` to `OPEN`. It does not authorize
-recruitment, collect an application, or implement an application service.
+public applications can move from `CLOSED` to `OPEN`. L2-C2C adds the private,
+state-gated application service and storage path, but it does not authorize
+recruitment or public intake.
 
 The authoritative state for this phase is:
 
@@ -20,10 +21,12 @@ P5 human calibration                   NOT STARTED
 
 ## Scope and non-goals
 
-L2-C2B adds a provider-independent TypeScript contract, strict runtime
-validation, focused regression tests, and this launch-gate record. It does not
-add persistence, a database table, HTTP handling, authentication, an email
-sender, an application form, an invitation sender, reviewer provisioning, a
+L2-C2B added the provider-independent TypeScript contract, strict runtime
+validation, focused regression tests, and this launch-gate record. L2-C2C adds
+in-memory and PostgreSQL persistence, a dedicated application-intake service,
+operator-only review methods, a future HTTP transport, bounded abuse controls,
+retention/purge behavior, and private staging verification procedures. It does
+not add an application form, an invitation sender, reviewer provisioning, a
 Reviewer Portal, qualification UI, or real applicant data.
 
 The existing P3 Community Review protocol and P4 service remain separate
@@ -124,9 +127,12 @@ application record directly into:
 - public Community Review artifacts.
 
 Application data exists only for a future recruitment/invitation purpose and is
-logically separate from protocol evidence. This phase does not define a
-retention or deletion duration. A retention/deletion policy is a required
-launch-gate item below.
+logically separate from protocol evidence. L2-C2C defines an executable,
+data-minimizing policy: pending records expire after 90 days; invited or
+declined records expire 30 days after the manual decision; withdrawal redacts
+contact and free text immediately; and purge leaves only a non-identifying
+tombstone plus the minimum idempotency/audit metadata. This is an application
+policy, not a legal or compliance certification.
 
 ## Acknowledgement, consent, and qualification
 
@@ -187,11 +193,41 @@ The future intake state vocabulary is:
 | `OPEN` | New applications may be accepted only after every hard launch-gate item passes and separate authorization is recorded. |
 | `PAUSED` | New applications are temporarily rejected while already-held records, if any, are preserved under the later approved policy. |
 
-L2-C2B does not implement live state storage or an intake route. The executable
-state resolver is fail-closed: missing, null, empty, whitespace-padded, or
-malformed primitive configuration resolves to `CLOSED`; a known state is
-returned as-is; an unknown non-empty state name is rejected rather than
-guessed. `OPEN` is never the fallback for a missing flag.
+The separate runtime setting is
+`COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE`; it does not repurpose
+`COMMUNITY_REVIEW_PUBLIC_INTAKE`, which remains hard-disabled for reviewer and
+campaign intake. The executable state resolver is fail-closed: missing, null,
+empty, whitespace-padded, or malformed primitive configuration resolves to
+`CLOSED`; a known state is returned as-is; an unknown non-empty state name is
+rejected rather than guessed. `OPEN` is never the fallback for a missing flag.
+
+The application service enforces the state before parsing or writing a public
+submission. `POST /v1/applications` is a future transport only: there is no
+browser form, public CORS policy, or public-page endpoint call. Applicant
+withdrawal remains available while intake is `CLOSED` or `PAUSED`; operator
+listing, detail, decisions, and purge require the existing operator
+authentication/authorization boundary.
+
+### L2-C2C application service controls
+
+- Application IDs are opaque random values and are never derived from contact
+  data, provider subjects, or reviewer IDs.
+- Contact values live in a separate table/record boundary. Idempotency keys are
+  stored only as fingerprints; withdrawal credentials are returned once and
+  stored only as one-way digests.
+- The first submission returns a minimal `PENDING` receipt. An identical retry
+  returns the same application receipt without the credential; a changed body
+  under the same key is a deterministic conflict. PostgreSQL transactions use
+  a service lock/row-lock boundary so concurrent duplicates collapse to one
+  application.
+- Operator list responses omit contact and free text. Explicit operator detail
+  may include them while the record is active. `INVITED` records do not create
+  reviewer identities, consent, qualification receipts, assignments,
+  submissions, batches, frozen pools, agreement evidence, or public evidence.
+- Withdrawal and deterministic operator purge redact contact/free text and
+  preserve only a minimal tombstone and narrow audit event. The bounded
+  in-memory rate limiter is transient abuse control; production edge/CDN abuse
+  controls remain a later launch concern.
 
 Storage unavailable means a future submission must be rejected, not silently
 accepted. Manual review unavailable must not auto-approve. Qualification
@@ -204,35 +240,39 @@ must be evidenced and reviewed before a separately authorized future phase may
 open public application intake. L2-C2B defines the checklist; it does not
 claim that the checklist has passed.
 
-| # | Required before `OPEN` | L2-C2B status |
+| # | Required before `OPEN` | L2-C2C status |
 | ---: | --- | --- |
 | 1 | Application contract version is frozen and reviewed. | Required; not a launch authorization |
 | 2 | Public application notice matches that exact contract version. | Required; not a launch authorization |
 | 3 | Field-purpose and data-minimization review is complete. | Required; not a launch authorization |
-| 4 | Retention and deletion policy is explicitly defined. | Deferred to intake implementation |
-| 5 | Applicant withdrawal and deletion handling is defined. | Deferred to intake implementation |
-| 6 | Contact-information storage boundary is implemented. | Deferred to intake implementation |
-| 7 | Contact information is excluded from reviewer-evidence and public projections. | Contract boundary defined; implementation deferred |
-| 8 | Production/staging storage access controls are reviewed. | Deferred to intake implementation |
-| 9 | Secret, log, and privacy audit passes. | Deferred to intake implementation |
-| 10 | Abuse, spam, and rate-limit controls are implemented. | Deferred to intake implementation |
-| 11 | Request-size and malformed-input limits are implemented. | Deferred to intake implementation |
-| 12 | Manual reviewer decision workflow is implemented. | Deferred to intake implementation |
-| 13 | Application submission cannot automatically provision a reviewer. | Contract boundary defined; implementation deferred |
-| 14 | Application approval cannot bypass qualification. | Contract boundary defined; implementation deferred |
-| 15 | Reviewer consent remains mandatory after invitation. | Existing P4 boundary; intake integration deferred |
-| 16 | Public intake kill switch exists and defaults to `CLOSED`. | Existing service remains closed; intake kill switch deferred |
-| 17 | Staging end-to-end application dry run passes. | Deferred to intake implementation |
-| 18 | Duplicate, retry, and idempotency behavior is defined. | Deferred to intake implementation |
-| 19 | Operator authorization for application review is verified. | Deferred to intake implementation |
+| 4 | Retention and deletion policy is explicitly defined. | IMPLEMENTED and documented; not a legal/compliance certification |
+| 5 | Applicant withdrawal and deletion handling is defined. | IMPLEMENTED with immediate redaction and tombstone tests |
+| 6 | Contact-information storage boundary is implemented. | IMPLEMENTED in-memory + PostgreSQL migration 007; staging evidence pending |
+| 7 | Contact information is excluded from reviewer-evidence and public projections. | IMPLEMENTED with positive-allowlist and authority-isolation regression tests |
+| 8 | Production/staging storage access controls are reviewed. | PRIVATE STAGING VERIFICATION PENDING |
+| 9 | Secret, log, and privacy audit passes. | Local source/test audit PASS; external staging log audit pending |
+| 10 | Abuse, spam, and rate-limit controls are implemented. | Bounded transient rate limiter implemented; edge/CDN abuse control deferred |
+| 11 | Request-size and malformed-input limits are implemented. | IMPLEMENTED with HTTP 400/413/415/405 tests |
+| 12 | Manual reviewer decision workflow is implemented. | IMPLEMENTED; operator-only list/detail/decision/purge tested |
+| 13 | Application submission cannot automatically provision a reviewer. | IMPLEMENTED and regression-tested; no authority mutation path |
+| 14 | Application approval cannot bypass qualification. | IMPLEMENTED boundary; invitation records no qualification authority |
+| 15 | Reviewer consent remains mandatory after invitation. | Existing P4 boundary preserved; no invitation-to-reviewer integration |
+| 16 | Public intake kill switch exists and defaults to `CLOSED`. | IMPLEMENTED as separate `CLOSED`/`OPEN`/`PAUSED` setting; deployed state pending |
+| 17 | Staging end-to-end application dry run passes. | PRIVATE STAGING VERIFICATION PENDING |
+| 18 | Duplicate, retry, and idempotency behavior is defined. | IMPLEMENTED with in-memory tests and PostgreSQL adapter/integration coverage |
+| 19 | Operator authorization for application review is verified. | IMPLEMENTED with unauthenticated/reviewer/operator isolation tests |
 | 20 | Public page accurately says whether intake is open or closed. | Current page says applications are not open |
-| 21 | Rollback and close procedure is defined. | Deferred to intake implementation |
+| 21 | Rollback and close procedure is defined. | IMPLEMENTED: `OPEN -> CLOSED`/`PAUSED` stops new writes without destructive rollback |
 | 22 | Separate explicit launch authorization is given. | Not given in L2-C2B |
 
 The existing P4 service remains private and keeps its own public-intake
-configuration closed. Passing this checklist in a future phase must still not
-start a Community Review campaign, qualify a reviewer, or begin P5 without
-those separately authorized phases.
+configuration closed. Passing implementation checks in this phase must still
+not start a Community Review campaign, qualify a reviewer, or begin P5 without
+those separately authorized phases. The private staging gate is not complete
+until an exact merged main SHA is deployed with application intake `CLOSED`,
+live/ready probes pass, closed-state behavior is externally verified, and a
+localhost-only synthetic `OPEN` dry run (or safe equivalent) completes without
+opening the deployed listener.
 
 ## Public transparency
 
@@ -251,10 +291,20 @@ form, input controls, waitlist, reviewer login, or application endpoint.
 ## Explicit phase boundary
 
 ```text
-L2-C2B — Participation Application Contract / Closed-to-Open Gate    PASS
+L2-C2C implementation delivery                                              PASS when merged
+Private staging application gate                                             PENDING until externally verified
+L2-C2C overall                                                                NOT YET PASS
 
-Application contract                  DEFINED
-Application launch gate               DEFINED
+Application contract                  IMPLEMENTED
+Application persistence               IMPLEMENTED
+Submission idempotency                IMPLEMENTED; PostgreSQL verification pending
+Applicant withdrawal/deletion         IMPLEMENTED
+Retention policy                       DEFINED + ENFORCEABLE
+Operator manual decision              IMPLEMENTED
+Contact/evidence separation           IMPLEMENTED; staging verification pending
+Application intake kill switch        IMPLEMENTED; deployed state pending
+Private staging application E2E        NOT YET VERIFIED
+Staging application intake            MUST REMAIN CLOSED
 Public participation information      OPEN
 Public application                    NOT OPEN
 Public reviewer intake                NOT OPEN
@@ -263,7 +313,7 @@ Reviewer Portal                       NOT STARTED
 P5 human calibration                  NOT STARTED
 ```
 
-The next implementation phase, if separately authorized, must add the
-retention/deletion, storage, abuse, operator, and end-to-end controls required
-above before it can consider changing the public application state. L2-C2B
-does not start L2-C2C or any later phase.
+No public application opening follows from this implementation. Separate
+launch authorization remains required, #22 is **NOT GIVEN**, and this phase
+does not start L2-C2D, reviewer intake, a Community Review campaign, Reviewer
+Portal work, or P5 calibration.

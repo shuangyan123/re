@@ -12,6 +12,11 @@ import {
   CommunityReviewApplicationService,
 } from "./application.js";
 import {
+  ApplicationSubmissionRateLimiter,
+  CommunityReviewApplicationIntakeApplicationService,
+  CommunityReviewApplicationIntakeService,
+} from "./application-intake.js";
+import {
   ConfiguredOperatorAuthorizer,
   OidcJwtAuthenticationAdapter,
 } from "./oidc.js";
@@ -57,6 +62,7 @@ export interface CommunityReviewRuntime {
   readonly persistence: CommunityReviewPersistence;
   readonly service: CommunityReviewService;
   readonly application: CommunityReviewApplicationService;
+  readonly applicationIntake: CommunityReviewApplicationIntakeApplicationService;
   readonly checkReadiness: () => Promise<CommunityReviewReadinessResult>;
   readonly close: () => Promise<void>;
 }
@@ -126,10 +132,22 @@ export function createCommunityReviewRuntime(config: CommunityReviewServiceConfi
     ...(reviewBatchMaterialStore === undefined ? {} : { reviewBatchMaterialStore }),
   });
   const authentication = createAuthentication(config);
+  const operatorAuthorizer = createOperatorAuthorizer(config);
   const application = new CommunityReviewApplicationService(
     service,
     authentication,
-    createOperatorAuthorizer(config),
+    operatorAuthorizer,
+  );
+  const applicationIntake = new CommunityReviewApplicationIntakeApplicationService(
+    new CommunityReviewApplicationIntakeService(persistence, {
+      intakeState: config.applicationIntakeState,
+      rateLimiter: new ApplicationSubmissionRateLimiter({
+        maximumRequests: config.applicationRateLimitMaximumRequests,
+        windowMs: config.applicationRateLimitWindowMs,
+      }),
+    }),
+    authentication,
+    operatorAuthorizer,
   );
   let closed = false;
 
@@ -177,7 +195,7 @@ export function createCommunityReviewRuntime(config: CommunityReviewServiceConfi
     closed = true;
     if (postgres !== undefined) await postgres.close();
   };
-  return { config, persistence, service, application, checkReadiness, close };
+  return { config, persistence, service, application, applicationIntake, checkReadiness, close };
 }
 
 export interface CommunityReviewLogEvent {
@@ -277,6 +295,7 @@ export function createCommunityReviewHttpServer(
     if (route.startsWith("/v1/")) {
       void handleCommunityReviewApiRequest(
         runtime.application,
+        runtime.applicationIntake,
         request,
         route,
         runtime.config.requestBodyLimitBytes,

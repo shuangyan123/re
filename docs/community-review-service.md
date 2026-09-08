@@ -23,9 +23,11 @@ P5 Community calibration              NOT STARTED
 
 This document describes an isolated service boundary, its production-capable
 adapters, and the deployment verification contract. No external deployment,
-public reviewer intake, or real campaign was performed in P4-G. A successful
-P4-G check is deployment-readiness evidence, not evidence that a real reviewer
-has qualified or submitted a review.
+public reviewer intake, or real campaign was performed in P4-G. L2-C2C adds a
+separate closed application-intake boundary; its implementation evidence and
+private staging evidence must not be confused with a launch authorization. A
+successful P4-G check is deployment-readiness evidence, not evidence that a
+real reviewer has qualified or submitted a review.
 
 ## P3 and P4 responsibility boundary
 
@@ -81,9 +83,72 @@ audience, expiry, algorithm, and signature through a remote JWKS endpoint and
 returns only the sanitized principal. Tokens, claims, and provider payloads do
 not enter the service contract. `SyntheticAuthenticationAdapter` is available
 only for explicitly selected test/development configurations. No OAuth UI,
-public signup, payment flow, or public business HTTP API is part of this
-phase. Lower-level methods retain opaque reviewer IDs only for trusted
-internal transactions.
+public reviewer signup, payment flow, or public reviewer/campaign API is part
+of this phase. L2-C2C's future `POST /v1/applications` transport is a separate
+state-gated application path and remains closed by default; no browser form or
+CORS exposure is added. Lower-level methods retain opaque reviewer IDs only
+for trusted internal transactions.
+
+## L2-C2C closed application-intake boundary
+
+Participation applications are handled by
+`CommunityReviewApplicationIntakeService` and its authenticated operator
+facade in `src/application-intake.ts`. This service is intentionally not an
+extension of reviewer authority. It can submit and withdraw an application,
+list pending applications, read operator detail, record `INVITED` or `DECLINED`,
+and purge expired records. It cannot provision a reviewer, create consent,
+issue qualification receipts, create assignments, submit reviews, mutate a
+review batch, or create any P3/P4 evidence record.
+
+The application switch is independent from the historical reviewer/campaign
+switch:
+
+```text
+COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED | OPEN | PAUSED
+COMMUNITY_REVIEW_PUBLIC_INTAKE=false
+```
+
+Missing, empty, whitespace-padded, or malformed primitive application-state
+configuration resolves to `CLOSED`; unknown non-empty enum values reject
+configuration. Production configuration still rejects
+`COMMUNITY_REVIEW_PUBLIC_INTAKE=true`. The runtime constructs the application
+service with the configured state, so changing `OPEN` to `CLOSED` or `PAUSED`
+on a controlled restart stops only new application writes; withdrawal and
+authorized operator maintenance remain available.
+
+The HTTP transport is deliberately allowlisted:
+
+```text
+POST /v1/applications
+POST /v1/applications/:applicationId/withdraw
+GET  /v1/operator/applications
+GET  /v1/operator/applications/:applicationId
+POST /v1/operator/applications/:applicationId/decision
+POST /v1/operator/applications/purge
+```
+
+Public submission requires `Idempotency-Key`, uses the strict
+`community-review-application@0.1.0` parser, rejects oversized or malformed
+requests, and returns only a minimal receipt. The first successful response
+may include a high-entropy withdrawal credential; retries never return it.
+Keys and credentials are not logged or stored raw. Contact information is in
+`community_review_application_contacts`, separate from application metadata;
+application and audit rows contain no contact value or free text after
+withdrawal/purge.
+
+Migration `007_community_review_application_intake.sql` is additive and does
+not rewrite migrations `001` through `006`. It creates the application,
+contact, idempotency, and narrow audit tables with lifecycle, fingerprint,
+version, and retention constraints. The PostgreSQL adapter loads these rows
+into the same storage-neutral snapshot validated by the in-memory repository,
+locks the new tables in the service transaction order, and persists contact
+deletion as a real SQL delete while preserving a minimal tombstone.
+
+The fixed application retention policy is 90 days for pending applications and
+30 days after `INVITED` or `DECLINED`. Withdrawal redacts contact and free text
+immediately. `purgeExpired(asOf)` is deterministic and operator-authorized;
+this phase does not require a background scheduler. The policy is an internal
+data-minimization rule, not a legal retention or compliance certification.
 
 ## Sealed qualification architecture
 
@@ -857,3 +922,14 @@ boundary. Public reviewer intake remains **NOT OPEN** and the real campaign is
 **NOT STARTED**. P5 Community calibration is **NOT STARTED**. The frozen pool
 is not a Human Reference, and future work must preserve the private material
 boundary and the distinction between P3 validity and P4 authority.
+
+## L2-C2C handoff status
+
+The L2-C2C implementation is complete in the task branch when its delivery
+commit is merged, but repository delivery and private staging are separate
+status lines. The deployed application setting must remain `CLOSED`, the
+historical reviewer/campaign intake flag must remain `false`, and no public
+application form or CORS origin is authorized. L2-C2C is not overall PASS until
+the exact merged main SHA has passed the private staging live/ready, closed
+write-rejection, isolated synthetic localhost-only `OPEN` dry run, backup, and
+privacy checks described in `docs/community-review-staging-gate.md`.
