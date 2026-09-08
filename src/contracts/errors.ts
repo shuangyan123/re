@@ -18,6 +18,7 @@ export type BenchmarkErrorCode =
   | "human_reference_calibration_invalid"
   | "human_reference_semantic_audit_invalid"
   | "community_review_invalid"
+  | "community_review_application_invalid"
   | "calibration_critical_failure_target_invalid"
   | "calibration_critical_failure_annotation_invalid"
   | "calibration_critical_failure_adjudication_invalid"
@@ -55,6 +56,8 @@ const stableMessages: Record<BenchmarkErrorCode, string> = {
   human_reference_semantic_audit_invalid:
     "Human reference semantic audit data is invalid.",
   community_review_invalid: "Community Review protocol data is invalid.",
+  community_review_application_invalid:
+    "Community Review application data is invalid.",
   calibration_critical_failure_target_invalid:
     "Critical-failure calibration target registry is invalid.",
   calibration_critical_failure_annotation_invalid:
@@ -98,6 +101,7 @@ export class BenchmarkConfigurationError extends Error {
     | "human_reference_calibration_invalid"
     | "human_reference_semantic_audit_invalid"
     | "community_review_invalid"
+    | "community_review_application_invalid"
     | "calibration_critical_failure_target_invalid"
     | "calibration_critical_failure_annotation_invalid"
     | "calibration_critical_failure_adjudication_invalid"
@@ -130,6 +134,7 @@ export class BenchmarkConfigurationError extends Error {
       | "human_reference_calibration_invalid"
       | "human_reference_semantic_audit_invalid"
       | "community_review_invalid"
+      | "community_review_application_invalid"
       | "calibration_critical_failure_target_invalid"
       | "calibration_critical_failure_annotation_invalid"
       | "calibration_critical_failure_adjudication_invalid"

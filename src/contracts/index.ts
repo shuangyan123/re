@@ -29,6 +29,8 @@ export * from "./human-reference-semantic-audit-v2-1-provenance.js";
 export * from "./human-reference-semantic-audit-v2-1-validation.js";
 export * from "./community-review.js";
 export * from "./community-review-validation.js";
+export * from "./community-review-application.js";
+export * from "./community-review-application-validation.js";
 export * from "./critical-failure-calibration.js";
 export * from "./critical-failure-calibration-validation.js";
 export * from "./tutor-eval-result-validation.js";

@@ -21,6 +21,8 @@ export {
 export { runTutorBenchmark, runTutorEval } from "./runner/index.js";
 export { createHttpTutor } from "./adapters/http-tutor.js";
 export * from "./community-review/index.js";
+export * from "./contracts/community-review-application.js";
+export * from "./contracts/community-review-application-validation.js";
 
 export type {
   StudentState,

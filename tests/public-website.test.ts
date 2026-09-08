@@ -197,6 +197,8 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(methodologyHtml, /Agreement is consistency evidence, not correctness/);
     assert.match(methodologyHtml, /Qualification is eligibility, not calibration/);
     assert.match(methodologyHtml, /FROZEN<\/code> is not <code>Human Reference/);
+    assert.match(docsHtml, /Participation application gate/);
+    assert.match(docsHtml, /closed-to-open launch checklist/);
     assert.match(methodologyHtml, /human calibration have not started/);
     assert.match(methodologyHtml, /Judge-vs-human validation and statistical validation are not completed/);
     assert.match(docsHtml, /Community Review protocol/);
@@ -213,6 +215,11 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(communityHtml, /Public reviewer intake is not open/);
     assert.match(communityHtml, /real Community Review campaign has not started/);
     assert.match(communityHtml, /P5 human calibration has not started/);
+    assert.match(communityHtml, /What we expect to ask when applications open/);
+    assert.match(communityHtml, /One contact email for a future invitation/);
+    assert.match(communityHtml, /Preferred review language/);
+    assert.match(communityHtml, /Optional relevant experience summary/);
+    assert.match(communityHtml, /Approximate availability category/);
     assert.match(communityHtml, /Application.*Manual review.*Invitation.*Consent.*Qualification.*Blind review/s);
     assert.match(communityHtml, /href="\/community\/" aria-current="page"/);
     assert.match(communityHtml, /href="\/data\/cases\/"/);
@@ -239,6 +246,9 @@ test("community page renders meaningful Chinese content and runtime locale data"
     assert.match(communityHtml, /公开 reviewer intake 尚未开放/);
     assert.match(communityHtml, /真实 Community Review 尚未启动/);
     assert.match(communityHtml, /P5 人工校准尚未开始/);
+    assert.match(communityHtml, /开放申请后预计会询问什么/);
+    assert.match(communityHtml, /用于未来邀请的一个联系邮箱/);
+    assert.match(communityHtml, /可选的相关经验概述/);
     assert.match(communityHtml, /没有申请表、候补名单或 reviewer 登录入口/);
     assert.match(communityHtml, /data-ui-text="communityHeroTitle"/);
     assert.match(communityHtml, /data-ui-text-en="Help improve TutorBench"/);
