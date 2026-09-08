@@ -196,7 +196,7 @@ scoped migration-recovery evidence.
 Current implementation status after exact-main deployment and recovery recheck:
 
 ```text
-Implementation delivery                 PASS — 350b3b95b10d7500383294997f7c43867daacebd
+Implementation delivery                 PASS — 3ba1b108d9c19904081b91d1a2bc742721890479
 Migration recovery evidence (L2-C2C-R)   PASS — isolated v6 -> v7 replay
 Private staging application gate         PARTIAL — closed path PASS; full dry run pending
 L2-C2C overall                           NOT YET PASS
@@ -281,8 +281,8 @@ zero rows. Existing counts remained `13/6/12/7/1/0`; public tables increased to
 
 ### Active staging recheck
 
-- Current Railway deployment: `f34492ca-662a-4063-aa1f-2dc462a35f7d`, source
-  SHA `350b3b95b10d7500383294997f7c43867daacebd`, `SUCCESS`.
+- Current Railway deployment: `ae004c6b-ae75-4326-9245-7ba8f3b17159`, source
+  SHA `3ba1b108d9c19904081b91d1a2bc742721890479`, `SUCCESS`.
 - Active database migration history reported versions `1..7`; version 7 was
   recorded with the same repository checksum above.
 - `GET /health/live` and `GET /health/ready` both returned HTTP 200 with
