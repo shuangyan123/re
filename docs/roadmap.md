@@ -123,21 +123,38 @@ P3 status: **READY FOR P4 COMMUNITY REVIEW SERVICE**. This does not mean that
 the service exists, that real reviewers have qualified, that a batch has been
 reviewed, or that any calibration or leaderboard claim is available.
 
-### P4 Community Review Service — IN PROGRESS (P4-A foundation only)
+### P4 Community Review Service — COMPLETE at deployment-ready boundary
 
 - [x] P4-A isolated service/runtime boundary and private persistence model
 - [x] P4-A PostgreSQL migration semantics, typed repository, and synthetic
       transaction/concurrency harness
 - [x] P4-A authoritative qualification-receipt persistence boundary and
       positive-allowlist packet firewall
-- [ ] Authenticated production issuer and real qualification workflow
-- [ ] Sealed production assignment delivery, reviewer consent, withdrawal,
-      retention, and operational anti-replay controls
-- [ ] Real reviewer intake and operational abuse controls
-- [ ] Fresh sealed community batches and review service APIs
+- [x] Authenticated issuer, consent, sealed qualification, and authoritative
+      qualification receipts
+- [x] Sealed blind assignment delivery, authenticated submission/withdrawal,
+      close/freeze authority, and operational evidence boundaries
+- [x] Deployment/readiness contract and private staging launch-gate evidence
+- [ ] Public participation application intake and operational abuse controls
+- [ ] Real reviewer campaign and fresh community evidence
 
-P4-A status: **COMMUNITY REVIEW SERVICE FOUNDATION — PASS**. The foundation is
-synthetic/local and does not deploy a service or open public reviewer intake.
+P4 status: **COMMUNITY REVIEW SERVICE — PASS — DEPLOYMENT-READY**. Private
+staging evidence does not open public reviewer intake or start a real campaign.
+
+### L2-C2B Participation Application Contract / Closed-to-Open Gate — COMPLETE
+
+- [x] Versioned, provider-independent application contract with strict runtime
+      validation and bounded minimal fields
+- [x] Applicant/contact data separation from opaque reviewer IDs, consent,
+      qualification, assignments, submissions, and public evidence
+- [x] Internal manual-review decision vocabulary without qualification claims
+- [x] Fail-closed `CLOSED` / `OPEN` / `PAUSED` state model and hard 22-item
+      `CLOSED -> OPEN` launch checklist
+- [x] Public `/community/` transparency for future application categories
+
+L2-C2B status: **APPLICATION CONTRACT DEFINED; PUBLIC APPLICATION NOT OPEN**.
+No application form, persistence, endpoint, authentication, email delivery,
+reviewer provisioning, or real applicant data is part of this phase.
 
 ### Later Community Review phases — NOT STARTED
 

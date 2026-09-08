@@ -117,6 +117,15 @@ export type SiteUiTextKey =
   | "communityTaskJudge"
   | "communityTaskSubmit"
   | "communityTaskQualify"
+  | "communityApplicationEyebrow"
+  | "communityApplicationTitle"
+  | "communityApplicationCopy"
+  | "communityApplicationClosedNotice"
+  | "communityApplicationContact"
+  | "communityApplicationLocale"
+  | "communityApplicationMotivation"
+  | "communityApplicationExperience"
+  | "communityApplicationAvailability"
   | "communityHowEyebrow"
   | "communityHowTitle"
   | "communityHowCopy"
@@ -263,6 +272,15 @@ const translations: Record<SiteLocale, Record<SiteUiTextKey, string>> = {
     communityTaskJudge: "Judge the response using the provided criteria",
     communityTaskSubmit: "Submit a structured review",
     communityTaskQualify: "Complete a short qualification step before reviewing real assignments",
+    communityApplicationEyebrow: "Future application",
+    communityApplicationTitle: "What we expect to ask when applications open",
+    communityApplicationCopy: "The first application contract is intentionally small: one contact email, a preferred review language, a short motivation, optional relevant experience, and a coarse availability category.",
+    communityApplicationClosedNotice: "Applications are not open yet. This section describes a future contract, not a form.",
+    communityApplicationContact: "One contact email for a future invitation",
+    communityApplicationLocale: "Preferred review language",
+    communityApplicationMotivation: "A short motivation for participating",
+    communityApplicationExperience: "Optional relevant experience summary",
+    communityApplicationAvailability: "Approximate availability category",
     communityHowEyebrow: "How it could work",
     communityHowTitle: "A high-level path from interest to blind review.",
     communityHowCopy: "Participation would be invite-only at first. An application would not create a reviewer account automatically.",
@@ -408,6 +426,15 @@ const translations: Record<SiteLocale, Record<SiteUiTextKey, string>> = {
     communityTaskJudge: "按提供的标准进行判断",
     communityTaskSubmit: "提交结构化评审",
     communityTaskQualify: "在评审真实任务前完成简短的资格验证",
+    communityApplicationEyebrow: "未来申请",
+    communityApplicationTitle: "开放申请后预计会询问什么",
+    communityApplicationCopy: "首版申请合同会刻意保持最小：一个用于未来邀请的联系邮箱、偏好的评审语言、简短动机、可选的相关经验，以及粗粒度的可用程度。",
+    communityApplicationClosedNotice: "当前尚未开放申请。本节说明未来合同，不是申请表。",
+    communityApplicationContact: "用于未来邀请的一个联系邮箱",
+    communityApplicationLocale: "偏好的评审语言",
+    communityApplicationMotivation: "参与原因的简短说明",
+    communityApplicationExperience: "可选的相关经验概述",
+    communityApplicationAvailability: "粗粒度的可用程度",
     communityHowEyebrow: "参与方式",
     communityHowTitle: "从表达意愿到盲评任务的高层流程。",
     communityHowCopy: "初期参与将采用受邀制。提交申请不会自动创建 reviewer 账号。",

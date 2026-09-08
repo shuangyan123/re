@@ -18,11 +18,13 @@ Issues and pull requests may propose:
 - Calibration methodology and audit infrastructure.
 
 Use the closest issue form, then link the relevant issue from a pull request.
-The Community Review protocol is defined in P3, but the P4 service is not
-deployed and this repository is not yet accepting official public review
-submissions, reviewer identities, or qualification data. See the
-[Community Review protocol](docs/community-review-protocol.md) for the exact
-boundary.
+The Community Review protocol is defined in P3 and the private P4 service is
+deployment-ready, but this repository is not accepting official public review
+submissions, reviewer identities, qualification data, or participation
+applications. Public application intake remains closed under the
+[participation application gate](docs/community-review-application-gate.md).
+See the [Community Review protocol](docs/community-review-protocol.md) for the
+review-evidence boundary.
 
 ## Before opening a pull request
 
