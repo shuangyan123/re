@@ -126,28 +126,8 @@ export function renderHomePage(artifacts: PublicBenchmarkArtifacts): SitePage {
       </div>
     </section>
 
-    <section class="section" aria-labelledby="leaderboard-preview-title">
-      <div class="shell">
-        <div class="section-heading split-heading">
-          <div>
-            <p class="eyebrow">Public results</p>
-            <h2 id="leaderboard-preview-title">Leaderboard preview</h2>
-          </div>
-          <a class="text-link" href="/leaderboard/">See the full schema ↗</a>
-        </div>
-        <div class="preview-panel panel">
-          <div class="preview-panel-head">
-            ${renderStatusBadge("No calibrated runs", "muted")}
-            <span class="muted">Ranking is intentionally unavailable</span>
-          </div>
-          ${renderEmptyState("No calibrated public model runs yet.", "The leaderboard will show versioned model results only after reproducible runs and independent validation are available.")}
-          <div class="schema-strip">
-            <span class="eyebrow">Future score dimensions</span>
-            ${renderDimensionPills(categories)}
-          </div>
-        </div>
-      </div>
-    </section>
+    ${renderCoverageSnapshot(benchmark)}
+    ${exampleCase === undefined ? "" : renderExampleCase(exampleCase)}
 
     <section class="section section-dark" aria-labelledby="measure-title">
       <div class="shell">
@@ -174,9 +154,6 @@ export function renderHomePage(artifacts: PublicBenchmarkArtifacts): SitePage {
       </div>
     </section>
 
-    ${renderCoverageSnapshot(benchmark)}
-    ${exampleCase === undefined ? "" : renderExampleCase(exampleCase)}
-
     <section class="section section-muted" aria-labelledby="developer-title">
       <div class="shell developer-cta">
         <div>
@@ -185,6 +162,29 @@ export function renderHomePage(artifacts: PublicBenchmarkArtifacts): SitePage {
         <div class="button-row">
           <a class="button button-primary" href="/run/">Read the run guide</a>
           <a class="button button-secondary" href="${escapeHtml(SITE_GITHUB_URL)}" rel="noreferrer">View source on GitHub ↗</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="public-results-title">
+      <div class="shell">
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow">Public results</p>
+            <h2 id="public-results-title">Public results status</h2>
+          </div>
+          <a class="text-link" href="/leaderboard/">View the leaderboard schema ↗</a>
+        </div>
+        <div class="preview-panel panel">
+          <div class="preview-panel-head">
+            ${renderStatusBadge("No calibrated runs", "muted")}
+            <span class="muted">Ranking is intentionally unavailable</span>
+          </div>
+          ${renderEmptyState("No calibrated public model runs yet.", "The leaderboard will show versioned model results only after reproducible runs and independent validation are available.")}
+          <div class="schema-strip">
+            <span class="eyebrow">Future score dimensions</span>
+            ${renderDimensionPills(categories)}
+          </div>
         </div>
       </div>
     </section>
