@@ -111,9 +111,9 @@ export function renderHomePage(artifacts: PublicBenchmarkArtifacts): SitePage {
           <h1>Measuring how well AI models teach, <em>not just whether they know the answer.</em></h1>
           <p class="hero-lede">Tutor Benchmark makes tutoring behavior inspectable: can a model recognize what a learner needs, guide the next step, adapt its help, and preserve the learner’s chance to think?</p>
           <div class="button-row">
-            <a class="button button-primary" href="/leaderboard/">Explore leaderboard</a>
-            <a class="button button-secondary" href="/data/cases/">Browse cases</a>
-            <a class="button button-quiet" href="/run/">Try the Quickstart</a>
+            <a class="button button-primary" href="/data/cases/">Browse cases</a>
+            <a class="button button-secondary" href="/run/">Run TutorBench</a>
+            <a class="button button-quiet" href="/methodology/">Read methodology</a>
           </div>
           <p class="hero-note">${escapeHtml(benchmark.notice)}</p>
         </div>
@@ -196,7 +196,7 @@ export function renderHomePage(artifacts: PublicBenchmarkArtifacts): SitePage {
           <h2 id="limits-title">Developer Preview, not a scientific conclusion.</h2>
         </div>
         <div>
-          <p class="section-copy">Calibration infrastructure exists, but independent human calibration, Judge-vs-human validation, and statistical evaluation are still in progress. Tutor Benchmark measures observable tutoring behavior in benchmark cases; it does not measure long-term learning, retention, transfer, satisfaction, or classroom outcomes.</p>
+          <p class="section-copy">Calibration infrastructure exists, but real Community Review and human calibration have not started. Judge-vs-human validation and statistical validation are not completed. Tutor Benchmark measures observable tutoring behavior in benchmark cases; it does not measure long-term learning, retention, transfer, satisfaction, or classroom outcomes.</p>
           <a class="text-link" href="/methodology/">Read methodology and limits ↗</a>
         </div>
       </div>
