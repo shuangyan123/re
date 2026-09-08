@@ -13,6 +13,7 @@ const requiredFiles = [
   "methodology/index.html",
   "docs/index.html",
   "about/index.html",
+  "community/index.html",
   "assets/styles.css",
   "assets/site.js",
   "assets/brand/tutorbench/web/tutorbench-mark.svg",

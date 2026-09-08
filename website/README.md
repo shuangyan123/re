@@ -26,6 +26,12 @@ npm run website:dev
 `OPENAI_API_KEY`, does not call a Judge, and does not include model rankings or
 trial data that are not present in a validated public artifact.
 
+The `/community/` page is an informational participation entry. It explains
+why future structured human review may help validate the method and how a
+future invite-only workflow could work. Applications, public reviewer intake,
+real Community Review, and P5 human calibration remain closed or not started;
+the page has no form, waitlist, login, or service integration.
+
 `.github/workflows/pages.yml` builds this directory and deploys it to GitHub
 Pages only from `main`. GitHub Pages provides the project `base_path` and
 canonical `base_url` to the generator, so project-site links work under

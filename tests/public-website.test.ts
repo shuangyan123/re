@@ -118,11 +118,16 @@ test("static website build emits the public artifact files and route shell", asy
       "utf8",
     );
     const docsHtml = await readFile(join(outputDirectory, "docs", "index.html"), "utf8");
+    const communityHtml = await readFile(
+      join(outputDirectory, "community", "index.html"),
+      "utf8",
+    );
 
-    assert.equal(routeCount, 61);
+    assert.equal(routeCount, 62);
     assert.match(homeHtml, /Developer Preview/);
     assert.match(homeHtml, /No calibrated public model runs yet\./);
     assert.match(homeHtml, /href="\/leaderboard\//);
+    assert.match(homeHtml, /href="\/community\//);
     assert.match(homeHtml, /<a class="button button-primary" href="\/data\/cases\/">Browse cases<\/a>/);
     assert.match(homeHtml, /<a class="button button-secondary" href="\/run\/">Run TutorBench<\/a>/);
     assert.match(homeHtml, /<a class="button button-quiet" href="\/methodology\/">Read methodology<\/a>/);
@@ -203,6 +208,41 @@ test("static website build emits the public artifact files and route shell", asy
     assert.match(docsHtml, /TutorBench Brand Policy/);
     assert.match(docsHtml, /CONTRIBUTING\.md/);
     assert.doesNotMatch(casesJson, /evaluatorOnly|groundTruth|knownMisconception|rubrics|misconceptions/);
+    assert.match(communityHtml, /Help improve TutorBench/);
+    assert.match(communityHtml, /Applications not open yet/);
+    assert.match(communityHtml, /Public reviewer intake is not open/);
+    assert.match(communityHtml, /real Community Review campaign has not started/);
+    assert.match(communityHtml, /P5 human calibration has not started/);
+    assert.match(communityHtml, /Application.*Manual review.*Invitation.*Consent.*Qualification.*Blind review/s);
+    assert.match(communityHtml, /href="\/community\/" aria-current="page"/);
+    assert.match(communityHtml, /href="\/data\/cases\/"/);
+    assert.match(communityHtml, /href="\/methodology\/"/);
+    assert.doesNotMatch(communityHtml, /<form\b|<input\b|<a[^>]*>[^<]*(?:Apply now|Join now|Register|Start reviewing|Sign in as reviewer)/i);
+    assert.doesNotMatch(communityHtml, /https?:\/\/[^"<\s]*(?:railway|auth0|oidc|community-review)/i);
+  } finally {
+    await rm(outputDirectory, { recursive: true, force: true });
+  }
+});
+
+test("community page renders meaningful Chinese content and runtime locale data", async () => {
+  const outputDirectory = await mkdtemp(join(tmpdir(), "tutor-benchmark-community-zh-"));
+  try {
+    await buildWebsite({ outputDirectory, locale: "zh-CN" });
+    const communityHtml = await readFile(
+      join(outputDirectory, "community", "index.html"),
+      "utf8",
+    );
+
+    assert.match(communityHtml, /<html lang="zh-CN" data-ui-locale="zh-CN">/);
+    assert.match(communityHtml, /参与 TutorBench/);
+    assert.match(communityHtml, /当前暂未开放参与申请/);
+    assert.match(communityHtml, /公开 reviewer intake 尚未开放/);
+    assert.match(communityHtml, /真实 Community Review 尚未启动/);
+    assert.match(communityHtml, /P5 人工校准尚未开始/);
+    assert.match(communityHtml, /没有申请表、候补名单或 reviewer 登录入口/);
+    assert.match(communityHtml, /data-ui-text="communityHeroTitle"/);
+    assert.match(communityHtml, /data-ui-text-en="Help improve TutorBench"/);
+    assert.match(communityHtml, /data-ui-text-zh-cn="参与 TutorBench"/);
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });
   }
