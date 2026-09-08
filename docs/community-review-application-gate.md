@@ -1,6 +1,8 @@
 # Community Review Participation Application Contract / Launch Gate
 
-Status: **L2-C2C implementation delivered in code; private staging verification is a separate gate. Public application intake remains CLOSED.**
+Status: **L2-C2C implementation delivered in code; migration-recovery evidence is
+closed, while the private staging application gate remains partial. Public
+application intake remains CLOSED.**
 
 This document defines the small, versioned contract that a future manual
 invitation workflow may use and the hard gate that must be satisfied before
@@ -247,19 +249,19 @@ claim that the checklist has passed.
 | 3 | Field-purpose and data-minimization review is complete. | Required; not a launch authorization |
 | 4 | Retention and deletion policy is explicitly defined. | IMPLEMENTED and documented; not a legal/compliance certification |
 | 5 | Applicant withdrawal and deletion handling is defined. | IMPLEMENTED with immediate redaction and tombstone tests |
-| 6 | Contact-information storage boundary is implemented. | IMPLEMENTED in-memory + PostgreSQL migration 007; staging evidence pending |
+| 6 | Contact-information storage boundary is implemented. | IMPLEMENTED in-memory + PostgreSQL migration 007; isolated v6 -> v7 recovery evidence PASS |
 | 7 | Contact information is excluded from reviewer-evidence and public projections. | IMPLEMENTED with positive-allowlist and authority-isolation regression tests |
 | 8 | Production/staging storage access controls are reviewed. | PRIVATE STAGING VERIFICATION PENDING |
-| 9 | Secret, log, and privacy audit passes. | Local source/test audit PASS; external staging log audit pending |
+| 9 | Secret, log, and privacy audit passes. | Local source/test audit PASS; bounded current-staging log sample PASS; broader gate review remains pending |
 | 10 | Abuse, spam, and rate-limit controls are implemented. | Bounded transient rate limiter implemented; edge/CDN abuse control deferred |
 | 11 | Request-size and malformed-input limits are implemented. | IMPLEMENTED with HTTP 400/413/415/405 tests |
 | 12 | Manual reviewer decision workflow is implemented. | IMPLEMENTED; operator-only list/detail/decision/purge tested |
 | 13 | Application submission cannot automatically provision a reviewer. | IMPLEMENTED and regression-tested; no authority mutation path |
 | 14 | Application approval cannot bypass qualification. | IMPLEMENTED boundary; invitation records no qualification authority |
 | 15 | Reviewer consent remains mandatory after invitation. | Existing P4 boundary preserved; no invitation-to-reviewer integration |
-| 16 | Public intake kill switch exists and defaults to `CLOSED`. | IMPLEMENTED as separate `CLOSED`/`OPEN`/`PAUSED` setting; deployed state pending |
-| 17 | Staging end-to-end application dry run passes. | PRIVATE STAGING VERIFICATION PENDING |
-| 18 | Duplicate, retry, and idempotency behavior is defined. | IMPLEMENTED with in-memory tests and PostgreSQL adapter/integration coverage |
+| 16 | Public intake kill switch exists and defaults to `CLOSED`. | IMPLEMENTED as separate `CLOSED`/`OPEN`/`PAUSED` setting; deployed `CLOSED` state rechecked |
+| 17 | Staging end-to-end application dry run passes. | PARTIAL — deployed closed-path and recovery checks PASS; localhost-only `OPEN` dry run pending |
+| 18 | Duplicate, retry, and idempotency behavior is defined. | IMPLEMENTED with in-memory tests and PostgreSQL adapter/integration coverage; isolated migration replay PASS |
 | 19 | Operator authorization for application review is verified. | IMPLEMENTED with unauthenticated/reviewer/operator isolation tests |
 | 20 | Public page accurately says whether intake is open or closed. | Current page says applications are not open |
 | 21 | Rollback and close procedure is defined. | IMPLEMENTED: `OPEN -> CLOSED`/`PAUSED` stops new writes without destructive rollback |
@@ -268,11 +270,32 @@ claim that the checklist has passed.
 The existing P4 service remains private and keeps its own public-intake
 configuration closed. Passing implementation checks in this phase must still
 not start a Community Review campaign, qualify a reviewer, or begin P5 without
-those separately authorized phases. The private staging gate is not complete
-until an exact merged main SHA is deployed with application intake `CLOSED`,
-live/ready probes pass, closed-state behavior is externally verified, and a
-localhost-only synthetic `OPEN` dry run (or safe equivalent) completes without
-opening the deployed listener.
+those separately authorized phases. The migration-recovery evidence closure is
+recorded separately below. The private staging gate is not complete until an
+exact merged main SHA is deployed with application intake `CLOSED`, live/ready
+probes pass, closed-state behavior is externally verified, and a localhost-only
+synthetic `OPEN` dry run (or safe equivalent) completes without opening the
+deployed listener.
+
+## Migration-recovery evidence closure
+
+The L2-C2C-R recovery blocker is **CLOSED / PASS**. A Neon point-in-time branch
+from the existing staging database lineage was verified at a pre-007 v6 point,
+including exact repository checksums for migrations `001` through `006`,
+pre-007 schema and row-count checks, and absence of migration `007`. The exact
+repository migration `007_community_review_application_intake.sql` was then
+replayed in that isolated branch as one transaction and verified at v7 with
+the four application tables, three expected indexes, 37 constraints, zero
+application-related rows, and unchanged pre-existing row counts. The full
+safe evidence record, including non-secret deployment identifiers and the
+active closed-state recheck, is in
+[`docs/community-review-staging-gate.md`](community-review-staging-gate.md).
+
+This closure does not mean that the public application endpoint is open or
+that the complete private staging application gate has passed. The remaining
+localhost-only `OPEN` dry run, malformed/oversized/method cases, protected
+reviewer/operator route checks, and any other incomplete C2C items remain
+explicitly pending.
 
 ## Public transparency
 
@@ -291,19 +314,20 @@ form, input controls, waitlist, reviewer login, or application endpoint.
 ## Explicit phase boundary
 
 ```text
-L2-C2C implementation delivery                                              PASS when merged
-Private staging application gate                                             PENDING until externally verified
+L2-C2C implementation delivery                                              PASS — merged
+Migration-recovery evidence (L2-C2C-R)                                       PASS — isolated pre-007 v6 -> v7 replay
+Private staging application gate                                             PARTIAL — closed path PASS; full dry run pending
 L2-C2C overall                                                                NOT YET PASS
 
 Application contract                  IMPLEMENTED
 Application persistence               IMPLEMENTED
-Submission idempotency                IMPLEMENTED; PostgreSQL verification pending
+Submission idempotency                IMPLEMENTED; isolated v6 -> v7 replay PASS
 Applicant withdrawal/deletion         IMPLEMENTED
 Retention policy                       DEFINED + ENFORCEABLE
 Operator manual decision              IMPLEMENTED
-Contact/evidence separation           IMPLEMENTED; staging verification pending
-Application intake kill switch        IMPLEMENTED; deployed state pending
-Private staging application E2E        NOT YET VERIFIED
+Contact/evidence separation           IMPLEMENTED; additive v7/recovery checks PASS
+Application intake kill switch        IMPLEMENTED; deployed `CLOSED` state verified
+Private staging application E2E        PARTIAL — closed path verified; `OPEN` dry run pending
 Staging application intake            MUST REMAIN CLOSED
 Public participation information      OPEN
 Public application                    NOT OPEN
