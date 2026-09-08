@@ -299,7 +299,7 @@ export function buildPublicBenchmarkArtifacts(
       status: PUBLIC_BENCHMARK_STATUS,
       statusLabel: "Developer Preview",
       notice:
-        "Leaderboard results are preliminary. Human calibration and statistical validation are still in progress.",
+        "Public model results are unavailable. Human calibration (P5) has not started, and Judge-vs-human and statistical validation are not completed.",
       dataset: datasetSummary,
       dimensions: {
         score: [...PUBLIC_BENCHMARK_SCORE_DIMENSIONS],
