@@ -52,6 +52,7 @@ import {
   renderMethodologyPage,
   renderRunPage,
 } from "../site/pages/developer.js";
+import { renderCommunityPage } from "../site/pages/community.js";
 
 const websiteRoot = resolve(process.cwd(), "website");
 const defaultOutputDirectory = resolve(websiteRoot, "dist");
@@ -140,6 +141,7 @@ interface LocalAuditBuildData {
 function routePages(
   artifacts: PublicBenchmarkArtifacts,
   audit: LocalAuditBuildData | undefined,
+  locale: SiteLocale,
 ): readonly RoutePage[] {
   const reviewTranslationLookup: ReviewTranslationLookup | undefined = audit === undefined
     ? undefined
@@ -158,6 +160,7 @@ function routePages(
     { outputRoute: "/methodology/", page: renderMethodologyPage(artifacts) },
     { outputRoute: "/docs/", page: renderDocsPage(artifacts) },
     { outputRoute: "/about/", page: renderAboutPage(artifacts) },
+    { outputRoute: "/community/", page: renderCommunityPage(locale) },
   ];
   const routePages = [
     ...pages,
@@ -249,7 +252,7 @@ export async function buildWebsite(options: BuildOptions = {}): Promise<number> 
   await writeJson(outputDirectory, "models.json", artifacts.models);
   await writeJson(outputDirectory, "trials.json", artifacts.trials);
 
-  const pages = routePages(artifacts, audit);
+  const pages = routePages(artifacts, audit, locale);
   for (const routePage of pages) {
     await writePage(
       outputDirectory,

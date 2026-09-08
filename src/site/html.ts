@@ -193,6 +193,7 @@ function renderHeader(
         ${navLink("run", "/run/", activeRoute, basePath, locale)}
         ${navLink("methodology", "/methodology/", activeRoute, basePath, locale)}
         ${navLink("docs", "/docs/", activeRoute, basePath, locale)}
+        ${navLink("community", "/community/", activeRoute, basePath, locale)}
         <a href="${escapeHtml(SITE_GITHUB_URL)}" rel="noreferrer">GitHub ↗</a>
         <label class="locale-switcher">
           <span class="visually-hidden">${renderUiText("selectLanguage", locale)}</span>
