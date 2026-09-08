@@ -20,6 +20,34 @@ This Skill is the required repo-local orchestration layer for Tutor Benchmark re
 
 ---
 
+## Worktree policy
+
+Worktrees are optional isolation, not a mandatory step. The default simple route is:
+
+~~~text
+clean, synchronized main worktree
+-> fresh short-lived task branch
+-> implementation/test/PR/merge
+-> return to main
+-> cleanup task branch
+~~~
+
+Prefer a disposable task worktree only when isolation is materially useful, for example:
+
+* another task or PR must remain checked out
+* parallel work exists
+* the normal worktree should remain on main
+* switching branches would disturb user work
+* the agent explicitly needs isolated execution
+
+Do not introduce a worktree for ceremony on a trivial single-task change. Before using or removing one, inspect its registered path, branch, HEAD, and status. Never manually delete, force-remove, or prune an unknown or user-owned worktree. Use `git worktree remove <path>` without `--force` only after the guarded cleanup checks in section 22.
+
+### Routing invariant
+
+The selected task location must be based on the exact fetched `origin/main` SHA. A disposable task worktree is a safe alternative when the normal repository worktree is occupied by another verified task or PR; it does not make worktrees mandatory for later tasks. Do not alter an occupied, dirty, detached, conflicted, or ambiguously owned worktree just to satisfy the default route.
+
+---
+
 # 1. Determine the requested scope
 
 Start by identifying exactly what the user asked to change.
@@ -53,7 +81,7 @@ If no file will be modified, do not create a branch. Read the repository state a
 
 Examples: feature, fix, refactor, maintenance, rules maintenance, docs maintenance, Skill maintenance, or test modification.
 
-This mode requires the hard preflight in section 2 and a task-specific fresh branch from the latest origin/main before the first file edit. Rules-only changes are still write tasks.
+This mode requires the hard preflight in section 2 and a task-specific fresh branch from the exact fetched `origin/main` SHA before the first file edit. Rules-only changes are still write tasks.
 
 ### C. Existing PR continuation
 
@@ -65,7 +93,7 @@ For roadmap work, read only the relevant Foundation or project documentation and
 
 # 2. HARD PREFLIGHT BEFORE WRITING
 
-For mode B, before editing, run:
+For mode B, before the first edit, inspect the repository and all worktrees, then fetch and record the exact base:
 
 ~~~bash
 git status --short
@@ -78,15 +106,15 @@ git worktree list
 git status --short
 ~~~
 
-The preflight must establish:
+The preflight must establish all of the following:
 
-* the current worktree is clean
-* the current branch is main
-* HEAD equals origin/main
-* there are no unknown local changes
-* no other worktree must be modified or resolved to begin this task
+* `git fetch origin` succeeded and the exact `origin/main` SHA is recorded.
+* The default route is available only when the normal repository worktree is clean, attached to `main`, and `HEAD` equals `origin/main`.
+* If the normal worktree is instead a clean, attached worktree for another verified task or open PR, leave it untouched and use the optional task-worktree route from the exact `origin/main` SHA when isolation is materially useful.
+* The selected task location is clean, attached to a known branch, free of an unfinished merge/rebase/cherry-pick/revert, and free of unknown local changes.
+* No other worktree must be modified, switched, removed, or resolved to begin this task.
 
-If any condition fails, STOP. Do not stash, reset, restore, clean, checkout away local changes, commit unrelated changes, delete or prune worktrees, or alter WIP branches.
+A clean attached non-main task branch is not permission to switch away from or rewrite that branch. If no safe normal-worktree or disposable-worktree route exists, STOP. Do not stash, reset, restore, clean, checkout away local changes, commit unrelated changes, delete or prune worktrees, or alter WIP branches.
 
 For mode C, inspect the existing PR first and verify its exact head branch, the local checkout, and the PR HEAD SHA. A dirty state is only continuable when it is proven to belong to that exact PR task.
 
@@ -225,7 +253,27 @@ Otherwise record it as residual work.
 
 # 7. Establish or continue the task branch
 
-For mode B, after the hard preflight create and switch to a fresh task-specific branch from the validated origin/main:
+For mode B, after the hard preflight choose exactly one safe route from the validated `origin/main`:
+
+### Default: use the normal repository worktree
+
+Use this route when the normal repository worktree is clean, attached to `main`, and `HEAD` equals the recorded `origin/main` SHA. Create the fresh task branch there:
+
+~~~bash
+git switch -c <task-branch> <origin-main-sha>
+~~~
+
+### Optional: use a disposable task worktree
+
+Use this route only when the worktree policy says isolation is materially useful. Create the worktree from the exact recorded `origin/main` SHA and verify it before editing:
+
+~~~bash
+git worktree add -b <task-branch> <disposable-path> <origin-main-sha>
+git -C <disposable-path> status --short --branch
+git -C <disposable-path> rev-parse HEAD
+~~~
+
+Do not switch away from an existing task or PR worktree to make the default route possible. Do not use a path or branch already owned by another worktree. If neither route is safe, STOP and preserve the existing state.
 
 Use:
 
@@ -236,19 +284,13 @@ refactor/<scope>
 chore/<scope>
 ~~~
 
-Example:
-
-~~~bash
-git switch -c chore/<scope> origin/main
-~~~
-
 Confirm the branch and clean state before the first file edit. If the desired branch name already exists locally or remotely, inspect its history and ownership; never overwrite unknown history.
 
 If Git reports that the branch is already used by another worktree, STOP and report the conflicting branch, worktree path, current HEAD, and current branch. Do not switch to detached HEAD, silently use an unrelated branch, delete the worktree, or force the operation.
 
 For mode C, continue the verified exact PR head branch instead of creating a new branch. Read-only mode requires no branch.
 
-Never perform a new write task directly on main, detached HEAD, an unrelated feature branch, or a WIP branch.
+Never perform a new write task directly on `main`, detached HEAD, an unrelated feature branch, or a WIP branch. The task branch may live in the normal worktree or in the explicitly selected disposable task worktree; worktrees are not otherwise required.
 
 ---
 
@@ -649,32 +691,63 @@ Do not use a meaningless default title.
 
 ---
 
-# 22. Branch cleanup
+# 22. Branch and worktree cleanup
 
-After successful Merge:
+Begin cleanup only after the remote confirms all of the following:
 
-check whether another open PR depends on the branch.
+* the PR state is `MERGED`
+* the PR base is `main`
+* the PR head SHA is the exact SHA validated immediately before Merge
+* the merge result SHA is read back and the result is bound to the expected `main` state
 
-If not:
+Do not begin cleanup from a local merge command result or a stale PR view. First inspect open PRs and `git worktree list --porcelain`. Treat the task branch as referenced when another open or stacked PR uses it as a head or base, or when another worktree checks it out.
 
-delete the merged remote work branch.
+If a disposable task worktree was used:
 
-Do not delete a branch that is still used as the base of stacked work.
+1. Record and verify its path, branch, and task branch tip against the previously validated PR head SHA.
+2. Verify `git status --short --branch` is clean and that no merge, rebase, cherry-pick, or revert is unfinished.
+3. If it is dirty, unfinished, detached, ambiguously owned, or no longer matches the verified task branch, preserve it and stop cleanup. Never use `git worktree remove --force`.
+4. Remove it with `git worktree remove <path>` without `--force`, then verify that its registration is gone.
+5. Only after the worktree is removed may the local task branch be deleted, and only after section 23 verifies final `main`.
+
+If the normal repository worktree contains the task branch, switch it back to `main` only when it is clean, attached, and free of unfinished Git state. If it contains another task, PR, WIP, or ambiguous state, do not switch it or overwrite it; preserve it and stop cleanup for that location.
+
+After section 23 verifies final `main`, recheck open PRs and worktrees. When the task branch is no longer checked out and no open or stacked PR depends on it, remove the remote task branch if it still exists. If it is already absent, record `ALREADY ABSENT` and do not retry a destructive deletion. Do not remove a remote branch that another PR or worktree still references.
+
+Delete the local task branch with `git branch -d <task-branch>` first. Squash merge may legitimately make `-d` refuse because the original branch tip is not an ancestor of `main`. Allow `git branch -D <task-branch>` only when every condition below is true:
+
+1. the branch was created and is owned by the current task
+2. the PR is confirmed merged
+3. the branch name equals the verified PR head branch
+4. the local branch tip equals the previously verified PR head SHA
+5. the final `main`/merge result has been verified
+6. no open or stacked PR depends on the branch
+7. no worktree is using the branch
+8. no uncommitted task changes would be lost
+
+This `-D` exception is narrow. Never use it for an unknown branch, user WIP branch, unmerged PR branch, branch used by another worktree, or branch whose tip no longer matches the verified PR head SHA. If any condition is false, keep the local branch and report why.
 
 ---
 
 # 23. Sync final main
 
-After Merge:
+After the merge result and any safe task-worktree removal are confirmed, return the normal worktree to `main` when safe or select the safe alternate final-main location described below:
 
 ~~~bash
 git fetch origin
 git switch main
 git pull --ff-only origin main
-git status
+git rev-parse main
+git rev-parse origin/main
+git status --short --branch
+git worktree list --porcelain
 ~~~
 
-Do not use reset --hard as the default sync mechanism.
+On the normal repository worktree, return or switch to `main` only when it is clean, attached, and free of unfinished merge/rebase state. Verify that local `main` equals `origin/main`, that the expected merge result is present, and that the main worktree is clean. Do not use `reset --hard`, stash, or forced checkout as synchronization.
+
+Hard stop: if the normal or main worktree has unknown local changes, an unfinished merge or rebase, detached HEAD, or another ambiguous state, do not overwrite, stash, reset, switch it, or force-remove it. Stop cleanup for that location and report the condition.
+
+If the normal repository worktree is safely occupied by another task, PR, or WIP, leave it untouched. Use an already clean main worktree, or create a clearly identified disposable final-verification worktree only when necessary; synchronize and verify `main` there, then remove that verification worktree without `--force`. If no safe location exists, stop post-merge cleanup and report that main synchronization is unverified.
 
 ---
 
@@ -682,7 +755,7 @@ Do not use reset --hard as the default sync mechanism.
 
 Run lightweight checks against final main.
 
-For rules or Skill-only changes run the applicable structural checks and git diff --check.
+For rules or Skill-only changes run the applicable structural checks and `git diff --check` against the synchronized final `main`.
 
 For ordinary Foundation changes run the relevant project gates, normally:
 
@@ -694,7 +767,7 @@ npm run benchmark
 
 When appropriate also run npm run lint or npm run build explicitly.
 
-This confirms the actual merged commit, not merely the feature branch, is healthy.
+This confirms the actual merged commit, not merely the feature branch, is healthy. Do not report the task fully complete until the applicable post-merge checks and cleanup status are verified.
 
 ---
 
@@ -716,7 +789,7 @@ Do not continue to a judge phase, real provider integration, Review Workspace ad
 
 # 26. Failure policy
 
-If push, PR, CI, or Merge cannot complete, identify the actual blocker.
+If push, PR, CI, Merge, cleanup, or final-main synchronization cannot complete, identify the actual blocker.
 
 Examples:
 
@@ -733,7 +806,9 @@ environment limitation
 
 Resolve only when safe and within scope.
 
-Otherwise stop at the last safe state.
+If delivery is blocked before the remote confirms the merge, keep the task branch and any task worktree. Do not delete branches, remove worktrees, or perform destructive cleanup; preserve the exact continuation state for the next attempt.
+
+If the PR is confirmed merged but cleanup or final-main synchronization is blocked by dirty state, unfinished Git state, an unexpected branch/worktree dependency, permission, or another ambiguity, preserve the affected branch or worktree and stop that cleanup step. Do not overwrite, stash, reset, force-remove, or silently claim completion. A remote branch that is already absent is an idempotent cleanup result, not a deletion failure.
 
 Never claim:
 
@@ -764,21 +839,28 @@ Validation
 - structural/rules checks: PASS/FAIL if applicable
 
 Git
-- branch
-- commits
+- task branch
+- commit SHA
+- task location: normal worktree / disposable task worktree
 
 Pull Request
 - number
 - title
 - URL
+- validated PR HEAD SHA
 - remote checks
 
 Merge
 - method
-- result
+- merge SHA / result
 - final main SHA
 
-Post-merge
+Cleanup and post-merge
+- main synchronized: VERIFIED / NOT VERIFIED
+- main worktree: SYNCED + CLEAN / PRESERVED / NOT VERIFIED
+- task worktree: REMOVED / NOT USED / PRESERVED with blocker
+- local task branch: REMOVED / PRESERVED with reason
+- remote task branch: REMOVED / ALREADY ABSENT / PRESERVED with reason
 - checks executed
 
 Residual risks
@@ -797,6 +879,8 @@ The normal successful workflow is:
 Understand
 ->
 Audit
+->
+Choose normal main worktree or disposable task worktree
 ->
 Implement
 ->
@@ -818,9 +902,13 @@ Verify HEAD SHA
 ->
 Squash Merge
 ->
-Clean branch
+Confirm MERGED, exact PR HEAD, and merge result
+->
+Remove safe task worktree or return normal worktree to main
 ->
 Sync main
+->
+Remove unreferenced remote/local task branch
 ->
 Post-merge verification
 ->
