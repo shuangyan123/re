@@ -1,6 +1,7 @@
 import type { IncomingMessage } from "node:http";
 
 import type { CommunityReviewApplicationService } from "./application.js";
+import type { CommunityReviewApplicationIntakeApplicationService } from "./application-intake.js";
 import type { AuthenticatedPrincipal } from "./authentication.js";
 import type { CommunityReviewLogLevel } from "./config.js";
 import {
@@ -101,6 +102,7 @@ async function readJsonObject(request: IncomingMessage, limitBytes: number): Pro
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
     total += buffer.byteLength;
     if (total > limitBytes) {
+      request.resume();
       throw new CommunityReviewHttpRequestError(413, "request_too_large");
     }
     chunks.push(buffer);
@@ -133,6 +135,13 @@ function serviceStatus(code: CommunityReviewServiceErrorCode): number {
     case "authentication_required":
     case "authentication_failed":
       return 401;
+    case "application_intake_closed":
+    case "application_intake_paused":
+    case "application_not_active":
+    case "application_decision_conflict":
+      return 409;
+    case "application_rate_limited":
+      return 429;
     case "authentication_subject_not_found":
     case "operator_not_authorized":
     case "reviewer_not_authorized":
@@ -145,6 +154,8 @@ function serviceStatus(code: CommunityReviewServiceErrorCode): number {
     case "qualification_not_qualified":
       return 403;
     case "reviewer_not_found":
+    case "application_not_found":
+    case "application_withdrawal_not_authorized":
     case "qualification_pool_not_found":
     case "qualification_material_not_found":
     case "qualification_attempt_not_found":
@@ -169,6 +180,7 @@ function serviceStatus(code: CommunityReviewServiceErrorCode): number {
     case "duplicate_assignment":
     case "submission_already_exists":
     case "replacement_submission":
+    case "application_idempotency_conflict":
     case "repository_conflict":
       return 409;
     case "qualification_material_invalid":
@@ -178,6 +190,11 @@ function serviceStatus(code: CommunityReviewServiceErrorCode): number {
     case "review_batch_material_invalid":
     case "disclosure_policy_invalid":
     case "disclosure_not_public":
+    case "application_contract_invalid":
+    case "application_idempotency_required":
+    case "application_idempotency_invalid":
+    case "application_decision_invalid":
+    case "application_retention_invalid":
       return 400;
     case "invalid_service_record":
       return 500;
@@ -219,12 +236,14 @@ function success(data: unknown, status = 200): CommunityReviewHttpRouteResult {
 }
 
 /**
- * Invite-only authenticated HTTP transport. This layer only projects the
- * existing application-service authority; it does not create public signup,
- * bypass reviewer ownership, or expose disclosure/publication operations.
+ * Private HTTP transport. The future application route is independently
+ * state-gated; reviewer/campaign routes remain authenticated and this layer
+ * does not create public signup, bypass reviewer ownership, or expose
+ * disclosure/publication operations.
  */
 export async function handleCommunityReviewApiRequest(
   application: CommunityReviewApplicationService,
+  applicationIntake: CommunityReviewApplicationIntakeApplicationService,
   request: IncomingMessage,
   route: string,
   bodyLimitBytes: number,
@@ -232,8 +251,89 @@ export async function handleCommunityReviewApiRequest(
   if (!route.startsWith("/v1/")) return undefined;
   const authenticationInput = request.headers.authorization;
   const body = (): Promise<JsonObject> => readJsonObject(request, bodyLimitBytes);
+  const idempotencyKey = (): string => {
+    const value = request.headers["idempotency-key"];
+    if (value === undefined) {
+      request.resume();
+      throw new CommunityReviewHttpRequestError(400, "application_idempotency_required");
+    }
+    if (Array.isArray(value) || value.length === 0) {
+      request.resume();
+      throw new CommunityReviewHttpRequestError(400, "application_idempotency_invalid");
+    }
+    return value;
+  };
+  const sourceKey = request.socket.remoteAddress ?? "unknown";
 
   const routes: readonly RouteDefinition[] = [
+    {
+      method: "POST",
+      pattern: /^\/v1\/applications$/u,
+      handler: async () => {
+        if (applicationIntake.getApplicationIntakeState() === "CLOSED") {
+          request.resume();
+          throw new CommunityReviewServiceError("application_intake_closed");
+        }
+        if (applicationIntake.getApplicationIntakeState() === "PAUSED") {
+          request.resume();
+          throw new CommunityReviewServiceError("application_intake_paused");
+        }
+        const key = idempotencyKey();
+        const submitted = await applicationIntake.submitApplication({
+          application: await body(),
+          idempotencyKey: key,
+          sourceKey,
+        });
+        return submitted.receipt;
+      },
+    },
+    {
+      method: "POST",
+      pattern: new RegExp(`^/v1/applications/${opaquePathId}/withdraw$`, "u"),
+      handler: async (match) => {
+        const input = await body();
+        assertAllowedKeys(input, ["credential"]);
+        return applicationIntake.withdrawApplication({
+          applicationId: match[1]!,
+          withdrawalCredential: requiredString(input, "credential"),
+        });
+      },
+    },
+    {
+      method: "GET",
+      pattern: /^\/v1\/operator\/applications$/u,
+      handler: async () => applicationIntake.listPendingApplications({ authenticationInput }),
+    },
+    {
+      method: "GET",
+      pattern: new RegExp(`^/v1/operator/applications/${opaquePathId}$`, "u"),
+      handler: async (match) => applicationIntake.getApplicationForOperator({
+        authenticationInput,
+        applicationId: match[1]!,
+      }),
+    },
+    {
+      method: "POST",
+      pattern: new RegExp(`^/v1/operator/applications/${opaquePathId}/decision$`, "u"),
+      handler: async (match) => {
+        const input = await body();
+        assertAllowedKeys(input, ["decision"]);
+        const decision = requiredString(input, "decision");
+        if (decision !== "INVITED" && decision !== "DECLINED") {
+          throw new CommunityReviewHttpRequestError(400, "application_decision_invalid");
+        }
+        return applicationIntake.recordDecision({
+          authenticationInput,
+          applicationId: match[1]!,
+          decision,
+        });
+      },
+    },
+    {
+      method: "POST",
+      pattern: /^\/v1\/operator\/applications\/purge$/u,
+      handler: async () => applicationIntake.purgeExpired({ authenticationInput }),
+    },
     {
       method: "GET",
       pattern: /^\/v1\/reviewer\/consent$/u,

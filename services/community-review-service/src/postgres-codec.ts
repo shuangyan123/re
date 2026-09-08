@@ -5,6 +5,10 @@ import {
 } from "../../../src/community-review/fingerprint.js";
 import type {
   AcceptedSubmissionRecord,
+  CommunityReviewApplicationAuditEventRecord,
+  CommunityReviewApplicationContactRecord,
+  CommunityReviewApplicationIdempotencyRecord,
+  CommunityReviewApplicationRecord,
   AuthAuditEventRecord,
   CommunityReviewAgreementEvidenceRecord,
   CommunityReviewDisclosureRecord,
@@ -100,6 +104,73 @@ function timestampValue(row: DatabaseRow, column: string): string {
 async function selectRows(client: PoolClient, sql: string): Promise<readonly DatabaseRow[]> {
   const result = await client.query<DatabaseRow>(sql);
   return result.rows;
+}
+
+function applicationFromRow(row: DatabaseRow): CommunityReviewApplicationRecord {
+  const motivation = optionalString(row, "motivation");
+  const experienceSummary = optionalString(row, "experience_summary");
+  const decisionAt = optionalTimestamp(row, "decision_at");
+  const withdrawnAt = optionalTimestamp(row, "withdrawn_at");
+  const purgedAt = optionalTimestamp(row, "purged_at");
+  const withdrawalCredentialDigest = optionalString(row, "withdrawal_credential_digest");
+  return {
+    applicationId: stringValue(row, "application_id"),
+    schemaVersion: integerValue(row, "schema_version"),
+    applicationKind: stringValue(row, "application_kind"),
+    contractId: stringValue(row, "contract_id"),
+    contractVersion: stringValue(row, "contract_version"),
+    noticeVersion: stringValue(row, "notice_version"),
+    submittedLocale: stringValue(row, "submitted_locale") as CommunityReviewApplicationRecord["submittedLocale"],
+    preferredReviewLocale: stringValue(row, "preferred_review_locale") as CommunityReviewApplicationRecord["preferredReviewLocale"],
+    ...(motivation === undefined ? {} : { motivation }),
+    ...(experienceSummary === undefined ? {} : { experienceSummary }),
+    availability: stringValue(row, "availability") as CommunityReviewApplicationRecord["availability"],
+    acknowledgements: json<CommunityReviewApplicationRecord["acknowledgements"]>(row.acknowledgements),
+    decision: stringValue(row, "decision") as CommunityReviewApplicationRecord["decision"],
+    lifecycle: stringValue(row, "lifecycle") as CommunityReviewApplicationRecord["lifecycle"],
+    createdAt: timestampValue(row, "created_at"),
+    updatedAt: timestampValue(row, "updated_at"),
+    ...(decisionAt === undefined ? {} : { decisionAt }),
+    retentionExpiresAt: timestampValue(row, "retention_expires_at"),
+    ...(withdrawnAt === undefined ? {} : { withdrawnAt }),
+    ...(purgedAt === undefined ? {} : { purgedAt }),
+    ...(withdrawalCredentialDigest === undefined ? {} : { withdrawalCredentialDigest }),
+  };
+}
+
+function applicationContactFromRow(row: DatabaseRow): CommunityReviewApplicationContactRecord {
+  return {
+    applicationId: stringValue(row, "application_id"),
+    contactType: stringValue(row, "contact_type") as CommunityReviewApplicationContactRecord["contactType"],
+    contactValue: stringValue(row, "contact_value"),
+    createdAt: timestampValue(row, "created_at"),
+  };
+}
+
+function applicationIdempotencyFromRow(row: DatabaseRow): CommunityReviewApplicationIdempotencyRecord {
+  if (row.withdrawal_credential_returned !== true) invalidRecord();
+  return {
+    idempotencyKeyFingerprint: stringValue(row, "idempotency_key_fingerprint"),
+    requestFingerprint: stringValue(row, "request_fingerprint"),
+    applicationId: stringValue(row, "application_id"),
+    contractId: stringValue(row, "contract_id"),
+    contractVersion: stringValue(row, "contract_version"),
+    noticeVersion: stringValue(row, "notice_version"),
+    receivedAt: timestampValue(row, "received_at"),
+    withdrawalCredentialReturned: true,
+    createdAt: timestampValue(row, "created_at"),
+  };
+}
+
+function applicationAuditFromRow(row: DatabaseRow): CommunityReviewApplicationAuditEventRecord {
+  const decision = optionalString(row, "decision") as CommunityReviewApplicationAuditEventRecord["decision"];
+  return {
+    eventId: stringValue(row, "event_id"),
+    applicationId: stringValue(row, "application_id"),
+    eventType: stringValue(row, "event_type") as CommunityReviewApplicationAuditEventRecord["eventType"],
+    ...(decision === undefined ? {} : { decision }),
+    occurredAt: timestampValue(row, "occurred_at"),
+  };
 }
 
 function accountFromRow(row: DatabaseRow): ReviewerAccountRecord {
@@ -430,6 +501,22 @@ function evidenceAuditFromRow(row: DatabaseRow): CommunityReviewEvidenceAuditEve
 }
 
 export async function loadPersistenceSnapshot(client: PoolClient): Promise<CommunityReviewPersistenceSnapshot> {
+  const applications = (await selectRows(
+    client,
+    "SELECT * FROM community_review_applications ORDER BY created_at, application_id",
+  )).map(applicationFromRow);
+  const applicationContacts = (await selectRows(
+    client,
+    "SELECT * FROM community_review_application_contacts ORDER BY application_id",
+  )).map(applicationContactFromRow);
+  const applicationIdempotency = (await selectRows(
+    client,
+    "SELECT * FROM community_review_application_idempotency ORDER BY idempotency_key_fingerprint",
+  )).map(applicationIdempotencyFromRow);
+  const applicationAuditEvents = (await selectRows(
+    client,
+    "SELECT * FROM community_review_application_audit_events ORDER BY occurred_at, event_id",
+  )).map(applicationAuditFromRow);
   const reviewerAccounts = (await selectRows(
     client,
     "SELECT * FROM reviewer_accounts ORDER BY internal_id",
@@ -537,6 +624,10 @@ export async function loadPersistenceSnapshot(client: PoolClient): Promise<Commu
   )).map(evidenceAuditFromRow);
 
   return {
+    applications,
+    applicationContacts,
+    applicationIdempotency,
+    applicationAuditEvents,
     reviewerAccounts,
     reviewerAuthIdentities,
     reviewerConsents,
@@ -611,6 +702,132 @@ function persistableJson(value: unknown): string | null {
   if (value === undefined) return null;
   const serialized = JSON.stringify(value);
   return serialized === undefined ? null : serialized;
+}
+
+async function persistApplications(
+  client: PoolClient,
+  before: readonly CommunityReviewApplicationRecord[],
+  after: readonly CommunityReviewApplicationRecord[],
+): Promise<void> {
+  for (const { record, previous } of changedRecords(before, after, (item) => item.applicationId)) {
+    const values = [
+      record.applicationId,
+      record.schemaVersion,
+      record.applicationKind,
+      record.contractId,
+      record.contractVersion,
+      record.noticeVersion,
+      record.submittedLocale,
+      record.preferredReviewLocale,
+      record.motivation ?? null,
+      record.experienceSummary ?? null,
+      record.availability,
+      persistableJson(record.acknowledgements),
+      record.decision,
+      record.lifecycle,
+      record.createdAt,
+      record.updatedAt,
+      record.decisionAt ?? null,
+      record.retentionExpiresAt,
+      record.withdrawnAt ?? null,
+      record.purgedAt ?? null,
+      record.withdrawalCredentialDigest ?? null,
+    ];
+    if (previous === undefined) {
+      await client.query(
+        `INSERT INTO community_review_applications
+          (application_id, schema_version, application_kind, contract_id, contract_version,
+           notice_version, submitted_locale, preferred_review_locale, motivation,
+           experience_summary, availability, acknowledgements, decision, lifecycle,
+           created_at, updated_at, decision_at, retention_expires_at, withdrawn_at,
+           purged_at, withdrawal_credential_digest)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+                 $16, $17, $18, $19, $20, $21)`,
+        values,
+      );
+    } else {
+      await client.query(
+        `UPDATE community_review_applications
+            SET motivation = $2, experience_summary = $3, decision = $4,
+                lifecycle = $5, updated_at = $6, decision_at = $7,
+                retention_expires_at = $8, withdrawn_at = $9, purged_at = $10,
+                withdrawal_credential_digest = $11
+          WHERE application_id = $1`,
+        [record.applicationId, record.motivation ?? null, record.experienceSummary ?? null,
+          record.decision, record.lifecycle, record.updatedAt, record.decisionAt ?? null,
+          record.retentionExpiresAt, record.withdrawnAt ?? null, record.purgedAt ?? null,
+          record.withdrawalCredentialDigest ?? null],
+      );
+    }
+  }
+}
+
+async function persistApplicationContacts(
+  client: PoolClient,
+  before: readonly CommunityReviewApplicationContactRecord[],
+  after: readonly CommunityReviewApplicationContactRecord[],
+): Promise<void> {
+  const previous = recordKey(before, (item) => item.applicationId);
+  const current = recordKey(after, (item) => item.applicationId);
+  for (const record of before) {
+    if (current.has(record.applicationId)) continue;
+    await client.query(
+      "DELETE FROM community_review_application_contacts WHERE application_id = $1",
+      [record.applicationId],
+    );
+  }
+  for (const record of after) {
+    const prior = previous.get(record.applicationId);
+    if (prior !== undefined) {
+      if (canonicalCommunityReviewJson(prior) !== canonicalCommunityReviewJson(record)) {
+        throw new CommunityReviewServiceError("repository_conflict");
+      }
+      continue;
+    }
+    await client.query(
+      `INSERT INTO community_review_application_contacts
+        (application_id, contact_type, contact_value, created_at)
+       VALUES ($1, $2, $3, $4)`,
+      [record.applicationId, record.contactType, record.contactValue, record.createdAt],
+    );
+  }
+}
+
+async function persistApplicationIdempotency(
+  client: PoolClient,
+  before: readonly CommunityReviewApplicationIdempotencyRecord[],
+  after: readonly CommunityReviewApplicationIdempotencyRecord[],
+): Promise<void> {
+  assertImmutable(before, after, (item) => item.idempotencyKeyFingerprint);
+  for (const record of after) {
+    if (before.some((item) => item.idempotencyKeyFingerprint === record.idempotencyKeyFingerprint)) continue;
+    await client.query(
+      `INSERT INTO community_review_application_idempotency
+        (idempotency_key_fingerprint, request_fingerprint, application_id, contract_id,
+         contract_version, notice_version, received_at, withdrawal_credential_returned, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [record.idempotencyKeyFingerprint, record.requestFingerprint, record.applicationId,
+        record.contractId, record.contractVersion, record.noticeVersion, record.receivedAt,
+        record.withdrawalCredentialReturned, record.createdAt],
+    );
+  }
+}
+
+async function persistApplicationAudits(
+  client: PoolClient,
+  before: readonly CommunityReviewApplicationAuditEventRecord[],
+  after: readonly CommunityReviewApplicationAuditEventRecord[],
+): Promise<void> {
+  assertImmutable(before, after, (item) => item.eventId);
+  for (const record of after) {
+    if (before.some((item) => item.eventId === record.eventId)) continue;
+    await client.query(
+      `INSERT INTO community_review_application_audit_events
+        (event_id, application_id, event_type, decision, occurred_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [record.eventId, record.applicationId, record.eventType, record.decision ?? null, record.occurredAt],
+    );
+  }
 }
 
 async function persistAccounts(
@@ -1071,6 +1288,11 @@ export async function persistPersistenceSnapshot(
   before: CommunityReviewPersistenceSnapshot,
   after: CommunityReviewPersistenceSnapshot,
 ): Promise<void> {
+  assertNoDeleted("applications", before.applications, after.applications, (item) => item.applicationId);
+  assertNoDeleted("application idempotency", before.applicationIdempotency, after.applicationIdempotency,
+    (item) => item.idempotencyKeyFingerprint);
+  assertNoDeleted("application audits", before.applicationAuditEvents, after.applicationAuditEvents,
+    (item) => item.eventId);
   assertNoDeleted("reviewer accounts", before.reviewerAccounts, after.reviewerAccounts, (item) => item.internalId);
   assertNoDeleted("auth identities", before.reviewerAuthIdentities, after.reviewerAuthIdentities, (item) => item.authIdentityId);
   assertNoDeleted("consents", before.reviewerConsents, after.reviewerConsents, (item) => item.consentEventId);
@@ -1092,6 +1314,10 @@ export async function persistPersistenceSnapshot(
   assertNoDeleted("disclosures", before.disclosures, after.disclosures, (item) => item.disclosureId);
   assertNoDeleted("evidence audits", before.evidenceAuditEvents, after.evidenceAuditEvents, (item) => item.eventId);
 
+  await persistApplications(client, before.applications, after.applications);
+  await persistApplicationContacts(client, before.applicationContacts, after.applicationContacts);
+  await persistApplicationIdempotency(client, before.applicationIdempotency, after.applicationIdempotency);
+  await persistApplicationAudits(client, before.applicationAuditEvents, after.applicationAuditEvents);
   await persistAccounts(client, before, after);
   await persistAuthAudits(client, before.authAuditEvents, after.authAuditEvents);
   await persistPools(client, before.qualificationPools, after.qualificationPools);

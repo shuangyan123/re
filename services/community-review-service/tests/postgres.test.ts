@@ -21,6 +21,7 @@ import type {
 import { parseCommunityReviewVisibleTask } from "../../../src/contracts/community-review-validation.js";
 import {
   CommunityReviewService,
+  CommunityReviewApplicationIntakeService,
   CommunityReviewServiceError,
   InMemoryCommunityReviewRepository,
   InMemoryQualificationMaterialStore,
@@ -70,6 +71,30 @@ function qualificationItems(suffix: string) {
     requirementId: "qualification-eligibility",
     prompt: "Classify the synthetic qualification reply.",
   }];
+}
+
+function applicationInput(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    applicationKind: "community-review-application",
+    contractId: "community-review-application",
+    contractVersion: "0.1.0",
+    noticeVersion: "0.1.0",
+    submittedLocale: "en",
+    preferredReviewLocale: "zh-CN",
+    contact: { type: "email", value: "postgres.applicant@example.invalid" },
+    motivation: "Synthetic PostgreSQL application motivation.",
+    experienceSummary: "Synthetic PostgreSQL experience summary.",
+    availability: "occasional",
+    acknowledgements: {
+      applicationNoticeAcknowledged: true,
+      applicationDoesNotGuaranteeAcceptance: true,
+      invitationDoesNotImplyQualification: true,
+      qualificationRequiredBeforeReviewAssignments: true,
+      publicIntakeFollowsLaunchGate: true,
+    },
+    ...overrides,
+  };
 }
 
 function qualificationAnswers(suffix: string) {
@@ -306,8 +331,8 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
       migrationsDirectory: migrationDirectory,
     });
     const status = await activeRepository().migrate();
-    assert.equal(status.currentVersion, 6);
-    assert.equal(status.appliedMigrationCount, 6);
+    assert.equal(status.currentVersion, 7);
+    assert.equal(status.appliedMigrationCount, 7);
   });
 
   after(async () => {
@@ -319,13 +344,13 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
   test("migration runner is deterministic, idempotent, and verifies history", async () => {
     const first = await activeRepository().migrate();
     const verified = await activeRepository().verifyMigrations();
-    assert.equal(first.currentVersion, 6);
-    assert.equal(first.appliedMigrationCount, 6);
-    assert.deepEqual(verified, { currentVersion: 6, knownMigrationCount: 6, appliedMigrationCount: 6, ready: true });
+    assert.equal(first.currentVersion, 7);
+    assert.equal(first.appliedMigrationCount, 7);
+    assert.deepEqual(verified, { currentVersion: 7, knownMigrationCount: 7, appliedMigrationCount: 7, ready: true });
     const history = await activePool().query<{ readonly count: string }>(
       "SELECT COUNT(*)::text AS count FROM community_review_schema_migrations",
     );
-    assert.equal(history.rows[0]?.count, "6");
+    assert.equal(history.rows[0]?.count, "7");
 
     const copied = await mkdtemp(join(tmpdir(), "tutorbench-community-review-migrations-"));
     temporaryDirectories.push(copied);
@@ -554,6 +579,151 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
     assert.equal(pgProjection.consents.length, memoryProjection.reviewerConsents.length);
     assert.equal(pgProjection.audits.length, memoryProjection.authAuditEvents.length);
     assert.equal(pgProjection.consents[0]?.state, "ACCEPTED");
+  });
+
+  test("application intake round-trips idempotency, decision, withdrawal, and purge without reviewer authority", async () => {
+    let applicationSequence = 0;
+    let auditSequence = 0;
+    const intake = new CommunityReviewApplicationIntakeService(activeRepository(), {
+      intakeState: "OPEN",
+      clock: () => "2026-01-01T00:00:00.000Z",
+      applicationIdGenerator: () => `pg-application-${++applicationSequence}`,
+      withdrawalCredentialGenerator: () => `pg-withdrawal-${"x".repeat(40)}`,
+      auditEventIdGenerator: () => `pg-application-audit-${++auditSequence}`,
+    });
+    const reviewerCountBefore = await activePool().query<{ readonly count: string }>(
+      "SELECT COUNT(*)::text AS count FROM reviewer_accounts",
+    );
+
+    const first = await intake.submitApplication({
+      application: applicationInput(),
+      idempotencyKey: "pg-application-key-1",
+      sourceKey: "synthetic-pg-client",
+    });
+    const retry = await intake.submitApplication({
+      application: applicationInput(),
+      idempotencyKey: "pg-application-key-1",
+      sourceKey: "synthetic-pg-client",
+    });
+    assert.equal(first.created, true);
+    assert.equal(retry.created, false);
+    assert.equal(retry.receipt.applicationId, first.receipt.applicationId);
+    assert.equal(retry.receipt.withdrawalCredential, undefined);
+
+    const storedBeforeDecision = await activeRepository().transaction((transaction) => ({
+      application: transaction.getCommunityReviewApplication(first.receipt.applicationId),
+      contact: transaction.getCommunityReviewApplicationContact(first.receipt.applicationId),
+      audits: transaction.listCommunityReviewApplicationAuditEvents(first.receipt.applicationId),
+    }));
+    assert.equal(storedBeforeDecision.application?.decision, "PENDING");
+    assert.equal(storedBeforeDecision.contact?.contactValue, "postgres.applicant@example.invalid");
+    assert.deepEqual(storedBeforeDecision.audits.map((event) => event.eventType), ["application_submitted"]);
+
+    const invited = await intake.recordDecision({
+      applicationId: first.receipt.applicationId,
+      decision: "INVITED",
+    });
+    assert.equal(invited.decision, "INVITED");
+    assert.equal((await intake.recordDecision({
+      applicationId: first.receipt.applicationId,
+      decision: "INVITED",
+    })).decision, "INVITED");
+    const withdrawn = await intake.withdrawApplication({
+      applicationId: first.receipt.applicationId,
+      withdrawalCredential: first.receipt.withdrawalCredential!,
+    });
+    assert.equal(withdrawn.lifecycle, "WITHDRAWN");
+
+    const second = await intake.submitApplication({
+      application: applicationInput({ motivation: "Synthetic pending application for purge." }),
+      idempotencyKey: "pg-application-key-2",
+      sourceKey: "synthetic-pg-client",
+    });
+    const purged = await intake.purgeExpired("2026-04-02T00:00:00.000Z");
+    assert.deepEqual(purged.purgedApplicationIds, [second.receipt.applicationId]);
+
+    const storedAfterCleanup = await activeRepository().transaction((transaction) => ({
+      first: transaction.getCommunityReviewApplication(first.receipt.applicationId),
+      second: transaction.getCommunityReviewApplication(second.receipt.applicationId),
+      firstContact: transaction.getCommunityReviewApplicationContact(first.receipt.applicationId),
+      secondContact: transaction.getCommunityReviewApplicationContact(second.receipt.applicationId),
+      firstAudits: transaction.listCommunityReviewApplicationAuditEvents(first.receipt.applicationId),
+      secondAudits: transaction.listCommunityReviewApplicationAuditEvents(second.receipt.applicationId),
+    }));
+    assert.equal(storedAfterCleanup.first?.lifecycle, "WITHDRAWN");
+    assert.equal(storedAfterCleanup.second?.lifecycle, "PURGED");
+    assert.equal(storedAfterCleanup.first?.motivation, undefined);
+    assert.equal(storedAfterCleanup.second?.motivation, undefined);
+    assert.equal(storedAfterCleanup.firstContact, undefined);
+    assert.equal(storedAfterCleanup.secondContact, undefined);
+    assert.deepEqual(storedAfterCleanup.firstAudits.map((event) => event.eventType), [
+      "application_submitted",
+      "application_decision_recorded",
+      "application_withdrawn",
+    ]);
+    assert.deepEqual(storedAfterCleanup.secondAudits.map((event) => event.eventType), [
+      "application_submitted",
+      "application_purged",
+    ]);
+
+    const applicationRows = await activePool().query<{
+      readonly applicationId: string;
+      readonly motivation: string | null;
+      readonly credentialDigest: string | null;
+    }>(
+      `SELECT application_id AS "applicationId", motivation,
+              withdrawal_credential_digest AS "credentialDigest"
+         FROM community_review_applications
+        WHERE application_id IN ($1, $2)
+        ORDER BY application_id`,
+      [first.receipt.applicationId, second.receipt.applicationId],
+    );
+    assert.equal(applicationRows.rows.length, 2);
+    assert.equal(applicationRows.rows.every((row) => row.motivation === null), true);
+    assert.equal(applicationRows.rows.every((row) => row.credentialDigest?.startsWith("sha256:") === true), true);
+    assert.doesNotMatch(JSON.stringify(applicationRows.rows), /pg-withdrawal|postgres\.applicant/iu);
+    const contactRows = await activePool().query<{ readonly count: string }>(
+      "SELECT COUNT(*)::text AS count FROM community_review_application_contacts WHERE application_id IN ($1, $2)",
+      [first.receipt.applicationId, second.receipt.applicationId],
+    );
+    assert.equal(contactRows.rows[0]?.count, "0");
+    const idempotencyRows = await activePool().query<{ readonly count: string }>(
+      "SELECT COUNT(*)::text AS count FROM community_review_application_idempotency WHERE application_id IN ($1, $2)",
+      [first.receipt.applicationId, second.receipt.applicationId],
+    );
+    assert.equal(idempotencyRows.rows[0]?.count, "2");
+    const reviewerCountAfter = await activePool().query<{ readonly count: string }>(
+      "SELECT COUNT(*)::text AS count FROM reviewer_accounts",
+    );
+    assert.equal(reviewerCountAfter.rows[0]?.count, reviewerCountBefore.rows[0]?.count);
+  });
+
+  test("PostgreSQL application idempotency serializes concurrent duplicate submissions", async () => {
+    let applicationSequence = 0;
+    let auditSequence = 0;
+    const intake = new CommunityReviewApplicationIntakeService(activeRepository(), {
+      intakeState: "OPEN",
+      clock: () => "2026-01-01T00:00:00.000Z",
+      applicationIdGenerator: () => `pg-concurrent-application-${++applicationSequence}`,
+      withdrawalCredentialGenerator: () => `pg-concurrent-withdrawal-${"x".repeat(32)}`,
+      auditEventIdGenerator: () => `pg-concurrent-audit-${++auditSequence}`,
+    });
+    const results = await Promise.all([
+      intake.submitApplication({ application: applicationInput(), idempotencyKey: "pg-concurrent-key" }),
+      intake.submitApplication({ application: applicationInput(), idempotencyKey: "pg-concurrent-key" }),
+    ]);
+    assert.equal(results.filter((result) => result.created).length, 1);
+    assert.equal(new Set(results.map((result) => result.receipt.applicationId)).size, 1);
+    const created = results.find((result) => result.created)!;
+    await intake.withdrawApplication({
+      applicationId: created.receipt.applicationId,
+      withdrawalCredential: created.receipt.withdrawalCredential!,
+    });
+    const rows = await activePool().query<{ readonly count: string }>(
+      "SELECT COUNT(*)::text AS count FROM community_review_applications WHERE application_id = $1",
+      [created.receipt.applicationId],
+    );
+    assert.equal(rows.rows[0]?.count, "1");
   });
 });
 

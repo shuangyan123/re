@@ -1,4 +1,11 @@
 import type {
+  CommunityReviewApplicationAcknowledgements,
+  CommunityReviewApplicationAvailability,
+  CommunityReviewApplicationContactType,
+  CommunityReviewApplicationDecision,
+  CommunityReviewApplicationLocale,
+} from "../../../src/contracts/community-review-application.js";
+import type {
   CommunityReviewAssignment,
   CommunityReviewAgreementEvidence,
   CommunityReviewBatchCloseRecord,
@@ -21,6 +28,72 @@ import type {
 } from "./qualification.js";
 
 export type ServiceTimestamp = string;
+
+export type CommunityReviewApplicationLifecycle = "ACTIVE" | "WITHDRAWN" | "PURGED";
+
+/**
+ * Application data is deliberately not part of any reviewer/protocol record.
+ * Contact and free text are nullable at the lifecycle boundary so withdrawal
+ * and retention purge can leave only a non-identifying tombstone.
+ */
+export interface CommunityReviewApplicationRecord {
+  readonly applicationId: string;
+  readonly schemaVersion: number;
+  readonly applicationKind: string;
+  readonly contractId: string;
+  readonly contractVersion: string;
+  readonly noticeVersion: string;
+  readonly submittedLocale: CommunityReviewApplicationLocale;
+  readonly preferredReviewLocale: CommunityReviewApplicationLocale;
+  readonly motivation?: string;
+  readonly experienceSummary?: string;
+  readonly availability: CommunityReviewApplicationAvailability;
+  readonly acknowledgements: CommunityReviewApplicationAcknowledgements;
+  readonly decision: CommunityReviewApplicationDecision;
+  readonly lifecycle: CommunityReviewApplicationLifecycle;
+  readonly createdAt: ServiceTimestamp;
+  readonly updatedAt: ServiceTimestamp;
+  readonly decisionAt?: ServiceTimestamp;
+  readonly retentionExpiresAt: ServiceTimestamp;
+  readonly withdrawnAt?: ServiceTimestamp;
+  readonly purgedAt?: ServiceTimestamp;
+  /** One-way digest only; never returned to an operator or persisted raw. */
+  readonly withdrawalCredentialDigest?: string;
+}
+
+export interface CommunityReviewApplicationContactRecord {
+  readonly applicationId: string;
+  readonly contactType: CommunityReviewApplicationContactType;
+  readonly contactValue: string;
+  readonly createdAt: ServiceTimestamp;
+}
+
+export interface CommunityReviewApplicationIdempotencyRecord {
+  readonly idempotencyKeyFingerprint: string;
+  readonly requestFingerprint: string;
+  readonly applicationId: string;
+  readonly contractId: string;
+  readonly contractVersion: string;
+  readonly noticeVersion: string;
+  readonly receivedAt: ServiceTimestamp;
+  readonly withdrawalCredentialReturned: boolean;
+  readonly createdAt: ServiceTimestamp;
+}
+
+export type CommunityReviewApplicationAuditEventType =
+  | "application_submitted"
+  | "application_decision_recorded"
+  | "application_withdrawn"
+  | "application_purged";
+
+/** Narrow application audit metadata; it never contains contact or free text. */
+export interface CommunityReviewApplicationAuditEventRecord {
+  readonly eventId: string;
+  readonly applicationId: string;
+  readonly eventType: CommunityReviewApplicationAuditEventType;
+  readonly decision?: CommunityReviewApplicationDecision;
+  readonly occurredAt: ServiceTimestamp;
+}
 
 export type ReviewerAccountStatus = "ACTIVE" | "WITHDRAWN" | "DISABLED";
 export type ReviewerConsentState = "NOT_CONSENTED" | "CONSENTED" | "REVOKED";
@@ -344,6 +417,37 @@ export interface CommunityReviewEvidenceAuditEventRecord {
 }
 
 export interface CommunityReviewPersistenceTransaction {
+  getCommunityReviewApplication(applicationId: string): CommunityReviewApplicationRecord | undefined;
+  listCommunityReviewApplications(
+    decision?: CommunityReviewApplicationDecision,
+    lifecycle?: CommunityReviewApplicationLifecycle,
+  ): readonly CommunityReviewApplicationRecord[];
+  insertCommunityReviewApplication(
+    record: CommunityReviewApplicationRecord,
+  ): CommunityReviewApplicationRecord;
+  updateCommunityReviewApplication(
+    record: CommunityReviewApplicationRecord,
+  ): CommunityReviewApplicationRecord;
+  getCommunityReviewApplicationContact(
+    applicationId: string,
+  ): CommunityReviewApplicationContactRecord | undefined;
+  insertCommunityReviewApplicationContact(
+    record: CommunityReviewApplicationContactRecord,
+  ): CommunityReviewApplicationContactRecord;
+  deleteCommunityReviewApplicationContact(applicationId: string): void;
+  getCommunityReviewApplicationIdempotency(
+    idempotencyKeyFingerprint: string,
+  ): CommunityReviewApplicationIdempotencyRecord | undefined;
+  insertCommunityReviewApplicationIdempotency(
+    record: CommunityReviewApplicationIdempotencyRecord,
+  ): CommunityReviewApplicationIdempotencyRecord;
+  insertCommunityReviewApplicationAuditEvent(
+    record: CommunityReviewApplicationAuditEventRecord,
+  ): CommunityReviewApplicationAuditEventRecord;
+  listCommunityReviewApplicationAuditEvents(
+    applicationId?: string,
+  ): readonly CommunityReviewApplicationAuditEventRecord[];
+
   getReviewerAccount(internalId: string): ReviewerAccountRecord | undefined;
   getReviewerAccountByReviewerId(reviewerId: string): ReviewerAccountRecord | undefined;
   insertReviewerAccount(record: ReviewerAccountRecord): ReviewerAccountRecord;
@@ -465,6 +569,10 @@ export interface CommunityReviewPersistenceTransaction {
  * second domain model.
  */
 export interface CommunityReviewPersistenceSnapshot {
+  readonly applications: readonly CommunityReviewApplicationRecord[];
+  readonly applicationContacts: readonly CommunityReviewApplicationContactRecord[];
+  readonly applicationIdempotency: readonly CommunityReviewApplicationIdempotencyRecord[];
+  readonly applicationAuditEvents: readonly CommunityReviewApplicationAuditEventRecord[];
   readonly reviewerAccounts: readonly ReviewerAccountRecord[];
   readonly reviewerAuthIdentities: readonly ReviewerAuthIdentityRecord[];
   readonly reviewerConsents: readonly ReviewerConsentRecord[];
@@ -489,6 +597,10 @@ export interface CommunityReviewPersistenceSnapshot {
 
 export function emptyCommunityReviewPersistenceSnapshot(): CommunityReviewPersistenceSnapshot {
   return {
+    applications: [],
+    applicationContacts: [],
+    applicationIdempotency: [],
+    applicationAuditEvents: [],
     reviewerAccounts: [],
     reviewerAuthIdentities: [],
     reviewerConsents: [],

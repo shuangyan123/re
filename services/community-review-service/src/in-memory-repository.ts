@@ -19,6 +19,19 @@ import {
   canonicalCommunityReviewJson,
   communityReviewAtomicIdentityKey,
 } from "../../../src/community-review/fingerprint.js";
+import {
+  COMMUNITY_REVIEW_APPLICATION_AVAILABILITIES,
+  COMMUNITY_REVIEW_APPLICATION_CONTACT_TYPES,
+  COMMUNITY_REVIEW_APPLICATION_CONTRACT_ID,
+  COMMUNITY_REVIEW_APPLICATION_CONTRACT_VERSION,
+  COMMUNITY_REVIEW_APPLICATION_DECISIONS,
+  COMMUNITY_REVIEW_APPLICATION_EXPERIENCE_MAX_LENGTH,
+  COMMUNITY_REVIEW_APPLICATION_KIND,
+  COMMUNITY_REVIEW_APPLICATION_LOCALES,
+  COMMUNITY_REVIEW_APPLICATION_MOTIVATION_MAX_LENGTH,
+  COMMUNITY_REVIEW_APPLICATION_NOTICE_VERSION,
+  COMMUNITY_REVIEW_APPLICATION_SCHEMA_VERSION,
+} from "../../../src/contracts/community-review-application.js";
 import { communityReviewAgreementEvidencePersistenceFingerprint } from "./persistence.js";
 import { emptyCommunityReviewPersistenceSnapshot } from "./persistence.js";
 import {
@@ -32,6 +45,10 @@ import type {
 } from "../../../src/contracts/community-review.js";
 import type {
   AcceptedSubmissionRecord,
+  CommunityReviewApplicationAuditEventRecord,
+  CommunityReviewApplicationContactRecord,
+  CommunityReviewApplicationIdempotencyRecord,
+  CommunityReviewApplicationRecord,
   AuthAuditEventRecord,
   CommunityReviewAgreementEvidenceRecord,
   CommunityReviewDisclosureRecord,
@@ -57,6 +74,10 @@ import type {
 } from "./persistence.js";
 
 interface DatabaseState {
+  readonly applications: Map<string, CommunityReviewApplicationRecord>;
+  readonly applicationContacts: Map<string, CommunityReviewApplicationContactRecord>;
+  readonly applicationIdempotency: Map<string, CommunityReviewApplicationIdempotencyRecord>;
+  readonly applicationAuditEvents: Map<string, CommunityReviewApplicationAuditEventRecord>;
   readonly reviewerAccounts: Map<string, ReviewerAccountRecord>;
   readonly reviewerIds: Map<string, string>;
   readonly reviewerAuthIdentities: Map<string, ReviewerAuthIdentityRecord>;
@@ -94,6 +115,10 @@ interface DatabaseState {
 
 function emptyState(): DatabaseState {
   return {
+    applications: new Map(),
+    applicationContacts: new Map(),
+    applicationIdempotency: new Map(),
+    applicationAuditEvents: new Map(),
     reviewerAccounts: new Map(),
     reviewerIds: new Map(),
     reviewerAuthIdentities: new Map(),
@@ -136,6 +161,18 @@ function copy<T>(value: T): T {
 
 function stateFromSnapshot(snapshot: CommunityReviewPersistenceSnapshot): DatabaseState {
   const state = emptyState();
+  for (const record of snapshot.applications) {
+    state.applications.set(record.applicationId, copy(record));
+  }
+  for (const record of snapshot.applicationContacts) {
+    state.applicationContacts.set(record.applicationId, copy(record));
+  }
+  for (const record of snapshot.applicationIdempotency) {
+    state.applicationIdempotency.set(record.idempotencyKeyFingerprint, copy(record));
+  }
+  for (const record of snapshot.applicationAuditEvents) {
+    state.applicationAuditEvents.set(record.eventId, copy(record));
+  }
   for (const record of snapshot.reviewerAccounts) {
     const stored = copy(record);
     state.reviewerAccounts.set(record.internalId, stored);
@@ -302,6 +339,119 @@ function authSubjectKey(authProviderValue: string, authSubjectValue: string): st
 
 function consentKey(internalId: string, policyId: string, policyVersion: string): string {
   return `${internalId}\u0000${policyId}\u0000${policyVersion}`;
+}
+
+const applicationEmailLocalPartPattern = /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/u;
+const applicationEmailDomainLabelPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/u;
+
+function validApplicationEmail(value: string): boolean {
+  if (value.length === 0 || value.length > 254 || value.trim() !== value) return false;
+  const atIndex = value.indexOf("@");
+  if (atIndex <= 0 || atIndex !== value.lastIndexOf("@")) return false;
+  const localPart = value.slice(0, atIndex);
+  const domain = value.slice(atIndex + 1);
+  if (localPart.length > 64 || domain.length > 253 ||
+    !applicationEmailLocalPartPattern.test(localPart)) return false;
+  const labels = domain.split(".");
+  return labels.length >= 2 && labels.every((label) => applicationEmailDomainLabelPattern.test(label));
+}
+
+function applicationFingerprint(value: string): void {
+  if (!/^sha256:[0-9a-f]{64}$/u.test(value)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+}
+
+function assertApplicationRecord(record: CommunityReviewApplicationRecord): void {
+  opaqueId(record.applicationId);
+  if (record.schemaVersion !== COMMUNITY_REVIEW_APPLICATION_SCHEMA_VERSION ||
+    record.applicationKind !== COMMUNITY_REVIEW_APPLICATION_KIND ||
+    record.contractId !== COMMUNITY_REVIEW_APPLICATION_CONTRACT_ID ||
+    record.contractVersion !== COMMUNITY_REVIEW_APPLICATION_CONTRACT_VERSION ||
+    record.noticeVersion !== COMMUNITY_REVIEW_APPLICATION_NOTICE_VERSION ||
+    !COMMUNITY_REVIEW_APPLICATION_LOCALES.includes(record.submittedLocale) ||
+    !COMMUNITY_REVIEW_APPLICATION_LOCALES.includes(record.preferredReviewLocale) ||
+    !COMMUNITY_REVIEW_APPLICATION_AVAILABILITIES.includes(record.availability) ||
+    !COMMUNITY_REVIEW_APPLICATION_DECISIONS.includes(record.decision) ||
+    !["ACTIVE", "WITHDRAWN", "PURGED"].includes(record.lifecycle)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  if (record.motivation !== undefined &&
+    (record.motivation.trim().length === 0 || record.motivation.length > COMMUNITY_REVIEW_APPLICATION_MOTIVATION_MAX_LENGTH)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  if (record.experienceSummary !== undefined &&
+    (record.experienceSummary.trim().length === 0 || record.experienceSummary.length > COMMUNITY_REVIEW_APPLICATION_EXPERIENCE_MAX_LENGTH)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  if (record.lifecycle === "ACTIVE" && record.motivation === undefined) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  if (record.lifecycle !== "ACTIVE" &&
+    (record.motivation !== undefined || record.experienceSummary !== undefined)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  if ((record.decision === "PENDING") !== (record.decisionAt === undefined)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  const acknowledgements = record.acknowledgements;
+  if (acknowledgements.applicationNoticeAcknowledged !== true ||
+    acknowledgements.applicationDoesNotGuaranteeAcceptance !== true ||
+    acknowledgements.invitationDoesNotImplyQualification !== true ||
+    acknowledgements.qualificationRequiredBeforeReviewAssignments !== true ||
+    acknowledgements.publicIntakeFollowsLaunchGate !== true) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  timestamp(record.createdAt);
+  timestamp(record.updatedAt);
+  timestamp(record.retentionExpiresAt);
+  if (record.decisionAt !== undefined) timestamp(record.decisionAt);
+  if (record.withdrawnAt !== undefined) timestamp(record.withdrawnAt);
+  if (record.purgedAt !== undefined) timestamp(record.purgedAt);
+  if (record.withdrawalCredentialDigest !== undefined) applicationFingerprint(record.withdrawalCredentialDigest);
+  if (record.lifecycle === "ACTIVE" && (record.withdrawnAt !== undefined || record.purgedAt !== undefined)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  if (record.lifecycle === "WITHDRAWN" && record.withdrawnAt === undefined ||
+    record.lifecycle === "PURGED" && record.purgedAt === undefined) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+}
+
+function assertApplicationContactRecord(record: CommunityReviewApplicationContactRecord): void {
+  opaqueId(record.applicationId);
+  if (!COMMUNITY_REVIEW_APPLICATION_CONTACT_TYPES.includes(record.contactType) ||
+    !validApplicationEmail(record.contactValue)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  timestamp(record.createdAt);
+}
+
+function assertApplicationIdempotencyRecord(record: CommunityReviewApplicationIdempotencyRecord): void {
+  applicationFingerprint(record.idempotencyKeyFingerprint);
+  applicationFingerprint(record.requestFingerprint);
+  opaqueId(record.applicationId);
+  if (record.contractId !== COMMUNITY_REVIEW_APPLICATION_CONTRACT_ID ||
+    record.contractVersion !== COMMUNITY_REVIEW_APPLICATION_CONTRACT_VERSION ||
+    record.noticeVersion !== COMMUNITY_REVIEW_APPLICATION_NOTICE_VERSION ||
+    record.withdrawalCredentialReturned !== true) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  timestamp(record.receivedAt);
+  timestamp(record.createdAt);
+}
+
+function assertApplicationAuditEventRecord(record: CommunityReviewApplicationAuditEventRecord): void {
+  opaqueId(record.eventId);
+  opaqueId(record.applicationId);
+  if (!["application_submitted", "application_decision_recorded", "application_withdrawn", "application_purged"]
+    .includes(record.eventType) || record.decision !== undefined && !COMMUNITY_REVIEW_APPLICATION_DECISIONS.includes(record.decision)) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  if (record.eventType === "application_decision_recorded" && record.decision === undefined) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  timestamp(record.occurredAt);
 }
 
 function stateRank(state: ReviewBatchRecord["state"]): number {
@@ -759,6 +909,129 @@ function assertEvidenceAuditEventRecord(record: CommunityReviewEvidenceAuditEven
 
 class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTransaction {
   constructor(private readonly state: DatabaseState) {}
+
+  getCommunityReviewApplication(applicationId: string): CommunityReviewApplicationRecord | undefined {
+    const record = this.state.applications.get(applicationId);
+    return record === undefined ? undefined : copy(record);
+  }
+
+  listCommunityReviewApplications(
+    decision?: CommunityReviewApplicationRecord["decision"],
+    lifecycle?: CommunityReviewApplicationRecord["lifecycle"],
+  ): readonly CommunityReviewApplicationRecord[] {
+    return [...this.state.applications.values()]
+      .filter((record) => (decision === undefined || record.decision === decision) &&
+        (lifecycle === undefined || record.lifecycle === lifecycle))
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt) ||
+        left.applicationId.localeCompare(right.applicationId))
+      .map(copy);
+  }
+
+  insertCommunityReviewApplication(
+    record: CommunityReviewApplicationRecord,
+  ): CommunityReviewApplicationRecord {
+    assertApplicationRecord(record);
+    if (this.state.applications.has(record.applicationId)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.applications.set(record.applicationId, stored);
+    return copy(stored);
+  }
+
+  updateCommunityReviewApplication(
+    record: CommunityReviewApplicationRecord,
+  ): CommunityReviewApplicationRecord {
+    assertApplicationRecord(record);
+    const previous = this.state.applications.get(record.applicationId);
+    if (previous === undefined || record.createdAt !== previous.createdAt ||
+      record.schemaVersion !== previous.schemaVersion ||
+      record.applicationKind !== previous.applicationKind ||
+      record.contractId !== previous.contractId ||
+      record.contractVersion !== previous.contractVersion ||
+      record.noticeVersion !== previous.noticeVersion ||
+      record.submittedLocale !== previous.submittedLocale ||
+      record.preferredReviewLocale !== previous.preferredReviewLocale ||
+      record.availability !== previous.availability ||
+      !same(record.acknowledgements, previous.acknowledgements) ||
+      previous.lifecycle !== "ACTIVE" && record.lifecycle === "ACTIVE" ||
+      previous.lifecycle === "PURGED" && record.lifecycle !== "PURGED") {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.applications.set(record.applicationId, stored);
+    return copy(stored);
+  }
+
+  getCommunityReviewApplicationContact(
+    applicationId: string,
+  ): CommunityReviewApplicationContactRecord | undefined {
+    const record = this.state.applicationContacts.get(applicationId);
+    return record === undefined ? undefined : copy(record);
+  }
+
+  insertCommunityReviewApplicationContact(
+    record: CommunityReviewApplicationContactRecord,
+  ): CommunityReviewApplicationContactRecord {
+    assertApplicationContactRecord(record);
+    if (!this.state.applications.has(record.applicationId) ||
+      this.state.applicationContacts.has(record.applicationId)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.applicationContacts.set(record.applicationId, stored);
+    return copy(stored);
+  }
+
+  deleteCommunityReviewApplicationContact(applicationId: string): void {
+    if (!this.state.applications.has(applicationId)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    this.state.applicationContacts.delete(applicationId);
+  }
+
+  getCommunityReviewApplicationIdempotency(
+    idempotencyKeyFingerprint: string,
+  ): CommunityReviewApplicationIdempotencyRecord | undefined {
+    const record = this.state.applicationIdempotency.get(idempotencyKeyFingerprint);
+    return record === undefined ? undefined : copy(record);
+  }
+
+  insertCommunityReviewApplicationIdempotency(
+    record: CommunityReviewApplicationIdempotencyRecord,
+  ): CommunityReviewApplicationIdempotencyRecord {
+    assertApplicationIdempotencyRecord(record);
+    if (!this.state.applications.has(record.applicationId) ||
+      this.state.applicationIdempotency.has(record.idempotencyKeyFingerprint)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.applicationIdempotency.set(record.idempotencyKeyFingerprint, stored);
+    return copy(stored);
+  }
+
+  insertCommunityReviewApplicationAuditEvent(
+    record: CommunityReviewApplicationAuditEventRecord,
+  ): CommunityReviewApplicationAuditEventRecord {
+    assertApplicationAuditEventRecord(record);
+    if (!this.state.applications.has(record.applicationId) ||
+      this.state.applicationAuditEvents.has(record.eventId)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.applicationAuditEvents.set(record.eventId, stored);
+    return copy(stored);
+  }
+
+  listCommunityReviewApplicationAuditEvents(
+    applicationId?: string,
+  ): readonly CommunityReviewApplicationAuditEventRecord[] {
+    return [...this.state.applicationAuditEvents.values()]
+      .filter((record) => applicationId === undefined || record.applicationId === applicationId)
+      .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) ||
+        left.eventId.localeCompare(right.eventId))
+      .map(copy);
+  }
 
   getReviewerAccount(internalId: string): ReviewerAccountRecord | undefined {
     const record = this.state.reviewerAccounts.get(internalId);
@@ -1594,6 +1867,10 @@ export class InMemoryCommunityReviewRepository implements CommunityReviewPersist
 
   snapshot(): CommunityReviewPersistenceSnapshot {
     return {
+      applications: [...this.state.applications.values()].map(copy),
+      applicationContacts: [...this.state.applicationContacts.values()].map(copy),
+      applicationIdempotency: [...this.state.applicationIdempotency.values()].map(copy),
+      applicationAuditEvents: [...this.state.applicationAuditEvents.values()].map(copy),
       reviewerAccounts: [...this.state.reviewerAccounts.values()].map(copy),
       reviewerAuthIdentities: [...this.state.reviewerAuthIdentities.values()].map(copy),
       reviewerConsents: [...this.state.reviewerConsents.values()].map(copy),

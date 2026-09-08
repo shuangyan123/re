@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import type { CommunityReviewApplicationIntakeState } from "../../../src/contracts/community-review-application.js";
 import { parseAuthenticationContext } from "./authentication.js";
 import type { AuthenticatedPrincipal } from "./authentication.js";
 
@@ -40,6 +41,10 @@ export interface CommunityReviewServiceConfig {
   readonly privateMaterialRoot?: string;
   /** Kept closed until a separately authorized campaign gate exists. */
   readonly publicIntakeEnabled: false;
+  /** Separate participation-application switch; reviewer intake stays independent. */
+  readonly applicationIntakeState: CommunityReviewApplicationIntakeState;
+  readonly applicationRateLimitMaximumRequests: number;
+  readonly applicationRateLimitWindowMs: number;
 }
 
 export type CommunityReviewConfigurationErrorCode =
@@ -55,6 +60,7 @@ export type CommunityReviewConfigurationErrorCode =
   | "material_root_required"
   | "material_root_invalid"
   | "public_intake_disabled"
+  | "invalid_application_intake_state"
   | "invalid_runtime_value";
 
 export class CommunityReviewConfigurationError extends Error {
@@ -101,6 +107,17 @@ function booleanValue(
   if (raw === "true") return true;
   if (raw === "false") return false;
   throw new CommunityReviewConfigurationError("invalid_runtime_value");
+}
+
+function applicationIntakeState(raw: unknown): CommunityReviewApplicationIntakeState {
+  // Whitespace, omission, and empty values are fail-closed configuration, not
+  // a license to reinterpret an operator's intent as OPEN.
+  if (raw === undefined || raw === null || typeof raw !== "string" || raw.length === 0 ||
+    raw.trim().length === 0 || raw.trim() !== raw) {
+    return "CLOSED";
+  }
+  if (raw === "CLOSED" || raw === "OPEN" || raw === "PAUSED") return raw;
+  throw new CommunityReviewConfigurationError("invalid_application_intake_state");
 }
 
 function boundedInteger(
@@ -251,6 +268,7 @@ export function loadCommunityReviewConfig(
   ) ?? "oidc";
   const publicIntakeEnabled = booleanValue(value(env, "COMMUNITY_REVIEW_PUBLIC_INTAKE"), false);
   if (publicIntakeEnabled) throw new CommunityReviewConfigurationError("public_intake_disabled");
+  const applicationIntake = applicationIntakeState(env.COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE);
 
   const dbRequired = storage === "postgres" && (command === "migrate" || command === "readiness" ||
     command === "serve" || environment === "production");
@@ -336,6 +354,18 @@ export function loadCommunityReviewConfig(
     host: value(env, "COMMUNITY_REVIEW_HOST") ?? "127.0.0.1",
     port: boundedInteger(value(env, "COMMUNITY_REVIEW_PORT"), 8787, 1, 65535),
     requestBodyLimitBytes: boundedInteger(value(env, "COMMUNITY_REVIEW_REQUEST_BODY_LIMIT_BYTES"), 1_048_576, 1024, 10_485_760),
+    applicationRateLimitMaximumRequests: boundedInteger(
+      value(env, "COMMUNITY_REVIEW_APPLICATION_RATE_LIMIT_MAX_REQUESTS"),
+      30,
+      1,
+      1000,
+    ),
+    applicationRateLimitWindowMs: boundedInteger(
+      value(env, "COMMUNITY_REVIEW_APPLICATION_RATE_LIMIT_WINDOW_MS"),
+      60_000,
+      1000,
+      86_400_000,
+    ),
     shutdownTimeoutMs: boundedInteger(value(env, "COMMUNITY_REVIEW_SHUTDOWN_TIMEOUT_MS"), 10000, 1000, 60000),
     logLevel,
     authMode,
@@ -344,5 +374,6 @@ export function loadCommunityReviewConfig(
     operatorPrincipals,
     ...(materialRoot === undefined ? {} : { privateMaterialRoot: materialRoot }),
     publicIntakeEnabled: false,
+    applicationIntakeState: applicationIntake,
   };
 }

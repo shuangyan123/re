@@ -144,6 +144,39 @@ test("development synthetic and in-memory modes are explicit and never productio
   );
 });
 
+test("application intake configuration is separate, fail-closed, and strict for unknown enum values", () => {
+  const base = {
+    COMMUNITY_REVIEW_ENV: "development",
+    COMMUNITY_REVIEW_STORAGE: "in-memory",
+    COMMUNITY_REVIEW_AUTH_MODE: "synthetic",
+  };
+  assert.equal(loadCommunityReviewConfig({ env: base }).applicationIntakeState, "CLOSED");
+  assert.equal(loadCommunityReviewConfig({
+    env: { ...base, COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE: "" },
+  }).applicationIntakeState, "CLOSED");
+  assert.equal(loadCommunityReviewConfig({
+    env: { ...base, COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE: 123 as unknown as string },
+  }).applicationIntakeState, "CLOSED");
+  assert.equal(loadCommunityReviewConfig({
+    env: { ...base, COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE: " OPEN " },
+  }).applicationIntakeState, "CLOSED");
+  assert.equal(loadCommunityReviewConfig({
+    env: { ...base, COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE: "PAUSED" },
+  }).applicationIntakeState, "PAUSED");
+  assert.equal(loadCommunityReviewConfig({
+    env: { ...base, COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE: "OPEN" },
+  }).applicationIntakeState, "OPEN");
+  assert.equal(loadCommunityReviewConfig({
+    env: { ...base, COMMUNITY_REVIEW_PUBLIC_INTAKE: "false" },
+  }).publicIntakeEnabled, false);
+  assert.throws(
+    () => loadCommunityReviewConfig({
+      env: { ...base, COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE: "UNKNOWN" },
+    }),
+    configurationCode("invalid_application_intake_state"),
+  );
+});
+
 test("synthetic deployment smoke starts, authenticates, loads private material, and shuts down cleanly", async () => {
   const root = await mkdtemp(join(tmpdir(), "tutorbench-community-review-smoke-"));
   const config = loadCommunityReviewConfig({

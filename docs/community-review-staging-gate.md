@@ -151,7 +151,8 @@ rollback.
 
 ## Privacy and operational boundary
 
-The deployed HTTP surface for this phase remains limited to:
+The deployed HTTP surface recorded by the historical L1 evidence was limited
+to:
 
 ```text
 GET /health/live
@@ -183,3 +184,43 @@ P5 Community calibration                       NOT STARTED
 L1 PASS authorizes no later phase by itself. Opening reviewer intake, starting
 a real campaign, adjudicating human reviews, performing calibration, or
 starting P5 requires a separate explicit scope and authorization.
+
+## L2-C2C closed application-intake gate
+
+The L1 record above is historical infrastructure evidence for migrations
+`001` through `006`; it must not be rewritten to imply that migration `007` or
+application behavior was externally verified. L2-C2C adds a separate gate for
+the exact merged main SHA of the application-intake implementation.
+
+Current implementation status before private staging verification:
+
+```text
+Implementation delivery                 PENDING MERGE / then PASS
+Private staging application gate         NOT YET VERIFIED
+L2-C2C overall                           NOT YET PASS
+Application intake state                 MUST REMAIN CLOSED
+COMMUNITY_REVIEW_PUBLIC_INTAKE            false
+```
+
+The L2-C2C staging run must record, without secrets:
+
+- exact deployed source SHA and Railway deployment ID;
+- migration `currentVersion=7`, `knownMigrationCount=7`, and
+  `appliedMigrationCount=7`, plus checksum verification;
+- backup completion and isolated restore/schema verification where available;
+- `GET /health/live` and `GET /health/ready` success;
+- `POST /v1/applications` rejection while `CLOSED`, with no application,
+  contact, idempotency, or application-audit write;
+- malformed JSON, oversized body, unsupported method, and protected reviewer /
+  operator route behavior;
+- a localhost-only synthetic `OPEN` dry run through submit, idempotent retry,
+  altered-body conflict, operator isolation, decision, withdrawal, and purge,
+  followed by cleanup; and
+- final log/privacy audit and confirmation that the deployed listener remained
+  closed throughout.
+
+The dry run must not temporarily open the public Railway listener and must use
+only synthetic `.invalid` contact data. Destructive PostgreSQL tests must run
+only against an explicitly isolated database, never against private staging.
+If the exact staging target, backup evidence, or safe localhost-only dry run is
+unavailable, the correct status is **BLOCKED / NOT VERIFIED**, not C2C PASS.

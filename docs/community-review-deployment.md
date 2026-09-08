@@ -1,7 +1,8 @@
 # TutorBench Community Review Service Deployment Runbook
 
-Status: P4-G deployment/readiness contract. This runbook does not authorize
-an external deployment, public reviewer intake, or a real campaign.
+Status: P4-G deployment/readiness contract plus the L2-C2C closed application
+intake runbook. This document does not authorize public application intake,
+public reviewer intake, or a real campaign.
 
 ## Boundary and prerequisites
 
@@ -36,6 +37,8 @@ COMMUNITY_REVIEW_OIDC_AUDIENCE=<audience>
 COMMUNITY_REVIEW_OIDC_JWKS_URI=https://<issuer>/.../jwks
 COMMUNITY_REVIEW_OPERATOR_SUBJECTS=<provider>|<private-subject>[,...]
 COMMUNITY_REVIEW_MATERIAL_ROOT=/private/tutorbench/community-review
+COMMUNITY_REVIEW_PUBLIC_INTAKE=false
+COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED
 ```
 
 Optional bounded settings are `COMMUNITY_REVIEW_HOST` (default
@@ -44,6 +47,8 @@ Optional bounded settings are `COMMUNITY_REVIEW_HOST` (default
 `COMMUNITY_REVIEW_OIDC_CLOCK_TOLERANCE_SECONDS` (default `5`),
 `COMMUNITY_REVIEW_OIDC_TIMEOUT_MS` (default `5000`),
 `COMMUNITY_REVIEW_REQUEST_BODY_LIMIT_BYTES` (default `1048576`),
+`COMMUNITY_REVIEW_APPLICATION_RATE_LIMIT_MAX_REQUESTS` (default `30`),
+`COMMUNITY_REVIEW_APPLICATION_RATE_LIMIT_WINDOW_MS` (default `60000`),
 `COMMUNITY_REVIEW_SHUTDOWN_TIMEOUT_MS` (default `10000`), and
 `COMMUNITY_REVIEW_LOG_LEVEL` (`info`, `warn`, or `error`).
 
@@ -73,13 +78,19 @@ Run migration once with the same database URL and TLS settings as the service:
 npm run community-review:migrate
 ```
 
-The runner applies `001` through `006` in deterministic numeric order and
+The runner applies `001` through `007` in deterministic numeric order and
 records filename/checksum history in
 `community_review_schema_migrations`. It takes a PostgreSQL advisory session
 lock, applies each missing migration in its own transaction, and refuses
 checksum drift, unknown history, gaps, missing historical files, or partial
 application. Do not edit an applied migration or update its history row by
 hand.
+
+Migration `007_community_review_application_intake.sql` is additive. It adds
+the application, contact, idempotency, and narrow application-audit tables;
+it does not rewrite the six historical migration files. Record the exact
+pre-migration source SHA, migration status, and a platform backup before
+running it.
 
 ## Readiness and startup
 
@@ -97,10 +108,13 @@ request never runs migrations. Start the process only after readiness passes:
 npm run community-review:serve
 ```
 
-The only HTTP endpoints in this phase are `GET /health/live` and
-`GET /health/ready`. They return request IDs and bounded reason codes; they do
-not return reviewer, task, qualification, submission, evidence, or operator
-data. The service has no public intake route and no public evidence route.
+`GET /health/live` and `GET /health/ready` return request IDs and bounded reason
+codes; they do not return reviewer, task, qualification, submission, evidence,
+or operator data. L2-C2C also ships a future application route and private
+operator routes, but application intake remains rejected while
+`COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED`. No browser form, public
+CORS origin, or public evidence route is deployed. The historical reviewer
+and campaign switch remains `COMMUNITY_REVIEW_PUBLIC_INTAKE=false`.
 
 For a container deployment, build
 `services/community-review-service/Dockerfile`. It uses Node 22, excludes
@@ -123,9 +137,12 @@ node scripts/community-review-backup-restore.mjs
 The script uses `pg_dump` custom format, restores into a scoped temporary
 database, checks migration history and a service table, verifies a non-empty
 dump, and drops the temporary database and local dump. It does not print the
-connection string. Production backups must additionally follow the
-organization's encryption, retention, access-review, and restore-test policy;
-P4-G does not invent a retention or erasure policy.
+connection string. The backup must include the four L2-C2C application tables;
+verify their schema and row counts in an isolated restore where practical.
+Production backups must additionally follow the organization's encryption,
+retention, access-review, and restore-test policy. The application retention
+policy is documented in the application gate and is not a legal/compliance
+certification.
 
 ## Rollback and incident stop
 
@@ -142,6 +159,21 @@ resolve, or a transaction has an unknown commit outcome:
 5. Re-run migration verification and readiness before resuming any authorized
    private operator operation.
 
+To stop application intake without destructive database rollback, set
+`COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED` (or `PAUSED`) and perform a
+controlled restart/redeploy. Confirm the runtime reports the intended state,
+`POST /v1/applications` returns the stable closed/paused error before storage,
+existing rows remain present, and the withdrawal route still works. Correct the
+public `/community/` status separately if its informational copy ever differs;
+do not add a form or temporarily expose the listener to change state.
+
+The application policy is executable through `purgeExpired(asOf)` and the
+operator purge route. Pending records expire after 90 days; invited/declined
+records expire 30 days after decision; withdrawal redacts contact and free text
+immediately. Purge is deterministic and may be run as an authenticated
+operator maintenance action; a background scheduler is not required for this
+phase.
+
 SIGINT/SIGTERM triggers bounded graceful shutdown. The process stops accepting
 new requests, waits for active requests within the configured bound, closes
 idle connections, and closes the owned PostgreSQL pool.
@@ -157,3 +189,26 @@ real database evidence.
 P4-G does not perform an external deployment. Public reviewer intake is
 **NOT OPEN**, the real Community Review campaign is **NOT STARTED**, and P5
 Community calibration is **NOT STARTED**.
+
+## L2-C2C private staging checklist
+
+After the implementation PR is merged, deploy the exact final main SHA to the
+existing private staging service only. Keep both intake controls at
+`COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED` and
+`COMMUNITY_REVIEW_PUBLIC_INTAKE=false`. Record, without secrets:
+
+- source SHA, deployment ID, migration `currentVersion=7`, and applied count;
+- backup completion and isolated restore/schema verification if available;
+- live and ready HTTP results;
+- closed-state application POST rejection with zero new application, contact,
+  idempotency, or application-audit rows;
+- malformed/oversized/method handling and protected reviewer/operator routes;
+- a localhost-only synthetic `OPEN` dry run, if safe, using only `.invalid`
+  contact data, followed by withdrawal/purge cleanup; and
+- final configuration state and privacy/log audit.
+
+Never point destructive PostgreSQL tests at private staging, print a database
+URL or bearer token, or temporarily set the publicly exposed listener to
+`OPEN`. If a safe localhost-only dry run or staging evidence cannot be
+performed, report the private staging gate as **BLOCKED / NOT VERIFIED** and do
+not report L2-C2C overall PASS.

@@ -114,6 +114,10 @@ async function lockAuthorityRows(client: { query(sql: string): Promise<unknown> 
     // Batch is first so database-side lifecycle triggers and application
     // transactions cannot acquire a batch after holding a parent row lock.
     "SELECT batch_id FROM review_batches ORDER BY batch_id FOR UPDATE",
+    "SELECT application_id FROM community_review_applications ORDER BY application_id FOR UPDATE",
+    "SELECT application_id FROM community_review_application_contacts ORDER BY application_id FOR UPDATE",
+    "SELECT idempotency_key_fingerprint FROM community_review_application_idempotency ORDER BY idempotency_key_fingerprint FOR UPDATE",
+    "SELECT event_id FROM community_review_application_audit_events ORDER BY event_id FOR UPDATE",
     "SELECT internal_id FROM reviewer_accounts ORDER BY internal_id FOR UPDATE",
     "SELECT auth_identity_id FROM reviewer_auth_identities ORDER BY auth_identity_id FOR UPDATE",
     "SELECT consent_event_id FROM reviewer_consent_events ORDER BY consent_event_id FOR UPDATE",
