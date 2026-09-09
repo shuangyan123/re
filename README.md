@@ -9,6 +9,23 @@ AI Tutor 评测基准
 Tutor Benchmark measures how well AI models teach, not just whether they know
 the answer.
 
+## Why TutorBench exists
+
+AI systems may make individualized learning support available at a scale that
+human teaching alone cannot always provide. Learners differ in prior
+knowledge, pace, misconceptions, and the kind of help they need, while
+classrooms necessarily operate under constraints of time and attention.
+
+But access to an AI system is not the same as access to a good tutor. A model
+can answer a question correctly and still fail to diagnose misunderstanding,
+guide reasoning, adapt its help, or preserve learner agency. Before AI
+tutoring can be trusted at scale, those capabilities need to be measurable.
+
+TutorBench exists as reproducible, provider-neutral measurement infrastructure
+for that problem: measure observable tutoring behavior, diagnose weaknesses,
+and identify directions for improvement. It is designed to support better AI
+tutoring systems—not merely produce a leaderboard.
+
 The approved T1 trajectory mark and its usage rules are documented in
 [`assets/brand/tutorbench/README.md`](assets/brand/tutorbench/README.md).
 
