@@ -189,6 +189,24 @@ external application edge abuse control remains unverified.
 #22 remains **NOT GIVEN**. See the [public exposure gate](community-review-public-exposure-gate.md)
 and the [external abuse-control decision](community-review-edge-abuse-control-decision.md).
 
+### L2-C3 Reviewer Portal — C3A ARCHITECTURE COMPLETE / IMPLEMENTATION NOT STARTED
+
+- [x] L2-C3A invite-only Reviewer Portal architecture and browser
+      authentication boundary
+- [ ] L2-C3B reviewer invitation, Auth0 token-channel, and backend authority
+      contract
+- [ ] L2-C3C private portal shell and Authorization Code + PKCE authentication
+- [ ] L2-C3D consent and sealed qualification portal flow
+- [ ] L2-C3E assignment, review, and submission portal flow
+- [ ] L2-C3F private staging Reviewer Portal E2E
+
+L2-C3A status: **PASS — architecture recorded; portal implementation,
+invitations, and real reviewer provisioning have not started**. The decision
+requires a later server-validated operator-channel boundary before any browser
+token is accepted. See the [Reviewer Portal architecture](community-review-reviewer-portal-architecture.md).
+This track does not open public application intake, public reviewer intake, or
+the real Community Review campaign.
+
 ### Later Community Review phases — NOT STARTED
 
 - [ ] P5 Community calibration
