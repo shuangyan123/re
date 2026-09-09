@@ -126,6 +126,19 @@ export function renderHomePage(artifacts: PublicBenchmarkArtifacts): SitePage {
       </div>
     </section>
 
+    <section class="section" aria-labelledby="why-tutorbench-title">
+      <div class="shell limits-grid">
+        <div>
+          <p class="eyebrow">Why TutorBench exists</p>
+          <h2 id="why-tutorbench-title">Before AI tutoring can be trusted at scale, we need to know whether models can actually teach.</h2>
+        </div>
+        <div>
+          <p class="section-copy">Learners differ in prior knowledge, pace, and the support they need. AI tutoring may extend individualized support where human attention and time are limited, but that potential must be evaluated rather than assumed.</p>
+          <p class="section-copy">Correct answers alone do not establish tutoring quality. TutorBench makes observable teaching behaviors measurable so weaknesses can be diagnosed and systems can be improved across correctness, diagnosis, guidance, adaptation, and actionability.</p>
+        </div>
+      </div>
+    </section>
+
     ${renderCoverageSnapshot(benchmark)}
     ${exampleCase === undefined ? "" : renderExampleCase(exampleCase)}
 
