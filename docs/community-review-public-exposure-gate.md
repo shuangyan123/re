@@ -1,7 +1,8 @@
 # L2-C2D Public Exposure Hardening / Pre-Launch Gate
 
-Status: **APPLICATION PERIMETER HARDENED; EDGE ABUSE CONTROL NOT VERIFIED —
-LAUNCH BLOCKED**.
+Status: **APPLICATION PERIMETER HARDENED; PLATFORM DDOS MITIGATION VERIFIED;
+RAILWAY EDGE RULES UNAVAILABLE ON CURRENT PLAN; WAF INCIDENT-ONLY; LAUNCH
+BLOCKED**.
 
 This record covers the perimeter around a future participation-application
 submission endpoint. It does not open application intake, create a browser
@@ -115,6 +116,103 @@ Operator authorization remains OIDC-controlled in production and reviewer
 ownership remains derived from the authenticated service principal. CORS
 configuration cannot make `/v1/operator/*` or `/v1/reviewer/*` browser-public.
 
+## Railway external-edge capability investigation (L2-C2D-E)
+
+Read-only control-plane inspection was completed on 2026-09-09 against the
+currently linked Railway service. No Railway variable, edge rule, WAF state,
+CDN state, DNS record, plan, or deployment was changed.
+
+| Control-plane item | Read-only evidence |
+| --- | --- |
+| Project / environment / service | `respectful-amazement` (`d0f8a175-9167-4feb-8c48-1019777cc05c`) / `production` (`c4e4ed64-bc45-40fb-bb39-fb405b62b1a1`) / `re` (`7d246171-6361-414c-a9ad-32f55a8549da`) |
+| Workspace and project plan | Workspace `HOBBY`; project subscription `trial`; `networking.edgeRules=0` |
+| Public domains | `re-production-b131.up.railway.app`; no custom domain attached |
+| Current deployment readback | `246ae13c-f339-4394-9948-88e4ebf0349a`, `SUCCESS`, source commit `84c6d993f1e531d779f97435ad74b4cbb5d55da3` |
+| Railway edge configuration | `enabled=true`; `edgeRules=null`; `overrides={}`; `underAttackModeUntil=null` |
+| CDN | Available, disabled; no purge or cache policy was changed |
+| WAF Under Attack | Available, disabled; no incident mode was enabled |
+
+Railway's [Edge Rules documentation](https://docs.railway.com/networking/edge-rules)
+describes rules evaluated at the Railway edge before the service. The current
+schema exposes `block`, `allow`, `challenge`, `redirect`, and cache-override
+actions; it does not expose a per-client or per-path rate-limit action. Rules
+are scoped to a service/environment and apply to every domain attached to that
+service. This is an edge block/challenge/redirect capability, not proof of a
+distributed application rate limiter.
+
+The provider's read-only `validateServiceEdgeRules` call was attempted with a
+narrow hypothetical rule matching the exact path `/v1/applications` and a
+synthetic probe header, with no broad allow or security bypass. Railway
+returned: `Edge rules are not available on your plan. Please upgrade to use
+them.` The rule was not saved and no probe was sent.
+
+The external capability classifications are therefore deliberately separate:
+
+```text
+PLATFORM DDOS MITIGATION       VERIFIED (Railway platform/network layer only)
+RAILWAY EDGE RULES              UNAVAILABLE ON CURRENT PLAN
+RAILWAY_EDGE_RATE_LIMIT        NOT AVAILABLE / NOT VERIFIED
+RAILWAY WAF UNDER ATTACK       AVAILABLE / DISABLED / INCIDENT-ONLY
+PUBLIC_EDGE_ABUSE_CONTROL      NOT VERIFIED
+```
+
+Railway's [public-networking limits](https://docs.railway.com/networking/public-networking/specs-and-limits)
+describe platform mitigation at network layer 4 and below and document
+platform connection/request limits. Those protections are not an
+application-level per-client/path throttle, bot control, or proof that the
+application cannot be overwhelmed by valid-looking requests. The public
+Railway edge header observed on the service confirms the service is behind the
+Railway edge, but it does not establish a trusted forwarding CIDR for the
+application.
+
+Railway's [Under Attack guidance](https://docs.railway.com/guides/lock-down-production-project)
+describes WAF Under Attack as an on-demand browser challenge for an active
+DDoS or bot-flood incident. It is not a substitute for an always-on API rate
+limit. On an API-only domain, non-browser clients may be blocked while it is
+active, so it must not be enabled automatically for this service.
+
+## External-edge experiment
+
+The before-state was the provider state recorded above: no Edge Rule, empty
+edge-rule collection, WAF disabled, CDN disabled, and application intake
+closed. The narrow Edge Rules validation was the only experiment. Because the
+current plan has zero Edge Rules allowance and the validation endpoint rejected
+the hypothetical rule, the edge block/challenge experiment was not run.
+
+No temporary rule, challenge, allow rule, redirect, cache override, WAF mode,
+CDN policy, or variable was created. The final control-plane state remained
+unchanged, so there is no temporary rule to restore and no external-edge
+behavior is being presented as verified.
+
+## Incident runbook (not executed in this phase)
+
+This is an operational response path, not launch evidence. Keep the
+application closed and use the normal controlled variable/deploy process
+before applying incident controls:
+
+```powershell
+# Inspect the bounded application-path signal; do not copy raw logs into reports.
+railway metrics --http --method POST --path /v1/applications --since 1h --service re --environment production --project d0f8a175-9167-4feb-8c48-1019777cc05c --json
+railway logs --http --method POST --path /v1/applications --lines 50 --service re --environment production --project d0f8a175-9167-4feb-8c48-1019777cc05c --json
+
+# During an incident, close or pause the application through the normal deploy process.
+railway variable set COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=PAUSED COMMUNITY_REVIEW_PUBLIC_INTAKE=false --service re --environment production --project d0f8a175-9167-4feb-8c48-1019777cc05c
+
+# Enable only for an active incident, for a bounded duration; this is not a rate limiter.
+railway waf under-attack enable --service re --environment production --project d0f8a175-9167-4feb-8c48-1019777cc05c --duration 1h
+railway waf under-attack status --service re --environment production --project d0f8a175-9167-4feb-8c48-1019777cc05c --json
+
+# After the incident, disable it and recheck the closed/ready boundary.
+railway waf under-attack disable --service re --environment production --project d0f8a175-9167-4feb-8c48-1019777cc05c
+```
+
+The response checklist is: retain `CLOSED` or explicitly use `PAUSED`, retain
+`COMMUNITY_REVIEW_PUBLIC_INTAKE=false`, verify readiness and the closed
+`POST /v1/applications => 409 application_intake_closed` response, confirm no
+new application/contact/idempotency/audit writes, then disable WAF Under Attack
+after the incident. The commands above were recorded for the runbook only;
+they were not executed during this capability investigation.
+
 ## External staging observation
 
 The read-only Railway inspection for this phase observed the existing linked
@@ -145,6 +243,12 @@ deployment success, live/ready health, migration v7, closed state, reviewer
 public-intake false, closed POST zero-write behavior, CORS/security headers,
 protected-route isolation, and bounded privacy/log scans. The current
 pre-merge observation is not post-merge evidence.
+
+The external-edge capability readback above is likewise bound to the exact
+provider state and source SHA shown in its table. A later deployment does not
+turn the unavailable Edge Rules capability into an application abuse-control
+pass; it must be reclassified only from a new, independently observed provider
+capability and path-specific verification.
 
 ### Post-merge readback for code-bearing main
 
@@ -192,7 +296,8 @@ implementation evidence. C2D adds the following perimeter state:
 
 ```text
 #10 abuse/rate-limit controls       APPLICATION LAYER VERIFIED;
-                                   EDGE CONTROL NOT VERIFIED
+                                   PLATFORM DDOS VERIFIED;
+                                   APPLICATION EDGE CONTROL NOT VERIFIED
 #11 request-size/malformed limits   VERIFIED by service tests and C2C evidence
 #16 closed kill switch              VERIFIED; remains CLOSED
 #17 private staging dry run         HISTORICAL C2C PASS; not public launch
@@ -202,6 +307,9 @@ implementation evidence. C2D adds the following perimeter state:
 #22 explicit launch authorization   NOT GIVEN
 ```
 
-L2-C2D is **PARTIAL / BLOCKED** until an actual approved external edge abuse
-control is configured and tested for the future application path. This phase
-does not configure one and does not weaken the gate to obtain PASS.
+L2-C2D is **PARTIAL / BLOCKED**. The application perimeter and platform-level
+DDOS mitigation are evidenced, but an approved external application edge abuse
+control is not available on the current Railway plan and no per-client/path
+Railway edge rate limit was verified. This phase does not upgrade the plan,
+configure a third-party edge, enable WAF Under Attack outside an incident, or
+weaken the gate to obtain PASS. Launch authorization #22 remains **NOT GIVEN**.
