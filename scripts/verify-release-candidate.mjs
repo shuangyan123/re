@@ -409,7 +409,7 @@ async function main() {
   assertCondition(packageJson.private !== true, "Release candidate package must not be private.");
   assertCondition(packageJson.license === "SEE LICENSE IN LICENSES.md", "Package license metadata is not multi-license aware.");
   assertCondition(packageJson.peerDependenciesMeta?.openai?.optional === true, "OpenAI peer must remain optional.");
-  assertCondition(packageJson.repository?.url === "https://github.com/shuangyan123/re.git", "Package repository metadata changed.");
+  assertCondition(packageJson.repository?.url === "https://github.com/shuangyan123/tutorbench.git", "Package repository metadata changed.");
   assertCondition(packageJson.publishConfig?.registry === undefined, "Package must not hard-code a registry in publishConfig.");
 
   const temporaryRoot = await mkdtemp(join(tmpdir(), "tutor-benchmark-release-candidate-"));

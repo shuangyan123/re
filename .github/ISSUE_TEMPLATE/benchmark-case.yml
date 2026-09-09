@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         A case proposal is a benchmark-content change, not an ordinary typo fix.
-        Read [CONTRIBUTING.md](https://github.com/shuangyan123/re/blob/main/CONTRIBUTING.md) and [docs/licensing.md](https://github.com/shuangyan123/re/blob/main/docs/licensing.md) first.
+        Read [CONTRIBUTING.md](https://github.com/shuangyan123/tutorbench/blob/main/CONTRIBUTING.md) and [docs/licensing.md](https://github.com/shuangyan123/tutorbench/blob/main/docs/licensing.md) first.
   - type: textarea
     id: proposed-construct
     attributes:

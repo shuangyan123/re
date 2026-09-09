@@ -11,11 +11,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/shuangyan123/re.git"
+    "url": "https://github.com/shuangyan123/tutorbench.git"
   },
-  "homepage": "https://github.com/shuangyan123/re#readme",
+  "homepage": "https://github.com/shuangyan123/tutorbench#readme",
   "bugs": {
-    "url": "https://github.com/shuangyan123/re/issues"
+    "url": "https://github.com/shuangyan123/tutorbench/issues"
   },
   "type": "module",
   "main": "./dist/src/index.js",

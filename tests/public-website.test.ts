@@ -263,8 +263,8 @@ test("static website build prefixes project-site paths without changing local de
   try {
     await buildWebsite({
       outputDirectory,
-      basePath: "/re/",
-      siteUrl: "https://shuangyan123.github.io/re",
+      basePath: "/tutorbench/",
+      siteUrl: "https://shuangyan123.github.io/tutorbench",
     });
     const homeHtml = await readFile(join(outputDirectory, "index.html"), "utf8");
     const casesHtml = await readFile(
@@ -272,13 +272,13 @@ test("static website build prefixes project-site paths without changing local de
       "utf8",
     );
 
-    assert.match(homeHtml, /href="\/re\/leaderboard\//);
-    assert.match(homeHtml, /href="\/re\/assets\/styles\.css"/);
-    assert.match(homeHtml, /src="\/re\/assets\/site\.js"/);
-    assert.match(homeHtml, /src="\/re\/assets\/brand\/tutorbench\/web\/tutorbench-mark-small\.svg"/);
-    assert.match(homeHtml, /href="\/re\/assets\/brand\/tutorbench\/raster\/favicon\.ico"/);
-    assert.match(homeHtml, /<link rel="canonical" href="https:\/\/shuangyan123\.github\.io\/re\//);
-    assert.match(casesHtml, /href="\/re\/data\/cases\/fraction-misconception-001\//);
+    assert.match(homeHtml, /href="\/tutorbench\/leaderboard\//);
+    assert.match(homeHtml, /href="\/tutorbench\/assets\/styles\.css"/);
+    assert.match(homeHtml, /src="\/tutorbench\/assets\/site\.js"/);
+    assert.match(homeHtml, /src="\/tutorbench\/assets\/brand\/tutorbench\/web\/tutorbench-mark-small\.svg"/);
+    assert.match(homeHtml, /href="\/tutorbench\/assets\/brand\/tutorbench\/raster\/favicon\.ico"/);
+    assert.match(homeHtml, /<link rel="canonical" href="https:\/\/shuangyan123\.github\.io\/tutorbench\//);
+    assert.match(casesHtml, /href="\/tutorbench\/data\/cases\/fraction-misconception-001\//);
     assert.match(casesHtml, /data-case-filter="locale"/);
     assert.match(casesHtml, /data-case-locale="zh-CN"/);
     assert.match(casesHtml, /English/);

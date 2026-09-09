@@ -5,10 +5,10 @@ version: "0.1.0"
 authors:
   - name: "shuangyan123"
     website: "https://github.com/shuangyan123"
-repository-code: "https://github.com/shuangyan123/re"
-url: "https://github.com/shuangyan123/re"
+repository-code: "https://github.com/shuangyan123/tutorbench"
+url: "https://github.com/shuangyan123/tutorbench"
 license: "other"
-license-url: "https://github.com/shuangyan123/re/blob/main/LICENSES.md"
+license-url: "https://github.com/shuangyan123/tutorbench/blob/main/LICENSES.md"
 keywords:
   - "AI tutoring"
   - "benchmark"

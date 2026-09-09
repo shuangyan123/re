@@ -13,7 +13,7 @@ import {
   type SiteUiTextKey,
 } from "./i18n.js";
 
-export const SITE_GITHUB_URL = "https://github.com/shuangyan123/re";
+export const SITE_GITHUB_URL = "https://github.com/shuangyan123/tutorbench";
 export const TUTORBENCH_BRAND_ASSET_BASE_PATH = "/assets/brand/tutorbench";
 export const TUTORBENCH_BRAND_ASSET_PATHS = [
   "web/tutorbench-mark.svg",
@@ -45,7 +45,7 @@ export interface SitePage {
 }
 
 /**
- * Normalizes the path under which a project site is hosted, such as `/re`.
+ * Normalizes the path under which a project site is hosted, such as `/tutorbench`.
  * GitHub Pages supplies this value separately from the full canonical URL.
  */
 export function normalizeSiteBasePath(value: string | undefined): string {
