@@ -3,6 +3,12 @@ import path from "node:path";
 import type { CommunityReviewApplicationIntakeState } from "../../../src/contracts/community-review-application.js";
 import { parseAuthenticationContext } from "./authentication.js";
 import type { AuthenticatedPrincipal } from "./authentication.js";
+import {
+  parseApplicationCorsOrigins,
+  parseTrustedProxyNetworks,
+  type CommunityReviewApplicationCorsPolicy,
+  type CommunityReviewTrustedProxyNetwork,
+} from "./public-exposure.js";
 
 export type CommunityReviewEnvironment = "test" | "development" | "production";
 export type CommunityReviewStorage = "postgres" | "in-memory";
@@ -43,6 +49,10 @@ export interface CommunityReviewServiceConfig {
   readonly publicIntakeEnabled: false;
   /** Separate participation-application switch; reviewer intake stays independent. */
   readonly applicationIntakeState: CommunityReviewApplicationIntakeState;
+  /** Empty means direct mode; forwarded headers are ignored without an explicit network. */
+  readonly trustedProxyNetworks: readonly CommunityReviewTrustedProxyNetwork[];
+  /** Empty allowlist disables browser CORS for application endpoints. */
+  readonly applicationCors: CommunityReviewApplicationCorsPolicy;
   readonly applicationRateLimitMaximumRequests: number;
   readonly applicationRateLimitWindowMs: number;
 }
@@ -61,6 +71,8 @@ export type CommunityReviewConfigurationErrorCode =
   | "material_root_invalid"
   | "public_intake_disabled"
   | "invalid_application_intake_state"
+  | "invalid_trusted_proxy_config"
+  | "invalid_application_cors_config"
   | "invalid_runtime_value";
 
 export class CommunityReviewConfigurationError extends Error {
@@ -269,6 +281,27 @@ export function loadCommunityReviewConfig(
   const publicIntakeEnabled = booleanValue(value(env, "COMMUNITY_REVIEW_PUBLIC_INTAKE"), false);
   if (publicIntakeEnabled) throw new CommunityReviewConfigurationError("public_intake_disabled");
   const applicationIntake = applicationIntakeState(env.COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE);
+  let trustedProxyNetworks: readonly CommunityReviewTrustedProxyNetwork[];
+  try {
+    trustedProxyNetworks = parseTrustedProxyNetworks(value(env, "COMMUNITY_REVIEW_TRUSTED_PROXY_CIDRS"));
+  } catch {
+    throw new CommunityReviewConfigurationError("invalid_trusted_proxy_config");
+  }
+  let applicationCorsOrigins: readonly string[];
+  try {
+    applicationCorsOrigins = parseApplicationCorsOrigins(
+      value(env, "COMMUNITY_REVIEW_APPLICATION_CORS_ORIGINS"),
+      environment === "production",
+    );
+  } catch {
+    throw new CommunityReviewConfigurationError("invalid_application_cors_config");
+  }
+  const applicationCorsMaxAgeSeconds = boundedInteger(
+    value(env, "COMMUNITY_REVIEW_APPLICATION_CORS_MAX_AGE_SECONDS"),
+    300,
+    0,
+    86_400,
+  );
 
   const dbRequired = storage === "postgres" && (command === "migrate" || command === "readiness" ||
     command === "serve" || environment === "production");
@@ -375,5 +408,10 @@ export function loadCommunityReviewConfig(
     ...(materialRoot === undefined ? {} : { privateMaterialRoot: materialRoot }),
     publicIntakeEnabled: false,
     applicationIntakeState: applicationIntake,
+    trustedProxyNetworks,
+    applicationCors: {
+      allowedOrigins: applicationCorsOrigins,
+      maxAgeSeconds: applicationCorsMaxAgeSeconds,
+    },
   };
 }

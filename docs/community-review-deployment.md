@@ -52,6 +52,16 @@ Optional bounded settings are `COMMUNITY_REVIEW_HOST` (default
 `COMMUNITY_REVIEW_SHUTDOWN_TIMEOUT_MS` (default `10000`), and
 `COMMUNITY_REVIEW_LOG_LEVEL` (`info`, `warn`, or `error`).
 
+Public-exposure settings are fail-closed and optional:
+`COMMUNITY_REVIEW_TRUSTED_PROXY_CIDRS` (empty by default, which selects direct
+socket-peer mode), `COMMUNITY_REVIEW_APPLICATION_CORS_ORIGINS` (empty by
+default, which disables browser CORS), and
+`COMMUNITY_REVIEW_APPLICATION_CORS_MAX_AGE_SECONDS` (default `300`). Only
+explicitly verified proxy networks may be configured. Do not populate the
+proxy list from an unverified Railway address sample. Production CORS origins
+must be exact HTTPS origins; wildcard origins and reflected arbitrary origins
+are rejected.
+
 Certificate verification must remain enabled in production; the
 `COMMUNITY_REVIEW_DATABASE_SSL_REJECT_UNAUTHORIZED=false` development/test
 override is rejected by production configuration.
@@ -115,6 +125,12 @@ operator routes, but application intake remains rejected while
 `COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED`. No browser form, public
 CORS origin, or public evidence route is deployed. The historical reviewer
 and campaign switch remains `COMMUNITY_REVIEW_PUBLIC_INTAKE=false`.
+
+The L2-C2D exposure record is in
+[`community-review-public-exposure-gate.md`](community-review-public-exposure-gate.md).
+The application limiter is process-local and transient; it is not a global
+multi-instance control. External edge abuse protection remains a separate hard
+launch blocker until an approved control is actually configured and tested.
 
 For a container deployment, build
 `services/community-review-service/Dockerfile`. It uses Node 22, excludes

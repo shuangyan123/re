@@ -34,7 +34,7 @@ function application(overrides: Record<string, unknown> = {}): Record<string, un
   };
 }
 
-function runtimeFor(state?: "CLOSED" | "OPEN" | "PAUSED") {
+function runtimeFor(state?: "CLOSED" | "OPEN" | "PAUSED", corsOrigins?: string) {
   const config = loadCommunityReviewConfig({
     env: {
       COMMUNITY_REVIEW_ENV: "development",
@@ -45,6 +45,7 @@ function runtimeFor(state?: "CLOSED" | "OPEN" | "PAUSED") {
         "Bearer operator-application-token=example-oidc|operator-application-http,Bearer reviewer-application-token=example-oidc|reviewer-application-http",
       COMMUNITY_REVIEW_REQUEST_BODY_LIMIT_BYTES: "4096",
       ...(state === undefined ? {} : { COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE: state }),
+      ...(corsOrigins === undefined ? {} : { COMMUNITY_REVIEW_APPLICATION_CORS_ORIGINS: corsOrigins }),
     },
   });
   return createCommunityReviewRuntime(config);
@@ -89,6 +90,21 @@ test("closed public application POST is enforced before persistence and public r
     });
     assert.equal(rejected.status, 409);
     assert.equal((await rejected.json() as { error: string }).error, "application_intake_closed");
+    assert.equal(rejected.headers.get("access-control-allow-origin"), null);
+    assert.equal(rejected.headers.get("cache-control"), "no-store");
+    assert.equal(rejected.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(rejected.headers.get("referrer-policy"), "no-referrer");
+
+    const preflight = await fetch(`${base}/v1/applications`, {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://apply.example.invalid",
+        "access-control-request-method": "POST",
+      },
+    });
+    assert.equal(preflight.status, 405);
+    assert.equal(preflight.headers.get("allow"), "POST");
+    assert.equal(preflight.headers.get("access-control-allow-origin"), null);
 
     const malformed = await fetch(`${base}/v1/applications`, {
       method: "POST",
@@ -110,6 +126,57 @@ test("closed public application POST is enforced before persistence and public r
     assert.equal(snapshot?.applicationContacts.length, 0);
     assert.equal(snapshot?.applicationIdempotency.length, 0);
     assert.equal(snapshot?.applicationAuditEvents.length, 0);
+  } finally {
+    await gracefulShutdown(server, runtime, 1000);
+  }
+});
+
+test("configured CORS is exact, application-only, and cannot create a disallowed submission", async () => {
+  const runtime = runtimeFor("OPEN", "https://apply.example.invalid");
+  const server = createCommunityReviewHttpServer(runtime, new CommunityReviewLogger("error"));
+  const address = await listen(server);
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const preflight = await fetch(`${base}/v1/applications`, {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://apply.example.invalid",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type, idempotency-key",
+      },
+    });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get("access-control-allow-origin"), "https://apply.example.invalid");
+    assert.equal(preflight.headers.get("access-control-allow-methods"), "POST");
+    assert.equal(preflight.headers.get("access-control-allow-headers"), "Content-Type, Idempotency-Key");
+    assert.equal(preflight.headers.get("vary"), "Origin");
+    assert.equal(await preflight.text(), "");
+
+    const disallowed = await fetch(`${base}/v1/applications`, {
+      method: "POST",
+      headers: { ...jsonHeaders(undefined, "disallowed-origin-key"), origin: "https://other.example.invalid" },
+      body: JSON.stringify(application()),
+    });
+    assert.equal(disallowed.status, 403);
+    assert.equal((await disallowed.json() as { error: string }).error, "application_origin_not_allowed");
+    assert.equal(disallowed.headers.get("access-control-allow-origin"), null);
+    const afterDisallowed = (runtime.persistence as { snapshot?: () => { applications: unknown[] } }).snapshot?.();
+    assert.equal(afterDisallowed?.applications.length, 0);
+
+    const allowed = await fetch(`${base}/v1/applications`, {
+      method: "POST",
+      headers: { ...jsonHeaders(undefined, "allowed-origin-key"), origin: "https://apply.example.invalid" },
+      body: JSON.stringify(application()),
+    });
+    assert.equal(allowed.status, 200);
+    assert.equal(allowed.headers.get("access-control-allow-origin"), "https://apply.example.invalid");
+    assert.equal(allowed.headers.get("vary"), "Origin");
+
+    const protectedRoute = await fetch(`${base}/v1/operator/applications`, {
+      headers: { origin: "https://apply.example.invalid" },
+    });
+    assert.equal(protectedRoute.status, 401);
+    assert.equal(protectedRoute.headers.get("access-control-allow-origin"), null);
   } finally {
     await gracefulShutdown(server, runtime, 1000);
   }

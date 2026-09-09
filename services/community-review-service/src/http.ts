@@ -9,6 +9,12 @@ import {
   type CommunityReviewServiceErrorCode,
 } from "./errors.js";
 import type { ReviewerAccountRecord } from "./persistence.js";
+import {
+  evaluateApplicationCors,
+  resolveClientNetworkAddress,
+  type CommunityReviewApplicationCorsPolicy,
+  type CommunityReviewTrustedProxyNetwork,
+} from "./public-exposure.js";
 
 export interface CommunityReviewHttpRouteResult {
   readonly status: number;
@@ -35,6 +41,11 @@ interface RouteDefinition {
   readonly method: string;
   readonly pattern: RegExp;
   readonly handler: RouteHandler;
+}
+
+export interface CommunityReviewHttpRequestOptions {
+  readonly trustedProxyNetworks: readonly CommunityReviewTrustedProxyNetwork[];
+  readonly applicationCors: CommunityReviewApplicationCorsPolicy;
 }
 
 const opaquePathId = "([A-Za-z0-9][A-Za-z0-9._-]{0,79})";
@@ -247,8 +258,22 @@ export async function handleCommunityReviewApiRequest(
   request: IncomingMessage,
   route: string,
   bodyLimitBytes: number,
+  options: CommunityReviewHttpRequestOptions = {
+    trustedProxyNetworks: [],
+    applicationCors: { allowedOrigins: [], maxAgeSeconds: 300 },
+  },
 ): Promise<CommunityReviewHttpRouteResult | undefined> {
   if (!route.startsWith("/v1/")) return undefined;
+  const cors = evaluateApplicationCors(request, route, options.applicationCors);
+  if (cors.kind === "reject") {
+    request.resume();
+    return failure(new CommunityReviewHttpRequestError(403, cors.code));
+  }
+  if (cors.kind === "preflight") {
+    request.resume();
+    return { status: 204, level: "info", headers: cors.headers, body: {} };
+  }
+  const corsHeaders = cors.kind === "allow" ? cors.headers : undefined;
   const authenticationInput = request.headers.authorization;
   const body = (): Promise<JsonObject> => readJsonObject(request, bodyLimitBytes);
   const idempotencyKey = (): string => {
@@ -263,7 +288,7 @@ export async function handleCommunityReviewApiRequest(
     }
     return value;
   };
-  const sourceKey = request.socket.remoteAddress ?? "unknown";
+  const sourceKey = resolveClientNetworkAddress(request, options.trustedProxyNetworks);
 
   const routes: readonly RouteDefinition[] = [
     {
@@ -554,7 +579,7 @@ export async function handleCommunityReviewApiRequest(
     return {
       status: 405,
       level: "warn",
-      headers: { allow },
+      headers: { ...(corsHeaders ?? {}), allow },
       body: { error: "method_not_allowed" },
     };
   }
@@ -564,8 +589,10 @@ export async function handleCommunityReviewApiRequest(
     return { status: 404, level: "warn", body: { error: "not_found" } };
   }
   try {
-    return success(await matchingMethod.handler(match));
+    const result = success(await matchingMethod.handler(match));
+    return corsHeaders === undefined ? result : { ...result, headers: corsHeaders };
   } catch (error) {
-    return failure(error);
+    const result = failure(error);
+    return corsHeaders === undefined ? result : { ...result, headers: corsHeaders };
   }
 }

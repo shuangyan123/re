@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
+import { request as httpRequest } from "node:http";
 import type { Server } from "node:http";
+import type { RequestOptions } from "node:http";
 import { test } from "node:test";
 
 import {
@@ -197,6 +199,37 @@ test("HTTP transport fails closed for unknown routes, wrong methods, malformed J
       body: JSON.stringify({ filler: "x".repeat(5000) }),
     });
     assert.equal(oversized.status, 413);
+  } finally {
+    await gracefulShutdown(server, runtime, 1000);
+  }
+});
+
+test("HTTP transport rejects duplicated security-sensitive headers", async () => {
+  const runtime = runtimeForHttp();
+  const server = createCommunityReviewHttpServer(runtime, new CommunityReviewLogger("error"));
+  const address = await listen(server);
+  try {
+    const result = await new Promise<{ readonly status: number; readonly body: string }>((resolve, reject) => {
+      const options = {
+        hostname: "127.0.0.1",
+        port: address.port,
+        path: "/health/live",
+        method: "GET",
+        headers: { origin: ["https://one.example.invalid", "https://two.example.invalid"] },
+      } as unknown as RequestOptions;
+      const client = httpRequest(options, (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("end", () => resolve({
+          status: response.statusCode ?? 0,
+          body: Buffer.concat(chunks).toString("utf8"),
+        }));
+      });
+      client.once("error", reject);
+      client.end();
+    });
+    assert.equal(result.status, 400);
+    assert.match(result.body, /ambiguous_header/u);
   } finally {
     await gracefulShutdown(server, runtime, 1000);
   }
