@@ -146,6 +146,31 @@ public-intake false, closed POST zero-write behavior, CORS/security headers,
 protected-route isolation, and bounded privacy/log scans. The current
 pre-merge observation is not post-merge evidence.
 
+### Post-merge readback for code-bearing main
+
+The first code-bearing post-merge deployment was re-read after PR #98 merged:
+
+| Observation | Evidence |
+| --- | --- |
+| Final main source | `8ccd0b8918633020d0b0c63ce0613281dedd4252` |
+| Railway deployment | `ec8bf85f-df80-4130-823b-e7b3db42e4dc`, `SUCCESS`, branch `main`, metadata commit hash matched final main |
+| Migration/startup | deployment log reported `currentVersion=7`, `appliedMigrationCount=7`, `status=migrated`; one `server_started`; zero deployment error records |
+| Runtime boundary variables | `COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED`; `COMMUNITY_REVIEW_PUBLIC_INTAKE=false`; trusted-proxy CIDR and CORS origin variables absent |
+| HTTPS live/ready | `/health/live` HTTP 200; `/health/ready` HTTP 200 with empty reason codes |
+| HTTP redirect | `/health/live` over HTTP returned 301 to HTTPS |
+| Closed application probe | synthetic `POST /v1/applications` returned 409 `application_intake_closed`; response had no ACAO and had `no-store`, `nosniff`, and `no-referrer` |
+| CORS/method probe | `OPTIONS /v1/applications` returned 405 with `Allow: POST` and no ACAO |
+| Protected-route probe | unauthenticated `GET /v1/operator/applications` returned 401 with no ACAO |
+| Privacy/log scan | no source key or known synthetic test IP appeared in deployment application logs; Railway HTTP metadata was counted without recording raw addresses |
+
+The closed POST used a synthetic body and a unique idempotency key. The
+external response confirms the state gate; the zero-write guarantee is backed
+by the exact code path and service regression tests, not by a production row
+query. No production application/contact/idempotency/audit data was created
+for this probe. No proxy CIDR or browser CORS origin was configured. The
+external edge abuse-control blocker remains unresolved, so this deployment is
+not a public-launch authorization.
+
 ## Close and rollback boundary
 
 The safe exposure rollback is configuration-first:
