@@ -176,6 +176,8 @@ not open. See the [application gate](community-review-application-gate.md) and
 - [x] Railway public-edge/platform DDOS capability read back separately from
       application abuse control
 - [x] Railway WAF Under Attack availability and incident-only runbook recorded
+- [x] L2-C2D-X architecture decision comparing Railway upgrade, external edge,
+      current-risk acceptance, and distributed application limiting
 - [ ] Approved external edge/CDN abuse control configured and verified
 
 L2-C2D status: **APPLICATION PERIMETER HARDENED; PLATFORM DDOS VERIFIED; EDGE
@@ -184,7 +186,8 @@ RULES UNAVAILABLE ON CURRENT PLAN; WAF INCIDENT-ONLY; PUBLIC LAUNCH BLOCKED**.
 external application edge abuse control remains unverified.
 `COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE` must remain `CLOSED`,
 `COMMUNITY_REVIEW_PUBLIC_INTAKE` must remain `false`, and launch authorization
-#22 remains **NOT GIVEN**. See the [public exposure gate](community-review-public-exposure-gate.md).
+#22 remains **NOT GIVEN**. See the [public exposure gate](community-review-public-exposure-gate.md)
+and the [external abuse-control decision](community-review-edge-abuse-control-decision.md).
 
 ### Later Community Review phases — NOT STARTED
 

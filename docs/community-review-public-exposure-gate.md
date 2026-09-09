@@ -275,6 +275,9 @@ for this probe. No proxy CIDR or browser CORS origin was configured. The
 external edge abuse-control blocker remains unresolved, so this deployment is
 not a public-launch authorization.
 
+The option comparison and deferred pre-launch recommendation are recorded in
+the [L2-C2D-X external abuse-control decision](community-review-edge-abuse-control-decision.md).
+
 ## Close and rollback boundary
 
 The safe exposure rollback is configuration-first:
