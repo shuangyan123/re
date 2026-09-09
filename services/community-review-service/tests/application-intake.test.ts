@@ -240,4 +240,6 @@ test("rate limiting is bounded and idempotent retries bypass the new-submission 
   await intake.submitApplication({ application: application({ motivation: "other" }), idempotencyKey: "rate-key-3", sourceKey: "two" });
   await intake.submitApplication({ application: application({ motivation: "third" }), idempotencyKey: "rate-key-4", sourceKey: "three" });
   assert.ok(limiter.size <= 2);
+  const storedKeys = [...(limiter as unknown as { entries: Map<string, unknown> }).entries.keys()];
+  assert.ok(storedKeys.every((key) => key.startsWith("source-v1:") && !key.includes("one")));
 });

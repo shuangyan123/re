@@ -11,6 +11,7 @@ export * from "./migrations.js";
 export * from "./oidc.js";
 export * from "./persistence.js";
 export * from "./postgres-repository.js";
+export * from "./public-exposure.js";
 export * from "./qualification.js";
 export * from "./runtime.js";
 export * from "./service.js";

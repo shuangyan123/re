@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import {
   COMMUNITY_REVIEW_APPLICATION_CONTRACT_ID,
@@ -63,6 +63,8 @@ export class ApplicationSubmissionRateLimiter {
   private readonly entries = new Map<string, RateLimitEntry>();
   private readonly maximumEntries: number;
   private readonly clock: () => number;
+  /** Process-local salt keeps raw network addresses out of the bounded map. */
+  private readonly sourceKeySecret = randomBytes(32);
 
   constructor(private readonly options: ApplicationSubmissionRateLimiterOptions) {
     if (!Number.isSafeInteger(options.maximumRequests) || options.maximumRequests < 1 ||
@@ -82,10 +84,12 @@ export class ApplicationSubmissionRateLimiter {
       if (now - entry.windowStartedAt >= this.options.windowMs) this.entries.delete(key);
     }
     const boundedSourceKey = sourceKey.length > 256 ? sourceKey.slice(0, 256) : sourceKey;
-    const current = this.entries.get(boundedSourceKey);
+    const derivedSourceKey = `source-v1:${createHmac("sha256", this.sourceKeySecret)
+      .update(boundedSourceKey, "utf8").digest("hex")}`;
+    const current = this.entries.get(derivedSourceKey);
     if (current === undefined) {
       if (this.entries.size >= this.maximumEntries) this.evictOldest();
-      this.entries.set(boundedSourceKey, {
+      this.entries.set(derivedSourceKey, {
         windowStartedAt: now,
         count: 1,
         lastSeenAt: now,
@@ -95,7 +99,7 @@ export class ApplicationSubmissionRateLimiter {
     if (current.count >= this.options.maximumRequests) {
       throw new CommunityReviewServiceError("application_rate_limited");
     }
-    this.entries.set(boundedSourceKey, {
+    this.entries.set(derivedSourceKey, {
       windowStartedAt: current.windowStartedAt,
       count: current.count + 1,
       lastSeenAt: now,

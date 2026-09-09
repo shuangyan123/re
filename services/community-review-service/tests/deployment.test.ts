@@ -177,6 +177,51 @@ test("application intake configuration is separate, fail-closed, and strict for 
   );
 });
 
+test("public exposure configuration defaults to direct/no-CORS and rejects unsafe production values", () => {
+  const base = {
+    COMMUNITY_REVIEW_ENV: "development",
+    COMMUNITY_REVIEW_STORAGE: "in-memory",
+    COMMUNITY_REVIEW_AUTH_MODE: "synthetic",
+  };
+  const defaults = loadCommunityReviewConfig({ env: base });
+  assert.deepEqual(defaults.trustedProxyNetworks, []);
+  assert.deepEqual(defaults.applicationCors.allowedOrigins, []);
+  assert.equal(defaults.applicationCors.maxAgeSeconds, 300);
+
+  const production = productionEnvironment();
+  assert.throws(
+    () => loadCommunityReviewConfig({
+      env: { ...production, COMMUNITY_REVIEW_TRUSTED_PROXY_CIDRS: "proxy.example.invalid/32" },
+    }),
+    configurationCode("invalid_trusted_proxy_config"),
+  );
+  assert.throws(
+    () => loadCommunityReviewConfig({
+      env: { ...production, COMMUNITY_REVIEW_APPLICATION_CORS_ORIGINS: "*" },
+    }),
+    configurationCode("invalid_application_cors_config"),
+  );
+  assert.throws(
+    () => loadCommunityReviewConfig({
+      env: { ...production, COMMUNITY_REVIEW_APPLICATION_CORS_ORIGINS: "http://localhost:3000" },
+    }),
+    configurationCode("invalid_application_cors_config"),
+  );
+  const configured = loadCommunityReviewConfig({
+    env: {
+      ...base,
+      COMMUNITY_REVIEW_TRUSTED_PROXY_CIDRS: "127.0.0.1/32",
+      COMMUNITY_REVIEW_APPLICATION_CORS_ORIGINS: "https://apply.example.invalid/",
+      COMMUNITY_REVIEW_APPLICATION_CORS_MAX_AGE_SECONDS: "120",
+    },
+  });
+  assert.deepEqual(configured.trustedProxyNetworks, [{ address: "127.0.0.1", family: "ipv4", prefixLength: 32 }]);
+  assert.deepEqual(configured.applicationCors, {
+    allowedOrigins: ["https://apply.example.invalid"],
+    maxAgeSeconds: 120,
+  });
+});
+
 test("synthetic deployment smoke starts, authenticates, loads private material, and shuts down cleanly", async () => {
   const root = await mkdtemp(join(tmpdir(), "tutorbench-community-review-smoke-"));
   const config = loadCommunityReviewConfig({

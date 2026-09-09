@@ -236,11 +236,17 @@ function respond(
   body: Record<string, unknown>,
 ): void {
   if (response.writableEnded) return;
-  const payload = JSON.stringify({ requestId, ...body });
   response.statusCode = status;
-  response.setHeader("content-type", "application/json; charset=utf-8");
   response.setHeader("cache-control", "no-store");
   response.setHeader("x-content-type-options", "nosniff");
+  response.setHeader("referrer-policy", "no-referrer");
+  if (status === 204) {
+    response.setHeader("content-length", "0");
+    response.end();
+    return;
+  }
+  const payload = JSON.stringify({ requestId, ...body });
+  response.setHeader("content-type", "application/json; charset=utf-8");
   response.setHeader("content-length", Buffer.byteLength(payload));
   response.end(payload);
 }
@@ -254,11 +260,36 @@ function requestPath(request: IncomingMessage): string {
 }
 
 function contentLength(request: IncomingMessage): number | "invalid" | undefined {
+  const distinct = request.headersDistinct?.["content-length"];
+  if (distinct !== undefined && distinct.length !== 1) return "invalid";
   const header = request.headers["content-length"];
   if (header === undefined) return undefined;
   if (Array.isArray(header) || !/^\d+$/u.test(header)) return "invalid";
   const parsed = Number(header);
   return Number.isSafeInteger(parsed) ? parsed : "invalid";
+}
+
+const rejectDuplicateHeaders = [
+  "content-length",
+  "transfer-encoding",
+  "content-type",
+  "idempotency-key",
+  "authorization",
+  "origin",
+  "access-control-request-method",
+  "access-control-request-headers",
+  "forwarded",
+  "x-forwarded-for",
+  "x-real-ip",
+  "x-forwarded-host",
+  "host",
+] as const;
+
+function hasAmbiguousDuplicateHeader(request: IncomingMessage): boolean {
+  return rejectDuplicateHeaders.some((name) => {
+    const distinct = request.headersDistinct?.[name];
+    return (distinct !== undefined && distinct.length !== 1) || Array.isArray(request.headers[name]);
+  });
 }
 
 export function createCommunityReviewHttpServer(
@@ -281,6 +312,11 @@ export function createCommunityReviewHttpServer(
         ...(Array.isArray(body.reasonCodes) ? { reasonCodes: body.reasonCodes.filter((item): item is string => typeof item === "string") } : {}),
       });
     };
+    if (hasAmbiguousDuplicateHeader(request)) {
+      request.resume();
+      finish(400, { error: "invalid_request", reasonCodes: ["ambiguous_header"] }, "warn");
+      return;
+    }
     const length = contentLength(request);
     if (length === "invalid") {
       request.resume();
@@ -299,6 +335,10 @@ export function createCommunityReviewHttpServer(
         request,
         route,
         runtime.config.requestBodyLimitBytes,
+        {
+          trustedProxyNetworks: runtime.config.trustedProxyNetworks,
+          applicationCors: runtime.config.applicationCors,
+        },
       ).then((result) => {
         if (result === undefined) {
           request.resume();

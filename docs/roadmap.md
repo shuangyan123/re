@@ -135,7 +135,8 @@ reviewed, or that any calibration or leaderboard claim is available.
 - [x] Sealed blind assignment delivery, authenticated submission/withdrawal,
       close/freeze authority, and operational evidence boundaries
 - [x] Deployment/readiness contract and private staging launch-gate evidence
-- [ ] Public participation application intake and operational abuse controls
+- [x] Closed participation-application intake implementation and private staging gate
+- [ ] Public participation application exposure and externally verified abuse controls
 - [ ] Real reviewer campaign and fresh community evidence
 
 P4 status: **COMMUNITY REVIEW SERVICE — PASS — DEPLOYMENT-READY**. Private
@@ -155,6 +156,29 @@ staging evidence does not open public reviewer intake or start a real campaign.
 L2-C2B status: **APPLICATION CONTRACT DEFINED; PUBLIC APPLICATION NOT OPEN**.
 No application form, persistence, endpoint, authentication, email delivery,
 reviewer provisioning, or real applicant data is part of this phase.
+
+### L2-C2C Closed Application Intake — COMPLETE
+
+The state-gated application service, persistence boundary, idempotency,
+withdrawal/redaction behavior, private staging dry run, and migration-recovery
+evidence are complete at the closed boundary. Public application intake remains
+not open. See the [application gate](community-review-application-gate.md) and
+[staging gate](community-review-staging-gate.md).
+
+### L2-C2D Public Exposure Hardening / Pre-Launch Gate — PARTIAL / BLOCKED
+
+- [x] Direct-mode client-source boundary and explicit trusted-proxy model
+- [x] Bounded transient application source-key derivation
+- [x] Exact, disabled-by-default application CORS policy and strict preflight
+- [x] Security/cache headers and ambiguous-header rejection
+- [x] Operator/reviewer route isolation and closed-state behavior
+- [x] Close/rollback boundary and exposure evidence record
+- [ ] Approved external edge/CDN abuse control configured and verified
+
+L2-C2D status: **APPLICATION PERIMETER HARDENED; EDGE ABUSE CONTROL NOT
+VERIFIED; PUBLIC LAUNCH BLOCKED**. `COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE`
+must remain `CLOSED`, `COMMUNITY_REVIEW_PUBLIC_INTAKE` must remain `false`, and
+launch authorization #22 remains **NOT GIVEN**. See the [public exposure gate](community-review-public-exposure-gate.md).
 
 ### Later Community Review phases — NOT STARTED
 
