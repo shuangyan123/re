@@ -1,8 +1,8 @@
 # Community Review Participation Application Contract / Launch Gate
 
-Status: **L2-C2C implementation delivered in code; migration-recovery evidence is
-closed, while the private staging application gate remains partial. Public
-application intake remains CLOSED.**
+Status: **L2-C2C implementation and private staging application gate PASS;
+migration-recovery evidence is closed. Public application intake remains
+CLOSED.**
 
 This document defines the small, versioned contract that a future manual
 invitation workflow may use and the hard gate that must be satisfied before
@@ -251,18 +251,18 @@ claim that the checklist has passed.
 | 5 | Applicant withdrawal and deletion handling is defined. | IMPLEMENTED with immediate redaction and tombstone tests |
 | 6 | Contact-information storage boundary is implemented. | IMPLEMENTED in-memory + PostgreSQL migration 007; isolated v6 -> v7 recovery evidence PASS |
 | 7 | Contact information is excluded from reviewer-evidence and public projections. | IMPLEMENTED with positive-allowlist and authority-isolation regression tests |
-| 8 | Production/staging storage access controls are reviewed. | PRIVATE STAGING VERIFICATION PENDING |
-| 9 | Secret, log, and privacy audit passes. | Local source/test audit PASS; bounded current-staging log sample PASS; broader gate review remains pending |
-| 10 | Abuse, spam, and rate-limit controls are implemented. | Bounded transient rate limiter implemented; edge/CDN abuse control deferred |
-| 11 | Request-size and malformed-input limits are implemented. | IMPLEMENTED with HTTP 400/413/415/405 tests |
-| 12 | Manual reviewer decision workflow is implemented. | IMPLEMENTED; operator-only list/detail/decision/purge tested |
+| 8 | Production/staging storage access controls are reviewed. | PASS — private Railway/PostgreSQL staging path exercised; public intake remained CLOSED |
+| 9 | Secret, log, and privacy audit passes. | PASS — bounded local and current Railway log scans found no sensitive values |
+| 10 | Abuse, spam, and rate-limit controls are implemented. | PASS — bounded in-process limiter returned HTTP 429 in the loopback dry run; edge/CDN abuse control remains deferred |
+| 11 | Request-size and malformed-input limits are implemented. | PASS — private HTTP checks observed 400/413/415/405 fail-closed behavior |
+| 12 | Manual reviewer decision workflow is implemented. | PASS — private operator list/detail/decision/purge path exercised |
 | 13 | Application submission cannot automatically provision a reviewer. | IMPLEMENTED and regression-tested; no authority mutation path |
 | 14 | Application approval cannot bypass qualification. | IMPLEMENTED boundary; invitation records no qualification authority |
 | 15 | Reviewer consent remains mandatory after invitation. | Existing P4 boundary preserved; no invitation-to-reviewer integration |
 | 16 | Public intake kill switch exists and defaults to `CLOSED`. | IMPLEMENTED as separate `CLOSED`/`OPEN`/`PAUSED` setting; deployed `CLOSED` state rechecked |
-| 17 | Staging end-to-end application dry run passes. | PARTIAL — deployed closed-path and recovery checks PASS; localhost-only `OPEN` dry run pending |
-| 18 | Duplicate, retry, and idempotency behavior is defined. | IMPLEMENTED with in-memory tests and PostgreSQL adapter/integration coverage; isolated migration replay PASS |
-| 19 | Operator authorization for application review is verified. | IMPLEMENTED with unauthenticated/reviewer/operator isolation tests |
+| 17 | Staging end-to-end application dry run passes. | PASS — exact-main private loopback `OPEN` run completed, then CLOSED/PAUSED rechecks and cleanup completed |
+| 18 | Duplicate, retry, and idempotency behavior is defined. | PASS — first, identical, concurrent, and altered-body PostgreSQL-backed requests verified |
+| 19 | Operator authorization for application review is verified. | PASS — unauthenticated 401, ordinary reviewer 403, and authorized operator 200 observed |
 | 20 | Public page accurately says whether intake is open or closed. | Current page says applications are not open |
 | 21 | Rollback and close procedure is defined. | IMPLEMENTED: `OPEN -> CLOSED`/`PAUSED` stops new writes without destructive rollback |
 | 22 | Separate explicit launch authorization is given. | Not given in L2-C2B |
@@ -271,11 +271,9 @@ The existing P4 service remains private and keeps its own public-intake
 configuration closed. Passing implementation checks in this phase must still
 not start a Community Review campaign, qualify a reviewer, or begin P5 without
 those separately authorized phases. The migration-recovery evidence closure is
-recorded separately below. The private staging gate is not complete until an
-exact merged main SHA is deployed with application intake `CLOSED`, live/ready
-probes pass, closed-state behavior is externally verified, and a localhost-only
-synthetic `OPEN` dry run (or safe equivalent) completes without opening the
-deployed listener.
+recorded separately below. The final private staging evidence, including the
+loopback-only `OPEN` dry run and final external `CLOSED` recheck, is recorded in
+[`docs/community-review-staging-gate.md`](community-review-staging-gate.md).
 
 ## Migration-recovery evidence closure
 
@@ -291,11 +289,17 @@ safe evidence record, including non-secret deployment identifiers and the
 active closed-state recheck, is in
 [`docs/community-review-staging-gate.md`](community-review-staging-gate.md).
 
-This closure does not mean that the public application endpoint is open or
-that the complete private staging application gate has passed. The remaining
-localhost-only `OPEN` dry run, malformed/oversized/method cases, protected
-reviewer/operator route checks, and any other incomplete C2C items remain
-explicitly pending.
+The final private staging application gate is now **PASS**. The public
+application endpoint remains closed: the exact active Railway deployment
+reported source SHA `915a04003817ad7a7aac606b7945614be748a5ca`, migration v7,
+live/ready success, a closed-state 409 with zero writes, and a final
+unauthenticated operator 401. A separate local child process used the exact
+current service build with real staging PostgreSQL, bound only to
+`127.0.0.1:61847`, and completed the synthetic OPEN submission, idempotency,
+HTTP, authorization, decision-separation, withdrawal/redaction, rate-limit,
+PAUSED/CLOSED, cleanup, and privacy checks without opening the deployed
+listener. Detailed non-secret evidence is recorded in
+[`docs/community-review-staging-gate.md`](community-review-staging-gate.md).
 
 ## Public transparency
 
@@ -316,8 +320,8 @@ form, input controls, waitlist, reviewer login, or application endpoint.
 ```text
 L2-C2C implementation delivery                                              PASS — merged
 Migration-recovery evidence (L2-C2C-R)                                       PASS — isolated pre-007 v6 -> v7 replay
-Private staging application gate                                             PARTIAL — closed path PASS; full dry run pending
-L2-C2C overall                                                                NOT YET PASS
+Private staging application gate                                             PASS — final private staging closure
+L2-C2C overall                                                                PASS — closed intake staging gate
 
 Application contract                  IMPLEMENTED
 Application persistence               IMPLEMENTED
@@ -327,7 +331,7 @@ Retention policy                       DEFINED + ENFORCEABLE
 Operator manual decision              IMPLEMENTED
 Contact/evidence separation           IMPLEMENTED; additive v7/recovery checks PASS
 Application intake kill switch        IMPLEMENTED; deployed `CLOSED` state verified
-Private staging application E2E        PARTIAL — closed path verified; `OPEN` dry run pending
+Private staging application E2E        PASS — loopback-only `OPEN` and final `CLOSED` recheck
 Staging application intake            MUST REMAIN CLOSED
 Public participation information      OPEN
 Public application                    NOT OPEN

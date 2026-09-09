@@ -193,13 +193,14 @@ checks. L2-C2C adds a separate gate for the exact merged main SHA of the
 application-intake implementation, and L2-C2C-R below records the narrowly
 scoped migration-recovery evidence.
 
-Current implementation status after exact-main deployment and recovery recheck:
+Current implementation status after exact-main deployment, recovery recheck,
+and final private application-gate verification:
 
 ```text
 Implementation delivery                 PASS — 3ba1b108d9c19904081b91d1a2bc742721890479
 Migration recovery evidence (L2-C2C-R)   PASS — isolated v6 -> v7 replay
-Private staging application gate         PARTIAL — closed path PASS; full dry run pending
-L2-C2C overall                           NOT YET PASS
+Private staging application gate         PASS — final private staging closure
+L2-C2C overall                           PASS — closed intake staging gate
 Application intake state                 MUST REMAIN CLOSED
 COMMUNITY_REVIEW_PUBLIC_INTAKE            false
 ```
@@ -224,16 +225,16 @@ The L2-C2C staging run must record, without secrets:
 The dry run must not temporarily open the public Railway listener and must use
 only synthetic `.invalid` contact data. Destructive PostgreSQL tests must run
 only against an explicitly isolated database, never against private staging.
-The recovery evidence below closes the recovery blocker; it does not substitute
-for the still-pending localhost-only `OPEN` dry run or the remaining HTTP and
-authorization checks required for a full C2C PASS.
+The recovery evidence below closes the recovery blocker; the final private
+application-gate evidence below closes the remaining C2C staging blocker.
 
 ## L2-C2C-R migration recovery evidence closure
 
 Status: **PASS — pre-migration recovery evidence was available and replayed in
-an isolated Neon branch.** This closes the recovery-evidence blocker only. It
-does not open application intake, authorize a campaign, or change the overall
-L2-C2C status from **NOT YET PASS**.
+an isolated Neon branch.** This closes the recovery-evidence component only. It
+does not open application intake or authorize a campaign; the final private
+staging evidence below supplies the remaining component of the overall
+L2-C2C PASS.
 
 ### Provenance and isolation
 
@@ -297,8 +298,101 @@ zero rows. Existing counts remained `13/6/12/7/1/0`; public tables increased to
   URI, database environment variable, bearer/cookie material, secret/private
   key/API-token marker, or email-shaped value.
 
-This evidence is intentionally limited to recovery, additive migration, and
-the deployed closed-state recheck. The full private staging application gate
-remains **PARTIAL / NOT YET PASS** until the safe localhost-only `OPEN` dry run,
-malformed/oversized/method checks, protected reviewer/operator checks, and the
-other items listed above are completed.
+### L2-C2C-F final private staging application gate closure
+
+Status: **PASS — exact-main private staging application verification completed
+without opening the public listener.**
+
+#### Provenance and boundary
+
+- Active Railway deployment: `79e1a668-5e3e-493d-8ef0-c853b7f01c24`, source
+  SHA `915a04003817ad7a7aac606b7945614be748a5ca`, status `SUCCESS`, image
+  digest `sha256:baf41be12da6662aa4c4f38077ce2d815453a6701e878132ffbe27ad2015a155`.
+- The loopback process loaded the exact current service build from source SHA
+  `915a04003817ad7a7aac606b7945614be748a5ca`; the deterministic compiled
+  service-directory digest was
+  `sha256:c0a23edc02e374f31154aa1163d0966d16086172a86c48cac3d550a3fbdf349b`.
+- The private synthetic run used a separate child process with Railway staging
+  database variables, synthetic authentication principals only, state `OPEN`,
+  and binding `127.0.0.1:61847`. `COMMUNITY_REVIEW_PUBLIC_INTAKE` remained
+  `false`; the public Railway process was not reconfigured.
+- The loopback process was stopped before the final external recheck. Port
+  `61847` had no listener and no temporary dry-run process remained.
+
+#### Migration, application, HTTP, and authorization evidence
+
+- Staging migration history readback was `currentVersion=7`,
+  `knownMigrationCount=7`, `appliedMigrationCount=7`; all seven filenames and
+  Git-blob SHA-256 checksums matched, including migration 007.
+- A valid synthetic application returned HTTP 200 with `PENDING` and the
+  intended receipt allowlist only. The tested opaque application ID was
+  `2d8974cb9f7855ebb4ea57b4f487e9b1f797957ae3d5c6880f356bd056528200`.
+- Same-key identical and concurrent retries returned the same application
+  without returning the withdrawal credential again. Same-key altered body
+  returned HTTP 409 `application_idempotency_conflict`; no duplicate
+  application/contact row was created. The loopback rate limiter returned HTTP
+  429 `application_rate_limited` for a distinct new key.
+- Loopback HTTP behavior was observed as follows: malformed JSON `400
+  invalid_json`; oversized body `413 request_too_large`; unsupported media
+  type `415 unsupported_media_type`; `GET` and `OPTIONS` on the application
+  route `405 method_not_allowed` with `Allow: POST`; missing key `400
+  application_idempotency_required`; invalid key `400
+  application_idempotency_invalid`; unsupported version, unknown field,
+  invalid email, unsupported locale, missing acknowledgement, and oversized
+  free text `400 application_contract_invalid`. No `access-control-allow-origin`
+  header appeared.
+- Operator authorization returned unauthenticated `401
+  authentication_required`, ordinary synthetic reviewer-like principal `403
+  operator_not_authorized`, and authorized synthetic operator `200`. The
+  unprovisioned reviewer consent path returned `403
+  authentication_subject_not_found` under the current HTTP mapping.
+- The operator list omitted contact and free text; intentional operator detail
+  exposed them before withdrawal and omitted the credential digest. The
+  operator recorded `PENDING -> INVITED` with HTTP 200, an exact repeated
+  decision returned 200, and a conflicting later decision returned 409
+  `application_decision_conflict`. All 21 reviewer/qualification/review
+  authority table counts were unchanged.
+
+#### CLOSED/PAUSED, withdrawal, and cleanup
+
+- A new submission against the restarted loopback `CLOSED` process returned
+  HTTP 409 `application_intake_closed`; a `PAUSED` process returned HTTP 409
+  `application_intake_paused`.
+- Withdrawal of the existing application while `CLOSED` returned HTTP 200 and
+  lifecycle `WITHDRAWN`; the exact retry returned 200, a wrong credential
+  returned 404 `application_withdrawal_not_authorized`, and a later decision
+  was blocked with 409 `application_not_active`.
+- For the tested application, final PostgreSQL rows were: application `1`
+  (`WITHDRAWN`, decision `INVITED`), contact `0`, idempotency `1` containing
+  only digests, and application audit `3`. Motivation and experience were
+  null; the tombstone contained no contact PII. The safe purge operation was a
+  no-op after immediate withdrawal redaction, while the existing time-based
+  retention policy remains covered by repository tests.
+- Staging-wide post-cleanup counts were `0` active applications, `0` contact
+  rows, and `0` rows with application free text. Seven withdrawn synthetic
+  tombstones, seven hashed idempotency records, and 15 narrow application
+  audit events remained; these are non-identifying metadata only and contain
+  no raw key or contact value.
+
+#### Privacy and final external recheck
+
+- The bounded loopback process log scan covered 53 sanitized lines and found no
+  synthetic contact/motivation/experience marker, authentication credential,
+  bearer material, database URL, token marker, or raw idempotency key. A
+  bounded Railway log scan after the final probes found only expected
+  `server_started`/`http_request` events and no sensitive-pattern hits.
+- Final Railway configuration readback remained PostgreSQL/TLS/OIDC with
+  `COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED` and
+  `COMMUNITY_REVIEW_PUBLIC_INTAKE=false`. Final external `GET /health/live`
+  and `GET /health/ready` both returned HTTP 200. Final external application
+  POST returned HTTP 409 `application_intake_closed` with zero application,
+  contact, idempotency, or application-audit writes; unauthenticated operator
+  access returned 401; application `OPTIONS` returned 405 with `Allow: POST`;
+  no permissive CORS header appeared.
+
+This final evidence establishes **L2-C2C PASS** for the closed intake
+implementation and private staging gate only. The in-process limiter does not
+prove public edge/CDN abuse resistance. Public application intake remains
+`CLOSED`; public participation information is `OPEN`, public reviewer intake
+is `NOT OPEN`, the real campaign and Reviewer Portal are `NOT STARTED`, P5 is
+`NOT STARTED`, and separate launch authorization #22 remains **NOT GIVEN**.
