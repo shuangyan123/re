@@ -29,8 +29,8 @@ The published `tutor-benchmark@0.1.0` Developer Preview and the repository
 clone are both supported installation paths. The clone path is:
 
 ```bash
-git clone https://github.com/shuangyan123/re.git
-cd re
+git clone https://github.com/shuangyan123/tutorbench.git
+cd tutorbench
 npm ci
 npm run quickstart
 ```

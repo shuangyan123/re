@@ -3,8 +3,8 @@
 The five-minute path is a local demonstration for a first run:
 
 ```bash
-git clone https://github.com/shuangyan123/re.git
-cd re
+git clone https://github.com/shuangyan123/tutorbench.git
+cd tutorbench
 npm ci
 npm run quickstart
 ```

@@ -21,7 +21,7 @@ function page(
 
 export function renderRunPage(artifacts: PublicBenchmarkArtifacts): SitePage {
   const quickstartCommands = `git clone ${SITE_GITHUB_URL}.git
-cd re
+cd tutorbench
 npm ci
 npm run quickstart
 
