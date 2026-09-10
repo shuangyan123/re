@@ -1,11 +1,12 @@
 # Invite-only Reviewer Portal Architecture
 
-Status: **L2-C3A — PASS; L2-C3B backend contract implemented — provider activation blocked**
+Status: **L2-C3A — PASS; L2-C3B-F — PASS; C3C NOT STARTED**
 
 This document is the authoritative architecture decision for the first
 Reviewer Portal phase and records the narrow C3B backend-authority follow-up.
-It does not create a portal, open reviewer intake, provision a real reviewer,
-or change the current service's launch state.
+The C3B-F closure also records activation of the existing operator-only Auth0
+channel for private staging. It does not create a portal, open reviewer intake,
+provision a real reviewer, or change the current service's launch state.
 
 ## Decision summary
 
@@ -53,9 +54,9 @@ The current main branch remains bounded as follows:
   launch remains partial/blocked because the approved external application
   edge abuse control is not verified.
 - Public participation application and public reviewer intake remain closed.
-- L2-C3B backend channel and invitation contracts are implemented only against
-  synthetic/in-process authority; provider activation and private staging are
-  not verified.
+- L2-C3B backend channel and invitation contracts are implemented, and L2-C3B-F
+  verified the existing operator Auth0 channel and private staging closure.
+  Reviewer-channel provider activation remains out of scope.
 - The real Community Review campaign, Reviewer Portal implementation, real
   reviewer provisioning, and P5 human calibration have not started.
 
@@ -67,8 +68,9 @@ COMMUNITY_REVIEW_PUBLIC_INTAKE=false
 ~~~
 
 C3A was documentation and architecture only. C3B adds a fail-closed backend
-contract and synthetic/in-process tests; it does not reinterpret the C2D
-blocker as permission to open application intake or reviewer intake.
+contract; C3B-F verifies only the private operator channel and does not
+reinterpret the C2D blocker as permission to open application intake or
+reviewer intake.
 
 ## Goals and non-goals
 
@@ -215,13 +217,19 @@ backend boundary without creating a browser surface:
   redemption races are covered by service tests; PostgreSQL race coverage is
   present in the gated PostgreSQL suite.
 
-The implementation gate remains **NOT ACTIVATED against Auth0**. The exact
-provider access-token profile, operator/reviewer client IDs, and required
-scopes were not available for safe current readback. Production configuration
-therefore keeps the channel policy absent unless all values are supplied, and
-the runtime rejects all OIDC credentials when no complete policy is configured.
-No Auth0 application, grant, token, secret, cookie, or runtime setting was
-created or changed in C3B.
+The C3B-F implementation gate is **PASS for the existing operator channel**.
+The verified provider policy uses the Auth0 access-token profile, the Native
+Device Code client `6OVkgSPyDghv2euJOZGMOKmyZFCiLv78`, and required scope
+`operator:review`; the API audience is
+`https://staging.tutorbench.community-review`, the token binding is `azp`, and
+the provider signs with RS256. Railway readback and a real Device Flow
+operator-route request both succeeded. The existing operator subject allowlist
+remains authoritative alongside the channel/profile/client/scope checks.
+
+Reviewer-channel provider activation remains **NOT STARTED**. No reviewer SPA,
+reviewer grant, client secret, cookie, real invitation, provisioning, email, or
+P5 activity was created. The exact private migration replay and loopback E2E
+evidence is recorded in the [C3B reviewer invitation gate](community-review-reviewer-invitation-gate.md).
 
 ## Target operator/reviewer separation
 
@@ -811,7 +819,7 @@ application existence, invitation ownership, or another reviewer's state.
 C3A is complete only as an architecture decision. The following are
 prerequisites, not hidden C3A implementation work.
 
-### C3B — backend authority and invitation contract
+### C3B — backend authority and invitation contract — C3B-F PASS
 
 - **Repository contract implemented:** the verified authentication boundary has
   a typed server-derived channel/credential profile without passing arbitrary
@@ -822,12 +830,15 @@ prerequisites, not hidden C3A implementation work.
 - **Repository tests implemented:** same-subject browser/operator separation,
   missing/invalid mappings, redemption races, replay, conflicts, token-profile
   rejection, and raw-secret redaction are covered.
-- **Provider activation remains blocked:** finalize and safely read back the
-  operator audience, reviewer audience, route permissions/scopes, Auth0 client
-  grants, and the exact token profile before accepting a real provider token.
-- Keep the existing operator Native application and Device Authorization Grant
-  unchanged until that provider readback and a separately authorized staging
-  exercise exist.
+- **Provider activation and private staging closure passed for the operator
+  channel:** the Auth0 profile, Native Device Code client, `azp` binding,
+  `operator:review` permission/client grant, and RS256 signing configuration
+  were read back and exercised against the exact staging service. The reviewer
+  channel remains unconfigured until a later portal phase.
+- The existing operator Native application and Device Authorization Grant were
+  retained; C3B-F changed only the explicitly authorized operator API
+  permission/client grant and Railway operator-policy variables. No reviewer
+  application or public intake setting was enabled.
 
 ### C3C — portal shell and PKCE authentication
 
@@ -870,6 +881,9 @@ prerequisites, not hidden C3A implementation work.
 
 ## Provider readback and evidence limits
 
+The first paragraph and limitation list below are the historical C3A record.
+The current C3B-F closure evidence follows it.
+
 A safe read-only Railway variable readback on 2026-09-09 confirmed the
 configured service uses the <code>auth0-staging</code> provider label, HTTPS
 issuer, audience, and JWKS settings, PostgreSQL storage with TLS verification,
@@ -894,6 +908,48 @@ exercise, but that is not a current Dashboard readback. No Auth0 application
 was created or modified, no secret/token/cookie was exposed, and no
 Railway/DNS/runtime setting was changed.
 
+## L2-C3B-F provider and private staging closure
+
+Status: **PASS for the operator channel; reviewer portal remains unstarted.**
+
+The existing Auth0 tenant/provider readback and activation were:
+
+```text
+provider label                  auth0-staging
+issuer                          https://dev-ng0y0til20vmxxds.us.auth0.com/
+API audience                    https://staging.tutorbench.community-review
+operator application type       Native
+operator application client ID  6OVkgSPyDghv2euJOZGMOKmyZFCiLv78
+operator grant                  Device Code enabled
+API JWT profile                 Auth0
+API signing algorithm           RS256
+API permission/client grant     operator:review only
+API RBAC toggle                 disabled; service authorization uses scope
+```
+
+Railway deployment `4957d7b7-6484-496e-81d6-6126c50a5cbf` at exact source SHA
+`8126484b5cba1cb9b992dced25942ff3c691e637` read back:
+
+```text
+COMMUNITY_REVIEW_OIDC_TOKEN_PROFILE=auth0
+COMMUNITY_REVIEW_OPERATOR_OIDC_CLIENT_ID=6OVkgSPyDghv2euJOZGMOKmyZFCiLv78
+COMMUNITY_REVIEW_OPERATOR_OIDC_SCOPE=operator:review
+COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED
+COMMUNITY_REVIEW_PUBLIC_INTAKE=false
+COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE=<absent; effective DISABLED>
+```
+
+A real Device Flow access token was consumed only in memory. It had `typ=JWT`,
+`alg=RS256`, the exact issuer and single API audience, no UserInfo audience,
+matching `azp`, and `operator:review` in `scope`; the deployed operator route
+returned HTTP 200. No token, subject, secret, cookie, or raw provider payload
+is recorded here. The v7-to-v8 migration recovery/idempotency check and the
+private 127.0.0.1 invitation E2E both passed on disposable Neon branches;
+final invitation/audit rows were zero and core counts were restored.
+
+This closure does not activate a reviewer provider channel or authorize a
+Reviewer Portal, real invitation/provisioning, email, public intake, or P5.
+
 ## C3A decision and phase boundary
 
 The architecture is internally consistent at this documentation boundary:
@@ -901,11 +957,11 @@ The architecture is internally consistent at this documentation boundary:
 | Decision | Status |
 |---|---|
 | Reviewer Portal topology | **DECIDED — same public origin as the reviewer API for the initial pilot** |
-| Browser Auth0 client boundary | **DEFINED — separate public SPA; existing operator Native app remains unchanged** |
+| Browser Auth0 client boundary | **DEFINED — separate public SPA; existing operator Native app remains a non-portal client** |
 | Authorization Code + PKCE boundary | **DEFINED — <code>S256</code>, no client secret** |
 | API token model | **DEFINED — reviewer access token, exact issuer/audience/signature/expiry/subject validation, Bearer transport** |
 | Token handling | **DEFINED — access token in memory; no localStorage/URL/logging/analytics; bounded transient OAuth state permitted** |
-| Operator/reviewer separation | **DECIDED — combined target; server channel-binding prerequisite recorded** |
+| Operator/reviewer separation | **DECIDED — operator channel binding verified in C3B-F; reviewer browser channel remains future work** |
 | Invite-only provisioning | **DEFINED — explicit issue, explicit redeem, one-time digest, atomic binding** |
 | Login versus reviewer authority | **DEFINED — login never auto-provisions** |
 | Consent sequencing | **DEFINED — explicit, versioned, separately revocable** |
@@ -914,7 +970,7 @@ The architecture is internally consistent at this documentation boundary:
 | Privacy and logging | **DEFINED — applicant/auth/private material excluded** |
 | Threat model | **COMPLETE for the scoped architecture boundary** |
 | C3 implementation sequence | **RECORDED — C3B through C3F** |
-| C3B repository backend authority | **IMPLEMENTED — provider activation and private staging NOT VERIFIED** |
+| C3B repository backend authority | **IMPLEMENTED — C3B-F provider activation and private staging PASS** |
 
 The following remain **NOT STARTED**:
 

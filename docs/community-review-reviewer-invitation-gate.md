@@ -1,11 +1,12 @@
 # L2-C3B Reviewer Invitation and Backend Authority Gate
 
-Status: **REPOSITORY CONTRACT IMPLEMENTED — PROVIDER ACTIVATION AND PRIVATE
-STAGING NOT VERIFIED**
+Status: **L2-C3B-F PASS — PROVIDER ACTIVATED AND PRIVATE STAGING VERIFIED;
+PUBLIC INTAKE REMAINS CLOSED**
 
-This gate records the narrow backend follow-up to L2-C3A. It is not a portal,
-browser login, Auth0 configuration change, public intake launch, or reviewer
-campaign authorization.
+This gate records the narrow backend follow-up to L2-C3A, including activation
+of the existing Auth0 Native operator channel for private staging. It is not a
+Reviewer Portal, browser-based reviewer login, public intake launch, or
+reviewer campaign authorization.
 
 The launch boundary remains:
 
@@ -129,8 +130,8 @@ Migration evidence recorded for this repository change:
 | SHA-256 of the checked-in SQL bytes | `sha256:abe0143d5d90b33f8d414b13419cb446d508657ebbb6b6049d41eff601757b3e` |
 | Source migration set | `001` through `007` unchanged |
 | Expected source transition | pre-migration version `7` -> post-migration version `8` |
-| Isolated PostgreSQL apply/recovery | **NOT RUN** — no explicitly scoped disposable PostgreSQL connection was available in this turn |
-| Active staging version | **NOT READ BACK / NOT APPLIED** — provider and private staging activation remain blocked |
+| Isolated PostgreSQL apply/recovery | **PASS** — disposable Neon v7 branch `c3b-recovery-v7-pre-008-20260910-1150c` replayed `008` to v8 and a second run was idempotent; v7 baseline rows and structure were preserved |
+| Active staging version | **PASS** — Railway deployment `4957d7b7-6484-496e-81d6-6126c50a5cbf` at source SHA `8126484b5cba1cb9b992dced25942ff3c691e637` reported v1..v8 with the exact repository checksums |
 
 The checksum above is the byte-level digest used by the repository migration
 runner in this checkout. No rollback of an applied database schema is claimed;
@@ -157,12 +158,43 @@ COMMUNITY_REVIEW_REVIEWER_OIDC_CLIENT_ID=<reviewer-client-id>
 COMMUNITY_REVIEW_REVIEWER_OIDC_SCOPE=<reviewer-scope>
 ```
 
-The current exact provider profile, client IDs, and scopes were not available
-for safe readback. When these policy values are absent, the runtime constructs
-a rejecting OIDC adapter; it does not fall back to subject-only authority.
-No Auth0 application, grant, client secret, token, cookie, or runtime setting
-was changed. Real provider-token activation is therefore **BLOCKED / NOT
-VERIFIED**.
+The C3B-F readback and activation used the existing operator application only:
+
+```text
+provider label                  auth0-staging
+issuer                          https://dev-ng0y0til20vmxxds.us.auth0.com/
+API audience                    https://staging.tutorbench.community-review
+operator application type       Native
+operator application client ID  6OVkgSPyDghv2euJOZGMOKmyZFCiLv78
+operator grant                  Device Code enabled
+API JWT profile                 Auth0
+API signing algorithm           RS256
+API permission                  operator:review
+operator client grant           operator:review only
+API RBAC toggle                 disabled; permissions claim is not authoritative
+```
+
+The actual Device Flow access token had `typ=JWT`, `alg=RS256`, the exact
+issuer and single API audience, matching `azp`, and scope `operator:review`.
+The deployed `/v1/operator/applications` route returned HTTP 200. The token was
+used in memory only and is not recorded here. The existing operator/subject
+allowlist was preserved; no subject identifier is recorded.
+
+Railway production readback after deployment was:
+
+```text
+COMMUNITY_REVIEW_OIDC_TOKEN_PROFILE=auth0
+COMMUNITY_REVIEW_OPERATOR_OIDC_CLIENT_ID=6OVkgSPyDghv2euJOZGMOKmyZFCiLv78
+COMMUNITY_REVIEW_OPERATOR_OIDC_SCOPE=operator:review
+COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED
+COMMUNITY_REVIEW_PUBLIC_INTAKE=false
+COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE=<absent; effective DISABLED>
+```
+
+No reviewer SPA/client, reviewer grant, callback/origin, client secret, cookie,
+real invitation, provisioning, email, or P5 activity was created. The
+provider-backed operator channel is **PASS**; reviewer-channel activation
+remains out of scope.
 
 Auth0 documentation distinguishes its default access-token profile, which
 uses `azp`, from the RFC 9068 profile, which uses `client_id`; it also
@@ -190,6 +222,18 @@ The PostgreSQL suite requires an explicitly scoped disposable test database and
 is skipped when `COMMUNITY_REVIEW_POSTGRES_TESTS` is not enabled. A skipped
 database suite is not PostgreSQL acceptance evidence.
 
+The C3B-F private closure used a separate disposable Neon v8 branch
+`c3b-private-e2e-v8-20260910-1238` and a child service bound only to
+`127.0.0.1`. The clean run passed all of the following without retaining raw
+credentials: disabled-gate and closed-intake checks; operator/reviewer channel
+separation; invitation issue, redeem, replay, revoke, expiry, mapped-principal
+conflict, and both PostgreSQL redemption race shapes; `INVITED` application
+decision without automatic invitation, consent, qualification, assignment,
+submission, or evidence changes; synthetic `.invalid` cleanup; and log/privacy
+scanning. The final result was migration v8, seven issued test invitations,
+zero synthetic rows after cleanup, restored baseline counts, and zero sensitive
+log-pattern hits. The public Railway service remained closed throughout.
+
 ## Gate result
 
 | Area | Result |
@@ -198,8 +242,9 @@ database suite is not PostgreSQL acceptance evidence.
 | Operator allowlist plus channel enforcement | **IMPLEMENTED** |
 | Invitation issuance/redemption/lifecycle | **IMPLEMENTED** |
 | Additive migration 008 and storage adapters | **IMPLEMENTED** |
-| Real Auth0 profile/client/scope readback | **BLOCKED / NOT VERIFIED** |
-| Private staging provider-token E2E | **NOT RUN — activation blocked** |
+| Real Auth0 profile/client/scope readback | **PASS — Auth0 profile, Native Device Code client, `azp`, exact API audience, and `operator:review` grant/scope verified** |
+| Migration 008 isolated replay/idempotency and active v8 readback | **PASS** |
+| Private staging provider-token E2E | **PASS — real operator token plus private 127.0.0.1 invitation closure** |
 | Public application/reviewer intake | **CLOSED / NOT OPEN** |
 | Reviewer Portal HTML/JS/Auth0 SPA/PKCE | **NOT STARTED** |
 

@@ -1,8 +1,8 @@
 # TutorBench Community Review Service Deployment Runbook
 
-Status: P4-G deployment/readiness contract plus the L2-C2C closed application
-intake runbook. This document does not authorize public application intake,
-public reviewer intake, or a real campaign.
+Status: P4-G deployment/readiness contract plus L2-C2C closed application
+intake and L2-C3B-F private provider-staging closure. This document does not
+authorize public application intake, public reviewer intake, or a real campaign.
 
 ## Boundary and prerequisites
 
@@ -129,8 +129,15 @@ a platform backup before running it.
 For the reviewed C3B source, migration `008_reviewer_invitations.sql` has
 checksum
 `sha256:abe0143d5d90b33f8d414b13419cb446d508657ebbb6b6049d41eff601757b3e`.
-The expected migration-history transition is version `7` to version `8`.
-Repository implementation does not claim that transition was applied to active+staging: an isolated PostgreSQL apply/recovery run and active staging readback+were not available in this turn.
+
+The expected migration-history transition from version `7` to version `8` was
+verified on the disposable Neon branch
+`c3b-recovery-v7-pre-008-20260910-1150c`: the pre-state had exact migrations
+`001` through `007` and no invitation tables, the first apply reached v8, and a
+second apply returned the same ready state without changing history. The active
+Railway deployment `4957d7b7-6484-496e-81d6-6126c50a5cbf` at source SHA
+`8126484b5cba1cb9b992dced25942ff3c691e637` also read back exact migrations
+`001` through `008`, including the checked-in v8 checksum above.
 
 ## Readiness and startup
 
@@ -256,26 +263,62 @@ existing private staging service only. Keep both intake controls at
 Never point destructive PostgreSQL tests at private staging, print a database
 URL or bearer token, or temporarily set the publicly exposed listener to
 `OPEN`. If a safe localhost-only dry run or staging evidence cannot be
-performed, report the private staging gate as **BLOCKED / NOT VERIFIED** and do
-not report L2-C2C overall PASS.
+performed, report that run's private staging gate as **BLOCKED / NOT VERIFIED**
+and do not report L2-C2C overall PASS. The C3B-F closure below is a separate,
+completed gate.
 
-## L2-C3B private staging boundary
+## L2-C3B-F provider activation and private staging closure
 
-C3B private staging is a later, separately authorized activity and was not run
-by the repository implementation change. Before it can accept a real provider
-token, record sanitized readback of the exact operator/reviewer audience,
-access-token profile, authorized-party/client binding, required scope, and
-provider signing configuration. Do not copy a token, cookie, client secret,
-subject, email, or raw provider payload into an issue, log, document, or test
-artifact.
+Status: **PASS — existing operator channel activated and private staging
+verified; public intake remains closed.**
 
-If authorized after that readback, use a disposable private cohort and verify
-the exact main SHA, migration `008` status, live/ready health, operator-token
-success, same-subject reviewer-channel operator denial, reviewer-channel
-invitation redemption/replay/conflict/expiry/revocation, and the absence of
-raw credentials in logs or persistence. Keep
-`COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED`,
-`COMMUNITY_REVIEW_PUBLIC_INTAKE=false`, and
-`COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE=DISABLED` unless the staging
-operation explicitly authorizes `INVITE_ONLY`. Do not proceed to C3C or public
-intake from a successful private smoke test alone.
+The activation was limited to the existing Auth0 Native application and its
+existing Device Authorization Grant. Safe provider readback was:
+
+```text
+provider label                  auth0-staging
+issuer                          https://dev-ng0y0til20vmxxds.us.auth0.com/
+API audience                    https://staging.tutorbench.community-review
+operator application type       Native
+operator application client ID  6OVkgSPyDghv2euJOZGMOKmyZFCiLv78
+operator grant                  Device Code enabled
+API JWT profile                 Auth0
+API signing algorithm           RS256
+API permission/client grant     operator:review only
+API RBAC toggle                 disabled; service authorization uses scope
+```
+
+The three Railway operator-policy variables were set and read back exactly:
+
+```text
+COMMUNITY_REVIEW_OIDC_TOKEN_PROFILE=auth0
+COMMUNITY_REVIEW_OPERATOR_OIDC_CLIENT_ID=6OVkgSPyDghv2euJOZGMOKmyZFCiLv78
+COMMUNITY_REVIEW_OPERATOR_OIDC_SCOPE=operator:review
+```
+
+The resulting deployment was `4957d7b7-6484-496e-81d6-6126c50a5cbf` at the
+exact source SHA above. `/health/live` and `/health/ready` returned HTTP 200.
+A real Device Flow token was checked in memory only: `typ=JWT`, `alg=RS256`,
+exact issuer, one exact API audience with no UserInfo audience, matching `azp`,
+and `operator:review` in `scope`; the deployed operator route returned HTTP
+200. The existing operator subject allowlist remained in force.
+
+The private E2E used disposable Neon branch
+`c3b-private-e2e-v8-20260910-1238` and a service listener bound only to
+`127.0.0.1`. It passed invitation issue/redemption, channel denial, replay,
+revocation, expiry, mapped-principal conflict, concurrent redemption, closed
+intake, `INVITED`-without-provisioning, and synthetic `.invalid` cleanup. The
+final state had zero invitation/audit rows, unchanged core counts, zero
+sensitive log-pattern hits, and no raw credential in persistence or logs.
+
+Final external configuration readback remained:
+
+```text
+COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED
+COMMUNITY_REVIEW_PUBLIC_INTAKE=false
+COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE=<absent; effective DISABLED>
+```
+
+No reviewer SPA/PKCE client, reviewer grant, real invitation, provisioning,
+email, or C3C activity was started. Do not proceed to C3C or public intake from
+this private operator-channel closure alone.
