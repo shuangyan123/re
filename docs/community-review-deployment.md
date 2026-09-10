@@ -40,6 +40,7 @@ COMMUNITY_REVIEW_MATERIAL_ROOT=/private/tutorbench/community-review
 COMMUNITY_REVIEW_PUBLIC_INTAKE=false
 COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED
 COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE=DISABLED
+COMMUNITY_REVIEW_REVIEWER_PORTAL_STATE=DISABLED
 ```
 
 The OIDC provider settings above do not activate an operator channel by
@@ -75,6 +76,27 @@ Optional bounded settings are `COMMUNITY_REVIEW_HOST` (default
 60 seconds through 31 days),
 `COMMUNITY_REVIEW_SHUTDOWN_TIMEOUT_MS` (default `10000`), and
 `COMMUNITY_REVIEW_LOG_LEVEL` (`info`, `warn`, or `error`).
+
+The first reviewer portal shell is independently gated. The default and the
+current public-staging posture are fail-closed:
+
+```text
+COMMUNITY_REVIEW_REVIEWER_PORTAL_STATE=DISABLED|PRIVATE
+COMMUNITY_REVIEW_REVIEWER_PORTAL_DIRECTORY=<absolute-built-portal-directory>
+COMMUNITY_REVIEW_REVIEWER_PORTAL_ISSUER=https://<auth0-tenant>/
+COMMUNITY_REVIEW_REVIEWER_PORTAL_CLIENT_ID=<reviewer-spa-client-id>
+COMMUNITY_REVIEW_REVIEWER_PORTAL_AUDIENCE=<reviewer-api-audience>
+COMMUNITY_REVIEW_REVIEWER_PORTAL_SCOPE=reviewer:portal
+```
+
+`PRIVATE` is accepted only with a complete server-side reviewer OIDC policy;
+the portal values must match the reviewer issuer, client binding, audience,
+and required scope. These values are public browser configuration except for
+the absence of any client secret, but they must still be read back from the
+provider and deployment without printing credentials. `PRIVATE` does not
+change `COMMUNITY_REVIEW_PUBLIC_INTAKE`, application intake, or invitation
+state. The production container builds and copies `dist/portal`; the runtime
+serves only its fixed first-party asset allowlist.
 
 Public-exposure settings are fail-closed and optional:
 `COMMUNITY_REVIEW_TRUSTED_PROXY_CIDRS` (empty by default, which selects direct
@@ -322,3 +344,30 @@ COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE=<absent; effective DISABLED>
 No reviewer SPA/PKCE client, reviewer grant, real invitation, provisioning,
 email, or C3C activity was started. Do not proceed to C3C or public intake from
 this private operator-channel closure alone.
+
+## L2-C3C repository implementation status
+
+The repository implementation is present on the C3C delivery branch and keeps
+the portal disabled by default. It includes `/reviewer/`,
+`/reviewer/callback`, `/reviewer/config.json`, the bundled Auth0 SPA SDK, the
+strict portal headers/CSP, and `GET /v1/reviewer/session` with a coarse
+positive-allowlist response. No database migration is added; migration v8
+remains the existing invitation authority.
+
+The provider-backed portion is **NOT VERIFIED / BLOCKED** until a separate
+Auth0 reviewer API and SPA can be created and read back. The existing operator
+Native application and operator API must remain unchanged. A separate SPA
+requires exact HTTPS callback/logout/origin entries for the Railway origin and
+one narrow reviewer scope; no wildcard or operator grant is acceptable. Until
+that readback and a final exact-main deployment/browser check exist, keep:
+
+```text
+COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED
+COMMUNITY_REVIEW_PUBLIC_INTAKE=false
+COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE=<absent; effective DISABLED>
+COMMUNITY_REVIEW_REVIEWER_PORTAL_STATE=DISABLED
+```
+
+Rollback is a configuration change to `DISABLED` plus removal/deactivation of
+the reviewer-only deployment variables if necessary. It does not require
+deleting or modifying the operator Auth0 application or database migration v8.

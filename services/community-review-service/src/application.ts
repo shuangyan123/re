@@ -173,6 +173,11 @@ export interface AuthenticatedReviewerInvitationRedemptionInput extends Authenti
   readonly credential: RedeemReviewerInvitationInput["credential"];
 }
 
+export interface ReviewerPortalSession {
+  readonly reviewerAccess: "ENABLED";
+  readonly consentState: ReviewerAccountRecord["consentState"];
+}
+
 /**
  * Application boundary for authenticated requests. Reviewer-owned operations
  * derive the opaque reviewer ID from the private auth mapping and ignore any
@@ -205,6 +210,29 @@ export class CommunityReviewApplicationService {
       throw new CommunityReviewServiceError("reviewer_not_authorized");
     }
     return this.service.resolveAuthenticatedReviewer({ principal: context.principal });
+  }
+
+  /** Return only the coarse state needed by the first portal shell. */
+  async getReviewerPortalSession(input: AuthenticatedRequest): Promise<ReviewerPortalSession> {
+    try {
+      const account = await this.reviewer(input);
+      if (account.status !== "ACTIVE") {
+        throw new CommunityReviewServiceError("reviewer_access_not_enabled");
+      }
+      return {
+        reviewerAccess: "ENABLED",
+        consentState: account.consentState,
+      };
+    } catch (error) {
+      if (error instanceof CommunityReviewServiceError && (
+        error.code === "authentication_subject_not_found" ||
+        error.code === "reviewer_account_withdrawn" ||
+        error.code === "reviewer_account_disabled"
+      )) {
+        throw new CommunityReviewServiceError("reviewer_access_not_enabled");
+      }
+      throw error;
+    }
   }
 
   private async operator(input: AuthenticatedRequest): Promise<AuthenticationContext> {

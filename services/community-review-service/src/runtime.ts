@@ -52,6 +52,7 @@ import {
   MigrationVerificationError,
 } from "./migrations.js";
 import { handleCommunityReviewApiRequest } from "./http.js";
+import { handleCommunityReviewPortalRequest } from "./reviewer-portal.js";
 
 export interface CommunityReviewReadinessResult {
   readonly ready: boolean;
@@ -282,6 +283,18 @@ function respond(
   response.end(payload);
 }
 
+function respondPortal(
+  response: ServerResponse,
+  result: Awaited<ReturnType<typeof handleCommunityReviewPortalRequest>>,
+): void {
+  if (result === undefined || response.writableEnded) return;
+  response.statusCode = result.status;
+  for (const [name, value] of Object.entries(result.headers)) response.setHeader(name, value);
+  const body = typeof result.body === "string" ? Buffer.from(result.body, "utf8") : result.body;
+  response.setHeader("content-length", body.byteLength);
+  response.end(body);
+}
+
 function requestPath(request: IncomingMessage): string {
   try {
     return new URL(request.url ?? "/", "http://community-review.invalid").pathname;
@@ -380,6 +393,27 @@ export function createCommunityReviewHttpServer(
           for (const [name, value] of Object.entries(result.headers)) response.setHeader(name, value);
         }
         finish(result.status, result.body, result.level ?? "info");
+      }).catch(() => {
+        finish(500, { error: "internal_error", reasonCodes: ["internal_error"] }, "error");
+      });
+      return;
+    }
+    if (route === "/reviewer" || route.startsWith("/reviewer/")) {
+      request.resume();
+      void handleCommunityReviewPortalRequest(runtime.config, route, request.method).then((result) => {
+        if (result === undefined) {
+          finish(404, { error: "not_found" }, "warn");
+          return;
+        }
+        respondPortal(response, result);
+        logger.write({
+          level: result.level ?? (result.status >= 500 ? "error" : result.status >= 400 ? "warn" : "info"),
+          event: "http_request",
+          requestId,
+          route,
+          status: result.status,
+          durationMs: Date.now() - started,
+        });
       }).catch(() => {
         finish(500, { error: "internal_error", reasonCodes: ["internal_error"] }, "error");
       });

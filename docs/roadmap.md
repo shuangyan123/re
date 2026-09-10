@@ -196,6 +196,8 @@ and the [external abuse-control decision](community-review-edge-abuse-control-de
 - [x] L2-C3B reviewer invitation, Auth0 token-channel, and backend authority
       contract (repository implementation)
 - [ ] L2-C3C private portal shell and Authorization Code + PKCE authentication
+      (repository shell implemented; provider activation and final Railway/browser
+      evidence pending)
 - [ ] L2-C3D consent and sealed qualification portal flow
 - [ ] L2-C3E assignment, review, and submission portal flow
 - [ ] L2-C3F private staging Reviewer Portal E2E
@@ -204,7 +206,9 @@ L2-C3A status: **PASS — architecture recorded**. L2-C3B-F status is
 **PASS — the existing Auth0 Native operator channel and private staging
 closure were verified** with the explicit Auth0 profile, client binding, and
 `operator:review` scope. No reviewer-channel provider activation, real
-reviewer provisioning, or invitation campaign has started. See the [Reviewer
+reviewer provisioning, or invitation campaign has started. The C3C repository
+shell is implemented, but C3C is not yet PASS until the separate provider
+resources and final browser/deployment evidence are verified. See the [Reviewer
 Portal architecture](community-review-reviewer-portal-architecture.md) and the
 [C3B reviewer invitation gate](community-review-reviewer-invitation-gate.md).
 This track does not open public application intake, public reviewer intake, or

@@ -10,6 +10,7 @@ COPY src ./src
 COPY services/community-review-service ./services/community-review-service
 RUN npm run build
 RUN npm run community-review:build
+RUN npm run community-review:portal:build
 
 FROM node:22-bookworm-slim
 
