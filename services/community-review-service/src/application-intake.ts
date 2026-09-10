@@ -649,7 +649,7 @@ export class CommunityReviewApplicationIntakeApplicationService {
       throw new CommunityReviewServiceError("authentication_failed");
     }
     try {
-      if (await this.operatorAuthorization.isOperator(context) !== true) {
+      if (context.channel !== "operator" || await this.operatorAuthorization.isOperator(context) !== true) {
         throw new CommunityReviewServiceError("operator_not_authorized");
       }
     } catch (error) {

@@ -20,6 +20,11 @@ export type CommunityReviewServiceErrorCode =
   | "reviewer_not_authorized"
   | "reviewer_account_withdrawn"
   | "reviewer_account_disabled"
+  | "reviewer_invitation_disabled"
+  | "reviewer_invitation_not_found"
+  | "reviewer_invitation_not_redeemable"
+  | "reviewer_invitation_conflict"
+  | "reviewer_invitation_application_invalid"
   | "consent_required"
   | "consent_revoked"
   | "consent_stale"
@@ -80,6 +85,11 @@ const messages: Record<CommunityReviewServiceErrorCode, string> = {
   reviewer_not_authorized: "Community Review reviewer is not authorized for this operation.",
   reviewer_account_withdrawn: "Community Review reviewer account has been withdrawn.",
   reviewer_account_disabled: "Community Review reviewer account is disabled.",
+  reviewer_invitation_disabled: "Reviewer invitation activation is disabled.",
+  reviewer_invitation_not_found: "Reviewer invitation was not found.",
+  reviewer_invitation_not_redeemable: "Reviewer invitation cannot be redeemed.",
+  reviewer_invitation_conflict: "Reviewer invitation state does not allow that operation.",
+  reviewer_invitation_application_invalid: "The linked application is not eligible for an invitation.",
   consent_required: "Current Community Review consent is required.",
   consent_revoked: "Current Community Review consent has been revoked.",
   consent_stale: "Current Community Review consent is for a stale policy version.",

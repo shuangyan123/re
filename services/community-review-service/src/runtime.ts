@@ -18,6 +18,7 @@ import {
 } from "./application-intake.js";
 import {
   ConfiguredOperatorAuthorizer,
+  MultiPolicyAuthenticationAdapter,
   OidcJwtAuthenticationAdapter,
 } from "./oidc.js";
 import {
@@ -33,6 +34,7 @@ import {
   assertPrivateMaterialRootUsable,
 } from "./filesystem-material.js";
 import {
+  RejectingAuthenticationAdapter,
   SyntheticAuthenticationAdapter,
 } from "./authentication.js";
 import type {
@@ -70,7 +72,34 @@ export interface CommunityReviewRuntime {
 function createAuthentication(config: CommunityReviewServiceConfig): AuthenticationAdapter {
   if (config.authMode === "oidc") {
     if (config.oidc === undefined) throw new CommunityReviewConfigurationError("oidc_required");
-    return new OidcJwtAuthenticationAdapter(config.oidc);
+    const adapters = [] as OidcJwtAuthenticationAdapter[];
+    if (config.oidc.operator !== undefined) {
+      adapters.push(new OidcJwtAuthenticationAdapter({
+        provider: config.oidc.provider,
+        issuer: config.oidc.issuer,
+        jwksUri: config.oidc.jwksUri,
+        clockToleranceSeconds: config.oidc.clockToleranceSeconds,
+        timeoutDurationMs: config.oidc.timeoutDurationMs,
+        allowInsecureHttp: config.oidc.allowInsecureHttp,
+        channel: "operator",
+        ...config.oidc.operator,
+      }));
+    }
+    if (config.oidc.reviewer !== undefined) {
+      adapters.push(new OidcJwtAuthenticationAdapter({
+        provider: config.oidc.provider,
+        issuer: config.oidc.issuer,
+        jwksUri: config.oidc.jwksUri,
+        clockToleranceSeconds: config.oidc.clockToleranceSeconds,
+        timeoutDurationMs: config.oidc.timeoutDurationMs,
+        allowInsecureHttp: config.oidc.allowInsecureHttp,
+        channel: "reviewer",
+        ...config.oidc.reviewer,
+      }));
+    }
+    return adapters.length === 0
+      ? new RejectingAuthenticationAdapter()
+      : new MultiPolicyAuthenticationAdapter(adapters);
   }
   return new SyntheticAuthenticationAdapter(config.syntheticIdentities);
 }
@@ -130,6 +159,8 @@ export function createCommunityReviewRuntime(config: CommunityReviewServiceConfi
   const service = new CommunityReviewService(persistence, {
     ...(qualificationMaterialStore === undefined ? {} : { qualificationMaterialStore }),
     ...(reviewBatchMaterialStore === undefined ? {} : { reviewBatchMaterialStore }),
+    reviewerInvitationEnabled: config.reviewerInvitationState === "INVITE_ONLY",
+    reviewerInvitationTtlMs: config.reviewerInvitationTtlMs,
   });
   const authentication = createAuthentication(config);
   const operatorAuthorizer = createOperatorAuthorizer(config);

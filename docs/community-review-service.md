@@ -75,16 +75,25 @@ package is private and is not published or exported by
 service package; the root package contract and version remain unchanged.
 
 P4-B remains the authentication boundary: `AuthenticationAdapter` reduces an
-external credential to `{ provider, subject }`, the private mapping resolves
-that principal to a stable service-issued opaque reviewer ID, and the
-application facade checks account state and current consent before invoking a
-reviewer-owned operation. `OidcJwtAuthenticationAdapter` verifies issuer,
-audience, expiry, algorithm, and signature through a remote JWKS endpoint and
-returns only the sanitized principal. Tokens, claims, and provider payloads do
-not enter the service contract. `SyntheticAuthenticationAdapter` is available
-only for explicitly selected test/development configurations. No OAuth UI,
-public reviewer signup, payment flow, or public reviewer/campaign API is part
-of this phase. L2-C2C's future `POST /v1/applications` transport is a separate
+external credential to `{ principal: { provider, subject }, channel }`, where
+the channel is server-derived and never taken from an HTTP header. The private
+mapping resolves the reviewer-channel principal to a stable service-issued
+opaque reviewer ID, and the application facade checks account state and
+current consent before invoking a reviewer-owned operation.
+`OidcJwtAuthenticationAdapter` verifies the configured issuer, exact audience,
+profile-specific client binding, required scope, expiry, algorithm, and
+signature through a remote JWKS endpoint. Tokens, arbitrary claims, and
+provider payloads do not enter the service contract. A complete OIDC channel
+policy is required; an absent policy rejects credentials rather than falling
+back to subject-only authority. `SyntheticAuthenticationAdapter` is available
+only for explicitly selected test/development configurations.
+
+L2-C3B adds private operator-only invitation issuance, reviewer-channel
+redemption, one-time digest persistence, and terminal lifecycle transitions.
+Redemption creates only an unconsented account/mapping; consent,
+qualification, assignment, submission, and evidence remain separate. No OAuth
+UI, public reviewer signup, payment flow, or public reviewer/campaign API is
+part of this phase. L2-C2C's `POST /v1/applications` transport is a separate
 state-gated application path and remains closed by default; no browser form or
 CORS exposure is added. Lower-level methods retain opaque reviewer IDs only
 for trusted internal transactions.
@@ -149,6 +158,33 @@ The fixed application retention policy is 90 days for pending applications and
 immediately. `purgeExpired(asOf)` is deterministic and operator-authorized;
 this phase does not require a background scheduler. The policy is an internal
 data-minimization rule, not a legal retention or compliance certification.
+
+## L2-C3B channel and invitation authority
+
+The operator and reviewer channels are independently configured. A production
+operator token must match the configured operator audience, access-token
+profile, authorized-party/client claim, required `scope`, and provider/subject
+allowlist. A reviewer token must match the separate reviewer policy. If the
+exact provider profile, client binding, or scope is not configured, OIDC
+authentication fails closed. `scope` is authoritative; a present `permissions`
+claim is validated structurally but is not treated as an alternate source of
+authority.
+
+The invitation switch is independent and defaults to disabled:
+
+```text
+COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE=DISABLED | INVITE_ONLY
+COMMUNITY_REVIEW_REVIEWER_INVITATION_TTL_MS=60000..2678400000
+```
+
+When enabled, the allowlisted operator channel may issue or revoke an opaque
+invitation. A reviewer channel may redeem a valid one-time credential before a
+principal mapping exists. The raw 32-byte capability is returned only by
+issuance; migration `008_reviewer_invitations.sql` stores only its digest and
+bounded lifecycle/audit metadata. Redemption atomically creates the private
+principal mapping and consumes the invitation. `INVITED` application decisions
+do not issue invitations automatically. No invitation endpoint adds CORS or
+creates a portal surface.
 
 ## Sealed qualification architecture
 

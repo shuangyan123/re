@@ -39,7 +39,29 @@ COMMUNITY_REVIEW_OPERATOR_SUBJECTS=<provider>|<private-subject>[,...]
 COMMUNITY_REVIEW_MATERIAL_ROOT=/private/tutorbench/community-review
 COMMUNITY_REVIEW_PUBLIC_INTAKE=false
 COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED
+COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE=DISABLED
 ```
+
+The OIDC provider settings above do not activate an operator channel by
+themselves. Before any provider-backed credential is accepted, supply and
+independently read back the exact access-token profile, operator client
+binding, and required scope:
+
+```text
+COMMUNITY_REVIEW_OIDC_TOKEN_PROFILE=auth0|rfc9068
+COMMUNITY_REVIEW_OPERATOR_OIDC_CLIENT_ID=<operator-client-id>
+COMMUNITY_REVIEW_OPERATOR_OIDC_SCOPE=<operator-scope>
+COMMUNITY_REVIEW_REVIEWER_OIDC_AUDIENCE=<reviewer-audience>
+COMMUNITY_REVIEW_REVIEWER_OIDC_TOKEN_PROFILE=auth0|rfc9068
+COMMUNITY_REVIEW_REVIEWER_OIDC_CLIENT_ID=<reviewer-client-id>
+COMMUNITY_REVIEW_REVIEWER_OIDC_SCOPE=<reviewer-scope>
+```
+
+An incomplete policy is not interpreted as subject-only authority. The runtime
+rejects OIDC credentials until the explicit policy is complete. Reviewer
+invitation activation is separate and remains `DISABLED` unless a later,
+authorized private staging step sets `INVITE_ONLY`. The raw invitation
+credential is never a configuration value.
 
 Optional bounded settings are `COMMUNITY_REVIEW_HOST` (default
 `127.0.0.1`), `COMMUNITY_REVIEW_PORT` (default `8787`),
@@ -49,6 +71,8 @@ Optional bounded settings are `COMMUNITY_REVIEW_HOST` (default
 `COMMUNITY_REVIEW_REQUEST_BODY_LIMIT_BYTES` (default `1048576`),
 `COMMUNITY_REVIEW_APPLICATION_RATE_LIMIT_MAX_REQUESTS` (default `30`),
 `COMMUNITY_REVIEW_APPLICATION_RATE_LIMIT_WINDOW_MS` (default `60000`),
+`COMMUNITY_REVIEW_REVIEWER_INVITATION_TTL_MS` (default `604800000`, bounded to
+60 seconds through 31 days),
 `COMMUNITY_REVIEW_SHUTDOWN_TIMEOUT_MS` (default `10000`), and
 `COMMUNITY_REVIEW_LOG_LEVEL` (`info`, `warn`, or `error`).
 
@@ -88,7 +112,7 @@ Run migration once with the same database URL and TLS settings as the service:
 npm run community-review:migrate
 ```
 
-The runner applies `001` through `007` in deterministic numeric order and
+The runner applies `001` through `008` in deterministic numeric order and
 records filename/checksum history in
 `community_review_schema_migrations`. It takes a PostgreSQL advisory session
 lock, applies each missing migration in its own transaction, and refuses
@@ -96,11 +120,17 @@ checksum drift, unknown history, gaps, missing historical files, or partial
 application. Do not edit an applied migration or update its history row by
 hand.
 
-Migration `007_community_review_application_intake.sql` is additive. It adds
-the application, contact, idempotency, and narrow application-audit tables;
-it does not rewrite the six historical migration files. Record the exact
-pre-migration source SHA, migration status, and a platform backup before
-running it.
+Migration `007_community_review_application_intake.sql` is additive. Migration
+`008_reviewer_invitations.sql` is also additive; it adds only the private
+invitation and lifecycle-audit tables and does not rewrite migrations `001`
+through `007`. Record the exact pre-migration source SHA, migration status, and
+a platform backup before running it.
+
+For the reviewed C3B source, migration `008_reviewer_invitations.sql` has
+checksum
+`sha256:abe0143d5d90b33f8d414b13419cb446d508657ebbb6b6049d41eff601757b3e`.
+The expected migration-history transition is version `7` to version `8`.
+Repository implementation does not claim that transition was applied to active+staging: an isolated PostgreSQL apply/recovery run and active staging readback+were not available in this turn.
 
 ## Readiness and startup
 
@@ -228,3 +258,24 @@ URL or bearer token, or temporarily set the publicly exposed listener to
 `OPEN`. If a safe localhost-only dry run or staging evidence cannot be
 performed, report the private staging gate as **BLOCKED / NOT VERIFIED** and do
 not report L2-C2C overall PASS.
+
+## L2-C3B private staging boundary
+
+C3B private staging is a later, separately authorized activity and was not run
+by the repository implementation change. Before it can accept a real provider
+token, record sanitized readback of the exact operator/reviewer audience,
+access-token profile, authorized-party/client binding, required scope, and
+provider signing configuration. Do not copy a token, cookie, client secret,
+subject, email, or raw provider payload into an issue, log, document, or test
+artifact.
+
+If authorized after that readback, use a disposable private cohort and verify
+the exact main SHA, migration `008` status, live/ready health, operator-token
+success, same-subject reviewer-channel operator denial, reviewer-channel
+invitation redemption/replay/conflict/expiry/revocation, and the absence of
+raw credentials in logs or persistence. Keep
+`COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED`,
+`COMMUNITY_REVIEW_PUBLIC_INTAKE=false`, and
+`COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE=DISABLED` unless the staging
+operation explicitly authorizes `INVITE_ONLY`. Do not proceed to C3C or public
+intake from a successful private smoke test alone.

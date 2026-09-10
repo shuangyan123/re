@@ -27,6 +27,8 @@ import type {
   ReviewSubmissionAuditEventRecord,
   ReviewerAuthIdentityRecord,
   ReviewerAccountRecord,
+  ReviewerInvitationAuditEventRecord,
+  ReviewerInvitationRecord,
   ReviewerConsentRecord,
   SealedBatchPayloadReferenceRecord,
 } from "./persistence.js";
@@ -194,6 +196,35 @@ function authIdentityFromRow(row: DatabaseRow): ReviewerAuthIdentityRecord {
     authProvider: stringValue(row, "auth_provider"),
     authSubject: stringValue(row, "auth_subject"),
     createdAt: timestampValue(row, "created_at"),
+  };
+}
+
+function invitationFromRow(row: DatabaseRow): ReviewerInvitationRecord {
+  const applicationId = optionalString(row, "application_id");
+  const consumedAt = optionalTimestamp(row, "consumed_at");
+  const revokedAt = optionalTimestamp(row, "revoked_at");
+  const expiredAt = optionalTimestamp(row, "expired_at");
+  return {
+    invitationId: stringValue(row, "invitation_id"),
+    secretDigest: stringValue(row, "secret_digest"),
+    ...(applicationId === undefined ? {} : { applicationId }),
+    state: stringValue(row, "state") as ReviewerInvitationRecord["state"],
+    issuedAt: timestampValue(row, "issued_at"),
+    expiresAt: timestampValue(row, "expires_at"),
+    ...(consumedAt === undefined ? {} : { consumedAt }),
+    ...(revokedAt === undefined ? {} : { revokedAt }),
+    ...(expiredAt === undefined ? {} : { expiredAt }),
+  };
+}
+
+function invitationAuditFromRow(row: DatabaseRow): ReviewerInvitationAuditEventRecord {
+  const applicationId = optionalString(row, "application_id");
+  return {
+    eventId: stringValue(row, "event_id"),
+    invitationId: stringValue(row, "invitation_id"),
+    eventType: stringValue(row, "event_type") as ReviewerInvitationAuditEventRecord["eventType"],
+    ...(applicationId === undefined ? {} : { applicationId }),
+    occurredAt: timestampValue(row, "occurred_at"),
   };
 }
 
@@ -525,6 +556,14 @@ export async function loadPersistenceSnapshot(client: PoolClient): Promise<Commu
     client,
     "SELECT * FROM reviewer_auth_identities ORDER BY auth_identity_id",
   )).map(authIdentityFromRow);
+  const reviewerInvitations = (await selectRows(
+    client,
+    "SELECT * FROM reviewer_invitations ORDER BY issued_at, invitation_id",
+  )).map(invitationFromRow);
+  const reviewerInvitationAuditEvents = (await selectRows(
+    client,
+    "SELECT * FROM reviewer_invitation_audit_events ORDER BY occurred_at, event_id",
+  )).map(invitationAuditFromRow);
   const reviewerConsents = (await selectRows(
     client,
     "SELECT * FROM reviewer_consent_events ORDER BY recorded_at, consent_event_id",
@@ -630,6 +669,8 @@ export async function loadPersistenceSnapshot(client: PoolClient): Promise<Commu
     applicationAuditEvents,
     reviewerAccounts,
     reviewerAuthIdentities,
+    reviewerInvitations,
+    reviewerInvitationAuditEvents,
     reviewerConsents,
     authAuditEvents,
     qualificationAuditEvents,
@@ -877,6 +918,60 @@ async function persistAccounts(
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [record.consentEventId, record.internalId, record.reviewerId, record.policyId, record.policyVersion,
         record.state, record.acceptedAt ?? null, record.revokedAt ?? null, record.recordedAt],
+    );
+  }
+}
+
+async function persistInvitations(
+  client: PoolClient,
+  before: readonly ReviewerInvitationRecord[],
+  after: readonly ReviewerInvitationRecord[],
+): Promise<void> {
+  for (const { record, previous } of changedRecords(before, after, (item) => item.invitationId)) {
+    const values = [
+      record.invitationId,
+      record.secretDigest,
+      record.applicationId ?? null,
+      record.state,
+      record.issuedAt,
+      record.expiresAt,
+      record.consumedAt ?? null,
+      record.revokedAt ?? null,
+      record.expiredAt ?? null,
+    ];
+    if (previous === undefined) {
+      await client.query(
+        `INSERT INTO reviewer_invitations
+          (invitation_id, secret_digest, application_id, state, issued_at, expires_at,
+           consumed_at, revoked_at, expired_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        values,
+      );
+    } else {
+      await client.query(
+        `UPDATE reviewer_invitations
+            SET state = $2, consumed_at = $3, revoked_at = $4, expired_at = $5
+          WHERE invitation_id = $1`,
+        [record.invitationId, record.state, record.consumedAt ?? null,
+          record.revokedAt ?? null, record.expiredAt ?? null],
+      );
+    }
+  }
+}
+
+async function persistInvitationAudits(
+  client: PoolClient,
+  before: readonly ReviewerInvitationAuditEventRecord[],
+  after: readonly ReviewerInvitationAuditEventRecord[],
+): Promise<void> {
+  assertImmutable(before, after, (item) => item.eventId);
+  for (const record of after) {
+    if (before.some((item) => item.eventId === record.eventId)) continue;
+    await client.query(
+      `INSERT INTO reviewer_invitation_audit_events
+        (event_id, invitation_id, event_type, application_id, occurred_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [record.eventId, record.invitationId, record.eventType, record.applicationId ?? null, record.occurredAt],
     );
   }
 }
@@ -1295,6 +1390,9 @@ export async function persistPersistenceSnapshot(
     (item) => item.eventId);
   assertNoDeleted("reviewer accounts", before.reviewerAccounts, after.reviewerAccounts, (item) => item.internalId);
   assertNoDeleted("auth identities", before.reviewerAuthIdentities, after.reviewerAuthIdentities, (item) => item.authIdentityId);
+  assertNoDeleted("reviewer invitations", before.reviewerInvitations, after.reviewerInvitations, (item) => item.invitationId);
+  assertNoDeleted("reviewer invitation audits", before.reviewerInvitationAuditEvents,
+    after.reviewerInvitationAuditEvents, (item) => item.eventId);
   assertNoDeleted("consents", before.reviewerConsents, after.reviewerConsents, (item) => item.consentEventId);
   assertNoDeleted("auth audits", before.authAuditEvents, after.authAuditEvents, (item) => item.eventId);
   assertNoDeleted("qualification audits", before.qualificationAuditEvents, after.qualificationAuditEvents, (item) => item.eventId);
@@ -1319,6 +1417,8 @@ export async function persistPersistenceSnapshot(
   await persistApplicationIdempotency(client, before.applicationIdempotency, after.applicationIdempotency);
   await persistApplicationAudits(client, before.applicationAuditEvents, after.applicationAuditEvents);
   await persistAccounts(client, before, after);
+  await persistInvitations(client, before.reviewerInvitations, after.reviewerInvitations);
+  await persistInvitationAudits(client, before.reviewerInvitationAuditEvents, after.reviewerInvitationAuditEvents);
   await persistAuthAudits(client, before.authAuditEvents, after.authAuditEvents);
   await persistPools(client, before.qualificationPools, after.qualificationPools);
   await persistAttempts(client, before.qualificationAttempts, after.qualificationAttempts);

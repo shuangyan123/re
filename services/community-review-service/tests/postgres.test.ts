@@ -331,8 +331,8 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
       migrationsDirectory: migrationDirectory,
     });
     const status = await activeRepository().migrate();
-    assert.equal(status.currentVersion, 7);
-    assert.equal(status.appliedMigrationCount, 7);
+    assert.equal(status.currentVersion, 8);
+    assert.equal(status.appliedMigrationCount, 8);
   });
 
   after(async () => {
@@ -344,13 +344,13 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
   test("migration runner is deterministic, idempotent, and verifies history", async () => {
     const first = await activeRepository().migrate();
     const verified = await activeRepository().verifyMigrations();
-    assert.equal(first.currentVersion, 7);
-    assert.equal(first.appliedMigrationCount, 7);
-    assert.deepEqual(verified, { currentVersion: 7, knownMigrationCount: 7, appliedMigrationCount: 7, ready: true });
+    assert.equal(first.currentVersion, 8);
+    assert.equal(first.appliedMigrationCount, 8);
+    assert.deepEqual(verified, { currentVersion: 8, knownMigrationCount: 8, appliedMigrationCount: 8, ready: true });
     const history = await activePool().query<{ readonly count: string }>(
       "SELECT COUNT(*)::text AS count FROM community_review_schema_migrations",
     );
-    assert.equal(history.rows[0]?.count, "7");
+    assert.equal(history.rows[0]?.count, "8");
 
     const copied = await mkdtemp(join(tmpdir(), "tutorbench-community-review-migrations-"));
     temporaryDirectories.push(copied);
@@ -426,7 +426,8 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
       `SELECT column_name FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name IN ('reviewer_accounts', 'reviewer_auth_identities', 'reviewer_auth_audit_events',
-            'qualification_attempts', 'review_submissions', 'rejected_submission_attempts')`,
+            'reviewer_invitations', 'reviewer_invitation_audit_events', 'qualification_attempts',
+            'review_submissions', 'rejected_submission_attempts')`,
     );
     assert.equal(columns.rows.some(({ column_name }) => /token|cookie|password|jwt|email|raw_payload/iu.test(column_name)), false);
   });
@@ -539,6 +540,47 @@ const postgresSuite = describe("Community Review PostgreSQL adapter", { skip: !p
     ]);
     assert.equal(closeResults[0]!.closeRecord.closeFingerprint, closeResults[1]!.closeRecord.closeFingerprint);
     assert.equal(freezeResults[0]!.freezeFingerprint, freezeResults[1]!.freezeFingerprint);
+  });
+
+  test("PostgreSQL invitation redemption consumes one capability and creates one mapping under races", async () => {
+    let invitationSequence = 0;
+    let auditSequence = 0;
+    const service = new CommunityReviewService(activeRepository(), {
+      clock: () => "2026-09-10T04:00:00.000Z",
+      reviewerInvitationEnabled: true,
+      invitationIdGenerator: () => `pg-invitation-${++invitationSequence}`,
+      invitationSecretGenerator: () => "A".repeat(43),
+      invitationAuditEventIdGenerator: () => `pg-invitation-audit-${++auditSequence}`,
+      reviewerIdGenerator: () => `pg-invited-reviewer-${++auditSequence}`,
+      internalIdGenerator: () => `pg-invited-internal-${++auditSequence}`,
+      authIdentityIdGenerator: () => `pg-invited-auth-${++auditSequence}`,
+      auditEventIdGenerator: () => `pg-invited-account-audit-${++auditSequence}`,
+    });
+    const issuance = await service.issueReviewerInvitation();
+    const principal = { provider: "example-oidc", subject: "pg-race-principal" };
+    const results = await Promise.allSettled([
+      service.redeemReviewerInvitation({ credential: issuance.credential, principal }),
+      service.redeemReviewerInvitation({ credential: issuance.credential, principal }),
+    ]);
+    assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+    assert.equal(results.filter((result) => result.status === "rejected").length, 1);
+    const stored = await activeRepository().transaction((transaction) => ({
+      invitation: transaction.getReviewerInvitation(issuance.invitation.invitationId),
+      audits: transaction.listReviewerInvitationAuditEvents(issuance.invitation.invitationId),
+    }));
+    assert.equal(stored.invitation?.state, "CONSUMED");
+    assert.deepEqual(stored.audits.map((event) => event.eventType), ["issued", "consumed"]);
+    const accounts = await activePool().query<{ readonly count: string }>(
+      "SELECT COUNT(*)::text AS count FROM reviewer_auth_identities WHERE auth_provider = $1 AND auth_subject = $2",
+      [principal.provider, principal.subject],
+    );
+    assert.equal(accounts.rows[0]?.count, "1");
+    const digest = await activePool().query<{ readonly secretDigest: string }>(
+      "SELECT secret_digest AS \"secretDigest\" FROM reviewer_invitations WHERE invitation_id = $1",
+      [issuance.invitation.invitationId],
+    );
+    assert.match(digest.rows[0]?.secretDigest ?? "", /^sha256:[0-9a-f]{64}$/u);
+    assert.notEqual(digest.rows[0]?.secretDigest, issuance.credential);
   });
 
   test("the PostgreSQL adapter and in-memory adapter produce the same typed account/consent projection", async () => {

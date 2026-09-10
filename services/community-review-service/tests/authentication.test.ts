@@ -210,14 +210,20 @@ async function makeSetup(): Promise<AuthenticatedSetup> {
     reviewerC: { provider: "synthetic", subject: "external-subject-c@example.test" },
   } as const;
   const authentication = new SyntheticAuthenticationAdapter({
-    "operator-token": principals.operator,
-    "reviewer-a-token": principals.reviewerA,
-    "reviewer-b-token": principals.reviewerB,
-    "reviewer-c-token": principals.reviewerC,
-    "unprovisioned-token": { provider: "synthetic", subject: "unprovisioned-subject" },
-    "mismatched-provider-token": { provider: "other-provider", subject: principals.reviewerA.subject },
-    [rawBearerCredential]: principals.reviewerA,
-    "Cookie session=synthetic-cookie": principals.reviewerA,
+    "operator-token": { principal: principals.operator, channel: "operator" },
+    "reviewer-a-token": { principal: principals.reviewerA, channel: "reviewer" },
+    "reviewer-b-token": { principal: principals.reviewerB, channel: "reviewer" },
+    "reviewer-c-token": { principal: principals.reviewerC, channel: "reviewer" },
+    "unprovisioned-token": {
+      principal: { provider: "synthetic", subject: "unprovisioned-subject" },
+      channel: "reviewer",
+    },
+    "mismatched-provider-token": {
+      principal: { provider: "other-provider", subject: principals.reviewerA.subject },
+      channel: "reviewer",
+    },
+    [rawBearerCredential]: { principal: principals.reviewerA, channel: "reviewer" },
+    "Cookie session=synthetic-cookie": { principal: principals.reviewerA, channel: "reviewer" },
   });
   const operators = new StaticOperatorAuthorizer([principals.operator]);
   const application = new CommunityReviewApplicationService(service, authentication, operators);

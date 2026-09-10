@@ -121,6 +121,32 @@ export interface ReviewerAuthIdentityRecord {
   readonly createdAt: ServiceTimestamp;
 }
 
+export type ReviewerInvitationState = "ISSUED" | "CONSUMED" | "REVOKED" | "EXPIRED";
+
+/** Private one-time capability record; the raw secret never crosses persistence. */
+export interface ReviewerInvitationRecord {
+  readonly invitationId: string;
+  readonly secretDigest: string;
+  readonly applicationId?: string;
+  readonly state: ReviewerInvitationState;
+  readonly issuedAt: ServiceTimestamp;
+  readonly expiresAt: ServiceTimestamp;
+  readonly consumedAt?: ServiceTimestamp;
+  readonly revokedAt?: ServiceTimestamp;
+  readonly expiredAt?: ServiceTimestamp;
+}
+
+export type ReviewerInvitationAuditEventType = "issued" | "consumed" | "revoked" | "expired";
+
+/** Safe invitation lifecycle audit metadata; no secret, digest, subject, or PII. */
+export interface ReviewerInvitationAuditEventRecord {
+  readonly eventId: string;
+  readonly invitationId: string;
+  readonly eventType: ReviewerInvitationAuditEventType;
+  readonly applicationId?: string;
+  readonly occurredAt: ServiceTimestamp;
+}
+
 export type ReviewerConsentEventState = "ACCEPTED" | "REVOKED";
 
 /** Append-only consent event; the current snapshot is derived from its history. */
@@ -461,6 +487,17 @@ export interface CommunityReviewPersistenceTransaction {
   getReviewerAuthIdentityByInternalId(internalId: string): ReviewerAuthIdentityRecord | undefined;
   insertReviewerAuthIdentity(record: ReviewerAuthIdentityRecord): ReviewerAuthIdentityRecord;
 
+  getReviewerInvitation(invitationId: string): ReviewerInvitationRecord | undefined;
+  getReviewerInvitationBySecretDigest(secretDigest: string): ReviewerInvitationRecord | undefined;
+  insertReviewerInvitation(record: ReviewerInvitationRecord): ReviewerInvitationRecord;
+  updateReviewerInvitation(record: ReviewerInvitationRecord): ReviewerInvitationRecord;
+  insertReviewerInvitationAuditEvent(
+    record: ReviewerInvitationAuditEventRecord,
+  ): ReviewerInvitationAuditEventRecord;
+  listReviewerInvitationAuditEvents(
+    invitationId?: string,
+  ): readonly ReviewerInvitationAuditEventRecord[];
+
   listReviewerConsentHistory(
     internalId: string,
     policyId: string,
@@ -575,6 +612,8 @@ export interface CommunityReviewPersistenceSnapshot {
   readonly applicationAuditEvents: readonly CommunityReviewApplicationAuditEventRecord[];
   readonly reviewerAccounts: readonly ReviewerAccountRecord[];
   readonly reviewerAuthIdentities: readonly ReviewerAuthIdentityRecord[];
+  readonly reviewerInvitations: readonly ReviewerInvitationRecord[];
+  readonly reviewerInvitationAuditEvents: readonly ReviewerInvitationAuditEventRecord[];
   readonly reviewerConsents: readonly ReviewerConsentRecord[];
   readonly authAuditEvents: readonly AuthAuditEventRecord[];
   readonly qualificationAuditEvents: readonly QualificationAuthorityAuditEventRecord[];
@@ -603,6 +642,8 @@ export function emptyCommunityReviewPersistenceSnapshot(): CommunityReviewPersis
     applicationAuditEvents: [],
     reviewerAccounts: [],
     reviewerAuthIdentities: [],
+    reviewerInvitations: [],
+    reviewerInvitationAuditEvents: [],
     reviewerConsents: [],
     authAuditEvents: [],
     qualificationAuditEvents: [],

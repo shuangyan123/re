@@ -120,6 +120,8 @@ async function lockAuthorityRows(client: { query(sql: string): Promise<unknown> 
     "SELECT event_id FROM community_review_application_audit_events ORDER BY event_id FOR UPDATE",
     "SELECT internal_id FROM reviewer_accounts ORDER BY internal_id FOR UPDATE",
     "SELECT auth_identity_id FROM reviewer_auth_identities ORDER BY auth_identity_id FOR UPDATE",
+    "SELECT invitation_id FROM reviewer_invitations ORDER BY invitation_id FOR UPDATE",
+    "SELECT event_id FROM reviewer_invitation_audit_events ORDER BY event_id FOR UPDATE",
     "SELECT consent_event_id FROM reviewer_consent_events ORDER BY consent_event_id FOR UPDATE",
     "SELECT pool_id, pool_version FROM qualification_pools ORDER BY pool_id, pool_version FOR UPDATE",
     "SELECT attempt_id FROM qualification_attempts ORDER BY attempt_id FOR UPDATE",
