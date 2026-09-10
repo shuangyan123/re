@@ -7,6 +7,7 @@ COPY services/community-review-service/package.json services/community-review-se
 RUN npm ci --prefix services/community-review-service --ignore-scripts
 COPY tsconfig.json ./
 COPY src ./src
+COPY scripts/community-review-portal-build.mjs ./scripts/community-review-portal-build.mjs
 COPY services/community-review-service ./services/community-review-service
 RUN npm run build
 RUN npm run community-review:build
