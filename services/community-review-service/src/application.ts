@@ -15,6 +15,7 @@ import type {
   GetReviewerConsentInput,
   GetOwnCommunityReviewSubmissionInput,
   LinkReviewerAuthIdentityInput,
+  CreateReviewerInvitationInput,
   QualificationAttemptRequest,
   QualificationPoolRequest,
   RegisterAuthoritativeQualificationReceiptInput,
@@ -22,6 +23,10 @@ import type {
   RecordReviewerConsentInput,
   RevokeReviewerConsentInput,
   ReviewerAccountLifecycleInput,
+  ReviewerInvitationIssuance,
+  ReviewerInvitationLifecycleInput,
+  ReviewerInvitationProjection,
+  RedeemReviewerInvitationInput,
   ReviewerConsentSnapshot,
   CommunityReviewAssignmentResult,
   ReviewerPacketRequest,
@@ -156,6 +161,18 @@ export interface AuthenticatedOperatorIdentityLinkInput extends AuthenticatedReq
   readonly principal: AuthenticatedPrincipal;
 }
 
+export interface AuthenticatedOperatorReviewerInvitationInput extends AuthenticatedRequest {
+  readonly applicationId?: CreateReviewerInvitationInput["applicationId"];
+}
+
+export interface AuthenticatedOperatorReviewerInvitationRevokeInput extends AuthenticatedRequest {
+  readonly invitationId: ReviewerInvitationLifecycleInput["invitationId"];
+}
+
+export interface AuthenticatedReviewerInvitationRedemptionInput extends AuthenticatedRequest {
+  readonly credential: RedeemReviewerInvitationInput["credential"];
+}
+
 /**
  * Application boundary for authenticated requests. Reviewer-owned operations
  * derive the opaque reviewer ID from the private auth mapping and ignore any
@@ -184,11 +201,17 @@ export class CommunityReviewApplicationService {
 
   private async reviewer(input: AuthenticatedRequest): Promise<ReviewerAccountRecord> {
     const context = await this.authenticate(input.authenticationInput);
+    if (context.channel !== "reviewer") {
+      throw new CommunityReviewServiceError("reviewer_not_authorized");
+    }
     return this.service.resolveAuthenticatedReviewer({ principal: context.principal });
   }
 
   private async operator(input: AuthenticatedRequest): Promise<AuthenticationContext> {
     const context = await this.authenticate(input.authenticationInput);
+    if (context.channel !== "operator") {
+      throw new CommunityReviewServiceError("operator_not_authorized");
+    }
     if (this.operatorAuthorization === undefined) {
       throw new CommunityReviewServiceError("operator_not_authorized");
     }
@@ -209,6 +232,36 @@ export class CommunityReviewApplicationService {
   async provisionReviewerAccount(input: AuthenticatedReviewerProvisionInput): Promise<ReviewerAccountRecord> {
     const context = await this.operator(input);
     return this.service.provisionReviewerAccount({ principal: input.principal ?? context.principal });
+  }
+
+  async issueReviewerInvitation(
+    input: AuthenticatedOperatorReviewerInvitationInput,
+  ): Promise<ReviewerInvitationIssuance> {
+    await this.operator(input);
+    return this.service.issueReviewerInvitation({
+      ...(input.applicationId === undefined ? {} : { applicationId: input.applicationId }),
+    });
+  }
+
+  async revokeReviewerInvitation(
+    input: AuthenticatedOperatorReviewerInvitationRevokeInput,
+  ): Promise<ReviewerInvitationProjection> {
+    await this.operator(input);
+    return this.service.revokeReviewerInvitation({ invitationId: input.invitationId });
+  }
+
+  async redeemReviewerInvitation(
+    input: AuthenticatedReviewerInvitationRedemptionInput,
+  ): Promise<ReviewerAccountRecord> {
+    const context = await this.authenticate(input.authenticationInput);
+    if (context.channel !== "reviewer") {
+      throw new CommunityReviewServiceError("reviewer_not_authorized");
+    }
+    const redemption: RedeemReviewerInvitationInput = {
+      credential: input.credential,
+      principal: context.principal,
+    };
+    return this.service.redeemReviewerInvitation(redemption);
   }
 
   async recordConsent(input: AuthenticatedConsentRequest): Promise<ReviewerConsentSnapshot> {

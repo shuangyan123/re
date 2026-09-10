@@ -6,8 +6,12 @@ export interface AuthenticatedPrincipal {
   readonly subject: string;
 }
 
+export type AuthenticatedCredentialChannel = "operator" | "reviewer";
+
 export interface AuthenticationContext {
   readonly principal: AuthenticatedPrincipal;
+  /** Narrow server-verified route channel; raw token claims never cross here. */
+  readonly channel: AuthenticatedCredentialChannel;
 }
 
 export interface AuthenticationAdapter {
@@ -45,18 +49,28 @@ function validSubject(value: unknown): value is string {
     value.length <= authSubjectMaxLength && !value.includes("\u0000");
 }
 
-/** Normalize adapter output so claims, tokens, and other fields cannot propagate. */
-export function parseAuthenticationContext(value: unknown): AuthenticationContext {
+export function parseAuthenticatedPrincipal(value: unknown): AuthenticatedPrincipal {
   const context = record(value);
   const principal = record(context?.principal);
   if (principal === undefined || !validProvider(principal.provider) || !validSubject(principal.subject)) {
     throw new CommunityReviewServiceError("authentication_failed");
   }
   return {
-    principal: {
-      provider: principal.provider,
-      subject: principal.subject,
-    },
+    provider: principal.provider,
+    subject: principal.subject,
+  };
+}
+
+/** Normalize adapter output so claims, tokens, and other fields cannot propagate. */
+export function parseAuthenticationContext(value: unknown): AuthenticationContext {
+  const context = record(value);
+  const channel = context?.channel;
+  if (channel !== "operator" && channel !== "reviewer") {
+    throw new CommunityReviewServiceError("authentication_failed");
+  }
+  return {
+    principal: parseAuthenticatedPrincipal(value),
+    channel,
   };
 }
 
@@ -74,24 +88,39 @@ function credentialFromInput(input: unknown): string | undefined {
 
 /** Synthetic-only adapter for deterministic tests; it never returns credentials or claims. */
 export class SyntheticAuthenticationAdapter implements AuthenticationAdapter {
-  private readonly identities: Map<string, AuthenticatedPrincipal>;
+  private readonly identities: Map<string, AuthenticationContext>;
 
   constructor(
-    identities: ReadonlyMap<string, AuthenticatedPrincipal> | Readonly<Record<string, AuthenticatedPrincipal>>,
+    identities: ReadonlyMap<string, AuthenticatedPrincipal | AuthenticationContext> |
+      Readonly<Record<string, AuthenticatedPrincipal | AuthenticationContext>>,
+    defaultChannel: AuthenticatedCredentialChannel = "reviewer",
   ) {
-    this.identities = new Map(
-      identities instanceof Map ? identities.entries() : Object.entries(identities),
-    );
-    for (const principal of this.identities.values()) {
-      parseAuthenticationContext({ principal });
+    const entries = identities instanceof Map ? identities.entries() : Object.entries(identities);
+    this.identities = new Map([...entries].map(([credential, value]) => {
+      const candidate = record(value);
+      const context = candidate?.principal === undefined
+        ? { principal: parseAuthenticatedPrincipal({ principal: value }), channel: defaultChannel }
+        : parseAuthenticationContext(value);
+      return [credential, context] as const;
+    }));
+    for (const [credential, context] of this.identities) {
+      if (credential.length === 0) throw new Error("Synthetic credential must not be empty.");
+      parseAuthenticationContext(context);
     }
   }
 
   async authenticate(input: unknown): Promise<AuthenticationContext> {
     const credential = credentialFromInput(input);
-    const principal = credential === undefined ? undefined : this.identities.get(credential);
-    if (principal === undefined) throw new AuthenticationAdapterError();
-    return parseAuthenticationContext({ principal });
+    const context = credential === undefined ? undefined : this.identities.get(credential);
+    if (context === undefined) throw new AuthenticationAdapterError();
+    return parseAuthenticationContext(context);
+  }
+}
+
+/** Fail-closed adapter used while a provider channel is not activated. */
+export class RejectingAuthenticationAdapter implements AuthenticationAdapter {
+  async authenticate(_input: unknown): Promise<AuthenticationContext> {
+    throw new AuthenticationAdapterError();
   }
 }
 
@@ -101,13 +130,13 @@ export class StaticOperatorAuthorizer implements OperatorAuthorizer {
 
   constructor(principals: readonly AuthenticatedPrincipal[]) {
     this.operators = new Set(principals.map((principal) => {
-      const context = parseAuthenticationContext({ principal });
-      return authenticationPrincipalKey(context.principal);
+      return authenticationPrincipalKey(parseAuthenticatedPrincipal({ principal }));
     }));
   }
 
   isOperator(context: AuthenticationContext): boolean {
-    return this.operators.has(authenticationPrincipalKey(parseAuthenticationContext(context).principal));
+    const parsed = parseAuthenticationContext(context);
+    return parsed.channel === "operator" && this.operators.has(authenticationPrincipalKey(parsed.principal));
   }
 }
 

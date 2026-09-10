@@ -65,6 +65,8 @@ import type {
   RejectedSubmissionAttemptRecord,
   ReviewerAuthIdentityRecord,
   ReviewerAccountRecord,
+  ReviewerInvitationAuditEventRecord,
+  ReviewerInvitationRecord,
   ReviewerConsentRecord,
   ReviewAssignmentRecord,
   ReviewBatchCloseRecord,
@@ -83,6 +85,9 @@ interface DatabaseState {
   readonly reviewerAuthIdentities: Map<string, ReviewerAuthIdentityRecord>;
   readonly reviewerAuthSubjects: Map<string, string>;
   readonly reviewerAuthAccounts: Map<string, string>;
+  readonly reviewerInvitations: Map<string, ReviewerInvitationRecord>;
+  readonly reviewerInvitationDigests: Map<string, string>;
+  readonly reviewerInvitationAuditEvents: Map<string, ReviewerInvitationAuditEventRecord>;
   readonly reviewerConsents: Map<string, ReviewerConsentRecord>;
   readonly reviewerConsentHistory: Map<string, string[]>;
   readonly authAuditEvents: Map<string, AuthAuditEventRecord>;
@@ -124,6 +129,9 @@ function emptyState(): DatabaseState {
     reviewerAuthIdentities: new Map(),
     reviewerAuthSubjects: new Map(),
     reviewerAuthAccounts: new Map(),
+    reviewerInvitations: new Map(),
+    reviewerInvitationDigests: new Map(),
+    reviewerInvitationAuditEvents: new Map(),
     reviewerConsents: new Map(),
     reviewerConsentHistory: new Map(),
     authAuditEvents: new Map(),
@@ -183,6 +191,14 @@ function stateFromSnapshot(snapshot: CommunityReviewPersistenceSnapshot): Databa
     state.reviewerAuthIdentities.set(record.authIdentityId, stored);
     state.reviewerAuthSubjects.set(authSubjectKey(record.authProvider, record.authSubject), record.authIdentityId);
     state.reviewerAuthAccounts.set(record.internalId, record.authIdentityId);
+  }
+  for (const record of snapshot.reviewerInvitations) {
+    const stored = copy(record);
+    state.reviewerInvitations.set(record.invitationId, stored);
+    state.reviewerInvitationDigests.set(record.secretDigest, record.invitationId);
+  }
+  for (const record of snapshot.reviewerInvitationAuditEvents) {
+    state.reviewerInvitationAuditEvents.set(record.eventId, copy(record));
   }
   for (const record of snapshot.reviewerConsents) {
     const stored = copy(record);
@@ -491,6 +507,38 @@ function assertReviewerAuthIdentityRecord(record: ReviewerAuthIdentityRecord): v
   authProvider(record.authProvider);
   authSubject(record.authSubject);
   timestamp(record.createdAt);
+}
+
+function assertReviewerInvitationRecord(record: ReviewerInvitationRecord): void {
+  opaqueId(record.invitationId);
+  fingerprint(record.secretDigest);
+  if (record.applicationId !== undefined) opaqueId(record.applicationId);
+  timestamp(record.issuedAt);
+  timestamp(record.expiresAt);
+  if (Date.parse(record.expiresAt) <= Date.parse(record.issuedAt)) invalidRecord();
+  if (!["ISSUED", "CONSUMED", "REVOKED", "EXPIRED"].includes(record.state)) invalidRecord();
+  if (record.consumedAt !== undefined) timestamp(record.consumedAt);
+  if (record.revokedAt !== undefined) timestamp(record.revokedAt);
+  if (record.expiredAt !== undefined) timestamp(record.expiredAt);
+  const present = {
+    consumedAt: record.consumedAt !== undefined,
+    revokedAt: record.revokedAt !== undefined,
+    expiredAt: record.expiredAt !== undefined,
+  };
+  if (record.state === "ISSUED" && (present.consumedAt || present.revokedAt || present.expiredAt) ||
+    record.state === "CONSUMED" && (!present.consumedAt || present.revokedAt || present.expiredAt) ||
+    record.state === "REVOKED" && (!present.revokedAt || present.consumedAt || present.expiredAt) ||
+    record.state === "EXPIRED" && (!present.expiredAt || present.consumedAt || present.revokedAt)) {
+    invalidRecord();
+  }
+}
+
+function assertReviewerInvitationAuditEventRecord(record: ReviewerInvitationAuditEventRecord): void {
+  opaqueId(record.eventId);
+  opaqueId(record.invitationId);
+  if (!["issued", "consumed", "revoked", "expired"].includes(record.eventType)) invalidRecord();
+  if (record.applicationId !== undefined) opaqueId(record.applicationId);
+  timestamp(record.occurredAt);
 }
 
 function assertReviewerConsentRecord(record: ReviewerConsentRecord): void {
@@ -1106,6 +1154,73 @@ class InMemoryCommunityReviewTransaction implements CommunityReviewPersistenceTr
     );
     this.state.reviewerAuthAccounts.set(record.internalId, record.authIdentityId);
     return copy(stored);
+  }
+
+  getReviewerInvitation(invitationId: string): ReviewerInvitationRecord | undefined {
+    const record = this.state.reviewerInvitations.get(invitationId);
+    return record === undefined ? undefined : copy(record);
+  }
+
+  getReviewerInvitationBySecretDigest(secretDigest: string): ReviewerInvitationRecord | undefined {
+    const invitationId = this.state.reviewerInvitationDigests.get(secretDigest);
+    return invitationId === undefined ? undefined : this.getReviewerInvitation(invitationId);
+  }
+
+  insertReviewerInvitation(record: ReviewerInvitationRecord): ReviewerInvitationRecord {
+    assertReviewerInvitationRecord(record);
+    if (record.applicationId !== undefined && !this.state.applications.has(record.applicationId) ||
+      this.state.reviewerInvitations.has(record.invitationId) ||
+      this.state.reviewerInvitationDigests.has(record.secretDigest)) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.reviewerInvitations.set(record.invitationId, stored);
+    this.state.reviewerInvitationDigests.set(record.secretDigest, record.invitationId);
+    return copy(stored);
+  }
+
+  updateReviewerInvitation(record: ReviewerInvitationRecord): ReviewerInvitationRecord {
+    assertReviewerInvitationRecord(record);
+    const previous = this.state.reviewerInvitations.get(record.invitationId);
+    if (previous === undefined || previous.secretDigest !== record.secretDigest ||
+      previous.applicationId !== record.applicationId || previous.issuedAt !== record.issuedAt ||
+      previous.expiresAt !== record.expiresAt) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const sameState = previous.state === record.state;
+    const timestampsUnchanged = previous.consumedAt === record.consumedAt &&
+      previous.revokedAt === record.revokedAt && previous.expiredAt === record.expiredAt;
+    const allowed = sameState
+      ? timestampsUnchanged
+      : previous.state === "ISSUED" && ["CONSUMED", "REVOKED", "EXPIRED"].includes(record.state);
+    if (!allowed) throw new CommunityReviewServiceError("repository_conflict");
+    const stored = copy(record);
+    this.state.reviewerInvitations.set(record.invitationId, stored);
+    return copy(stored);
+  }
+
+  insertReviewerInvitationAuditEvent(
+    record: ReviewerInvitationAuditEventRecord,
+  ): ReviewerInvitationAuditEventRecord {
+    assertReviewerInvitationAuditEventRecord(record);
+    const invitation = this.state.reviewerInvitations.get(record.invitationId);
+    if (invitation === undefined || this.state.reviewerInvitationAuditEvents.has(record.eventId) ||
+      record.applicationId !== undefined && record.applicationId !== invitation.applicationId) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+    const stored = copy(record);
+    this.state.reviewerInvitationAuditEvents.set(record.eventId, stored);
+    return copy(stored);
+  }
+
+  listReviewerInvitationAuditEvents(
+    invitationId?: string,
+  ): readonly ReviewerInvitationAuditEventRecord[] {
+    return [...this.state.reviewerInvitationAuditEvents.values()]
+      .filter((record) => invitationId === undefined || record.invitationId === invitationId)
+      .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) ||
+        left.eventId.localeCompare(right.eventId))
+      .map(copy);
   }
 
   listReviewerConsentHistory(
@@ -1873,6 +1988,8 @@ export class InMemoryCommunityReviewRepository implements CommunityReviewPersist
       applicationAuditEvents: [...this.state.applicationAuditEvents.values()].map(copy),
       reviewerAccounts: [...this.state.reviewerAccounts.values()].map(copy),
       reviewerAuthIdentities: [...this.state.reviewerAuthIdentities.values()].map(copy),
+      reviewerInvitations: [...this.state.reviewerInvitations.values()].map(copy),
+      reviewerInvitationAuditEvents: [...this.state.reviewerInvitationAuditEvents.values()].map(copy),
       reviewerConsents: [...this.state.reviewerConsents.values()].map(copy),
       authAuditEvents: [...this.state.authAuditEvents.values()].map(copy),
       qualificationAuditEvents: [...this.state.qualificationAuditEvents.values()].map(copy),

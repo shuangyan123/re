@@ -1,8 +1,15 @@
 import path from "node:path";
 
 import type { CommunityReviewApplicationIntakeState } from "../../../src/contracts/community-review-application.js";
-import { parseAuthenticationContext } from "./authentication.js";
-import type { AuthenticatedPrincipal } from "./authentication.js";
+import {
+  parseAuthenticatedPrincipal,
+  parseAuthenticationContext,
+} from "./authentication.js";
+import type {
+  AuthenticatedPrincipal,
+  AuthenticationContext,
+} from "./authentication.js";
+import type { OidcAccessTokenProfile } from "./oidc.js";
 import {
   parseApplicationCorsOrigins,
   parseTrustedProxyNetworks,
@@ -15,15 +22,26 @@ export type CommunityReviewStorage = "postgres" | "in-memory";
 export type CommunityReviewAuthMode = "oidc" | "synthetic";
 export type CommunityReviewLogLevel = "info" | "warn" | "error";
 export type CommunityReviewRuntimeCommand = "migrate" | "readiness" | "serve";
+export type CommunityReviewReviewerInvitationState = "DISABLED" | "INVITE_ONLY";
+
+export interface CommunityReviewOidcPolicyConfig {
+  readonly audience: string;
+  readonly tokenProfile: OidcAccessTokenProfile;
+  readonly clientId: string;
+  readonly requiredScope: string;
+}
 
 export interface CommunityReviewOidcConfig {
   readonly provider: string;
   readonly issuer: string;
-  readonly audience: string;
   readonly jwksUri: string;
   readonly clockToleranceSeconds: number;
   readonly timeoutDurationMs: number;
   readonly allowInsecureHttp: boolean;
+  /** Absent means the operator channel is not activated and fails closed. */
+  readonly operator?: CommunityReviewOidcPolicyConfig;
+  /** Absent until the separate reviewer provider/client channel is activated. */
+  readonly reviewer?: CommunityReviewOidcPolicyConfig;
 }
 
 export interface CommunityReviewServiceConfig {
@@ -41,8 +59,8 @@ export interface CommunityReviewServiceConfig {
   readonly logLevel: CommunityReviewLogLevel;
   readonly authMode: CommunityReviewAuthMode;
   readonly oidc?: CommunityReviewOidcConfig;
-  /** Test/development-only credential mapping; production uses OIDC. */
-  readonly syntheticIdentities: ReadonlyMap<string, AuthenticatedPrincipal>;
+  /** Test/development-only channel-bound credential mapping; production uses OIDC. */
+  readonly syntheticIdentities: ReadonlyMap<string, AuthenticationContext>;
   readonly operatorPrincipals: readonly AuthenticatedPrincipal[];
   readonly privateMaterialRoot?: string;
   /** Kept closed until a separately authorized campaign gate exists. */
@@ -55,6 +73,8 @@ export interface CommunityReviewServiceConfig {
   readonly applicationCors: CommunityReviewApplicationCorsPolicy;
   readonly applicationRateLimitMaximumRequests: number;
   readonly applicationRateLimitWindowMs: number;
+  readonly reviewerInvitationState: CommunityReviewReviewerInvitationState;
+  readonly reviewerInvitationTtlMs: number;
 }
 
 export type CommunityReviewConfigurationErrorCode =
@@ -73,6 +93,7 @@ export type CommunityReviewConfigurationErrorCode =
   | "invalid_application_intake_state"
   | "invalid_trusted_proxy_config"
   | "invalid_application_cors_config"
+  | "invalid_reviewer_invitation_state"
   | "invalid_runtime_value";
 
 export class CommunityReviewConfigurationError extends Error {
@@ -211,7 +232,7 @@ function parseOperatorPrincipals(raw: string | undefined): readonly Authenticate
       throw new CommunityReviewConfigurationError("operator_allowlist_required");
     }
     try {
-      principals.push(parseAuthenticationContext({ principal: { provider, subject } }).principal);
+      principals.push(parseAuthenticatedPrincipal({ principal: { provider, subject } }));
     } catch {
       throw new CommunityReviewConfigurationError("operator_allowlist_required");
     }
@@ -221,28 +242,62 @@ function parseOperatorPrincipals(raw: string | undefined): readonly Authenticate
 
 function parseSyntheticIdentities(
   raw: string | undefined,
-): ReadonlyMap<string, AuthenticatedPrincipal> {
-  const identities = new Map<string, AuthenticatedPrincipal>();
+): ReadonlyMap<string, AuthenticationContext> {
+  const identities = new Map<string, AuthenticationContext>();
   if (raw === undefined) return identities;
   for (const entry of raw.split(",").map((item) => item.trim()).filter((item) => item.length > 0)) {
     const equal = entry.indexOf("=");
-    const separator = entry.indexOf("|", equal + 1);
+    const parts = equal > 0 ? entry.slice(equal + 1).split("|") : [];
     const credential = equal > 0 ? entry.slice(0, equal) : "";
-    const provider = equal > 0 && separator > equal + 1 ? entry.slice(equal + 1, separator) : "";
-    const subject = separator >= 0 ? entry.slice(separator + 1) : "";
+    const channel = parts[0];
+    const provider = parts[1];
+    const subject = parts[2];
     if (credential.length === 0 || credential.length > 512 || credential.includes("\u0000") ||
-      separator === -1 || subject.length === 0) {
+      parts.length !== 3 || (channel !== "operator" && channel !== "reviewer") ||
+      provider === undefined || subject === undefined || subject.length === 0) {
       throw new CommunityReviewConfigurationError("invalid_auth_mode");
     }
     try {
-      const principal = parseAuthenticationContext({ principal: { provider, subject } }).principal;
+      const context = parseAuthenticationContext({
+        principal: { provider, subject },
+        channel,
+      });
       if (identities.has(credential)) throw new Error("duplicate synthetic credential");
-      identities.set(credential, principal);
+      identities.set(credential, context);
     } catch {
       throw new CommunityReviewConfigurationError("invalid_auth_mode");
     }
   }
   return identities;
+}
+
+function parseOidcPolicy(
+  env: NodeJS.ProcessEnv,
+  audience: string | undefined,
+  profileKey: string,
+  clientKey: string,
+  scopeKey: string,
+): CommunityReviewOidcPolicyConfig | undefined {
+  const profile = value(env, profileKey);
+  const clientId = value(env, clientKey);
+  const requiredScope = value(env, scopeKey);
+  // A provider/audience may be known before the exact token profile, client
+  // binding, and permission scope have been read back. Keep that channel
+  // inactive rather than treating partial operational knowledge as authority.
+  if (profile === undefined && clientId === undefined && requiredScope === undefined) {
+    return undefined;
+  }
+  if (audience === undefined || profile === undefined || clientId === undefined || requiredScope === undefined ||
+    (profile !== "auth0" && profile !== "rfc9068") || clientId.length > 256 || requiredScope.length > 128 ||
+    /\s/u.test(clientId) || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(requiredScope)) {
+    throw new CommunityReviewConfigurationError("oidc_invalid");
+  }
+  return {
+    audience,
+    tokenProfile: profile,
+    clientId,
+    requiredScope,
+  };
 }
 
 function assertProductionMaterialBoundary(root: string, cwd: string): void {
@@ -281,6 +336,11 @@ export function loadCommunityReviewConfig(
   const publicIntakeEnabled = booleanValue(value(env, "COMMUNITY_REVIEW_PUBLIC_INTAKE"), false);
   if (publicIntakeEnabled) throw new CommunityReviewConfigurationError("public_intake_disabled");
   const applicationIntake = applicationIntakeState(env.COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE);
+  const reviewerInvitationState = enumValue(
+    value(env, "COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE") ?? "DISABLED",
+    ["DISABLED", "INVITE_ONLY"],
+    "invalid_reviewer_invitation_state",
+  ) ?? "DISABLED";
   let trustedProxyNetworks: readonly CommunityReviewTrustedProxyNetwork[];
   try {
     trustedProxyNetworks = parseTrustedProxyNetworks(value(env, "COMMUNITY_REVIEW_TRUSTED_PROXY_CIDRS"));
@@ -333,11 +393,12 @@ export function loadCommunityReviewConfig(
   const allowInsecureHttp = booleanValue(value(env, "COMMUNITY_REVIEW_OIDC_ALLOW_INSECURE_HTTP"), false);
   const syntheticIdentities = authMode === "synthetic"
     ? parseSyntheticIdentities(value(env, "COMMUNITY_REVIEW_SYNTHETIC_IDENTITIES"))
-    : new Map<string, AuthenticatedPrincipal>();
+    : new Map<string, AuthenticationContext>();
   const provider = value(env, "COMMUNITY_REVIEW_OIDC_PROVIDER");
   const issuer = value(env, "COMMUNITY_REVIEW_OIDC_ISSUER");
   const audience = value(env, "COMMUNITY_REVIEW_OIDC_AUDIENCE");
   const jwksUri = value(env, "COMMUNITY_REVIEW_OIDC_JWKS_URI");
+  const reviewerAudience = value(env, "COMMUNITY_REVIEW_REVIEWER_OIDC_AUDIENCE");
   let oidc: CommunityReviewOidcConfig | undefined;
   if (authMode === "oidc" && command !== "migrate") {
     if (provider === undefined || issuer === undefined || audience === undefined || jwksUri === undefined) {
@@ -349,14 +410,29 @@ export function loadCommunityReviewConfig(
     if (environment === "production" && allowInsecureHttp) {
       throw new CommunityReviewConfigurationError("oidc_invalid");
     }
+    const operator = parseOidcPolicy(
+      env,
+      audience,
+      "COMMUNITY_REVIEW_OIDC_TOKEN_PROFILE",
+      "COMMUNITY_REVIEW_OPERATOR_OIDC_CLIENT_ID",
+      "COMMUNITY_REVIEW_OPERATOR_OIDC_SCOPE",
+    );
+    const reviewer = parseOidcPolicy(
+      env,
+      reviewerAudience,
+      "COMMUNITY_REVIEW_REVIEWER_OIDC_TOKEN_PROFILE",
+      "COMMUNITY_REVIEW_REVIEWER_OIDC_CLIENT_ID",
+      "COMMUNITY_REVIEW_REVIEWER_OIDC_SCOPE",
+    );
     oidc = {
       provider,
       issuer: canonicalHttpUrl(issuer, allowInsecureHttp),
-      audience,
       jwksUri: canonicalHttpUrl(jwksUri, allowInsecureHttp),
       clockToleranceSeconds: boundedInteger(value(env, "COMMUNITY_REVIEW_OIDC_CLOCK_TOLERANCE_SECONDS"), 5, 0, 60),
       timeoutDurationMs: boundedInteger(value(env, "COMMUNITY_REVIEW_OIDC_TIMEOUT_MS"), 5000, 500, 30000),
       allowInsecureHttp,
+      ...(operator === undefined ? {} : { operator }),
+      ...(reviewer === undefined ? {} : { reviewer }),
     };
   }
   if (environment === "production" && authMode !== "oidc") {
@@ -399,6 +475,12 @@ export function loadCommunityReviewConfig(
       1000,
       86_400_000,
     ),
+    reviewerInvitationTtlMs: boundedInteger(
+      value(env, "COMMUNITY_REVIEW_REVIEWER_INVITATION_TTL_MS"),
+      7 * 24 * 60 * 60 * 1000,
+      60_000,
+      31 * 24 * 60 * 60 * 1000,
+    ),
     shutdownTimeoutMs: boundedInteger(value(env, "COMMUNITY_REVIEW_SHUTDOWN_TIMEOUT_MS"), 10000, 1000, 60000),
     logLevel,
     authMode,
@@ -408,6 +490,7 @@ export function loadCommunityReviewConfig(
     ...(materialRoot === undefined ? {} : { privateMaterialRoot: materialRoot }),
     publicIntakeEnabled: false,
     applicationIntakeState: applicationIntake,
+    reviewerInvitationState,
     trustedProxyNetworks,
     applicationCors: {
       allowedOrigins: applicationCorsOrigins,

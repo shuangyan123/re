@@ -42,7 +42,7 @@ function runtimeFor(state?: "CLOSED" | "OPEN" | "PAUSED", corsOrigins?: string) 
       COMMUNITY_REVIEW_AUTH_MODE: "synthetic",
       COMMUNITY_REVIEW_OPERATOR_SUBJECTS: "example-oidc|operator-application-http",
       COMMUNITY_REVIEW_SYNTHETIC_IDENTITIES:
-        "Bearer operator-application-token=example-oidc|operator-application-http,Bearer reviewer-application-token=example-oidc|reviewer-application-http",
+        "Bearer operator-application-token=operator|example-oidc|operator-application-http,Bearer reviewer-application-token=reviewer|example-oidc|reviewer-application-http",
       COMMUNITY_REVIEW_REQUEST_BODY_LIMIT_BYTES: "4096",
       ...(state === undefined ? {} : { COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE: state }),
       ...(corsOrigins === undefined ? {} : { COMMUNITY_REVIEW_APPLICATION_CORS_ORIGINS: corsOrigins }),

@@ -38,7 +38,7 @@ function jsonAuth(token: string): Record<string, string> {
   };
 }
 
-function runtimeForHttp() {
+function runtimeForHttp(invitationState: "DISABLED" | "INVITE_ONLY" = "DISABLED") {
   const config = loadCommunityReviewConfig({
     env: {
       COMMUNITY_REVIEW_ENV: "development",
@@ -46,12 +46,86 @@ function runtimeForHttp() {
       COMMUNITY_REVIEW_AUTH_MODE: "synthetic",
       COMMUNITY_REVIEW_OPERATOR_SUBJECTS: "example-oidc|operator-http",
       COMMUNITY_REVIEW_SYNTHETIC_IDENTITIES:
-        "Bearer operator-token=example-oidc|operator-http,Bearer reviewer-token=example-oidc|reviewer-http",
+        "Bearer operator-token=operator|example-oidc|operator-http,Bearer reviewer-token=reviewer|example-oidc|reviewer-http",
+      COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE: invitationState,
       COMMUNITY_REVIEW_REQUEST_BODY_LIMIT_BYTES: "4096",
     },
   });
   return createCommunityReviewRuntime(config);
 }
+
+test("reviewer invitation HTTP authority returns the raw credential once and keeps lifecycle responses private", async () => {
+  const disabledRuntime = runtimeForHttp();
+  const disabledServer = createCommunityReviewHttpServer(disabledRuntime, new CommunityReviewLogger("error"));
+  const disabledAddress = await listen(disabledServer);
+  try {
+    const disabled = await fetch(`http://127.0.0.1:${disabledAddress.port}/v1/operator/reviewer-invitations`, {
+      method: "POST",
+      headers: jsonAuth("operator-token"),
+      body: JSON.stringify({}),
+    });
+    assert.equal(disabled.status, 503);
+    assert.equal((await disabled.json() as { error: string }).error, "reviewer_invitation_disabled");
+  } finally {
+    await gracefulShutdown(disabledServer, disabledRuntime, 1000);
+  }
+
+  const runtime = runtimeForHttp("INVITE_ONLY");
+  const server = createCommunityReviewHttpServer(runtime, new CommunityReviewLogger("error"));
+  const address = await listen(server);
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const issued = await fetch(`${base}/v1/operator/reviewer-invitations`, {
+      method: "POST",
+      headers: jsonAuth("operator-token"),
+      body: JSON.stringify({}),
+    });
+    assert.equal(issued.status, 200);
+    const issuedBody = await issued.json() as {
+      data: { invitation: Record<string, unknown>; credential: string };
+    };
+    assert.match(issuedBody.data.credential, /^[A-Za-z0-9_-]{43}$/u);
+    assert.equal("secretDigest" in issuedBody.data.invitation, false);
+    assert.equal("privateAuthSubjectReference" in issuedBody.data.invitation, false);
+
+    const redeemed = await fetch(`${base}/v1/reviewer/invitations/redeem`, {
+      method: "POST",
+      headers: jsonAuth("reviewer-token"),
+      body: JSON.stringify({ credential: issuedBody.data.credential }),
+    });
+    assert.equal(redeemed.status, 200);
+    const redeemedBody = await redeemed.json() as { data: Record<string, unknown> };
+    assert.equal(redeemedBody.data.consentState, "NOT_CONSENTED");
+    assert.equal("privateAuthSubjectReference" in redeemedBody.data, false);
+
+    const replay = await fetch(`${base}/v1/reviewer/invitations/redeem`, {
+      method: "POST",
+      headers: jsonAuth("reviewer-token"),
+      body: JSON.stringify({ credential: issuedBody.data.credential }),
+    });
+    assert.equal(replay.status, 409);
+    assert.equal((await replay.json() as { error: string }).error, "reviewer_invitation_not_redeemable");
+
+    const second = await fetch(`${base}/v1/operator/reviewer-invitations`, {
+      method: "POST",
+      headers: jsonAuth("operator-token"),
+      body: JSON.stringify({}),
+    });
+    const secondBody = await second.json() as {
+      data: { invitation: { invitationId: string }; credential: string };
+    };
+    const revoked = await fetch(`${base}/v1/operator/reviewer-invitations/${secondBody.data.invitation.invitationId}/revoke`, {
+      method: "POST",
+      headers: auth("operator-token"),
+    });
+    assert.equal(revoked.status, 200);
+    const revokedBody = await revoked.json() as { data: Record<string, unknown> };
+    assert.equal(revokedBody.data.state, "REVOKED");
+    assert.equal("credential" in revokedBody.data, false);
+  } finally {
+    await gracefulShutdown(server, runtime, 1000);
+  }
+});
 
 test("invite-only HTTP transport provisions only through operator authority and omits private auth mapping", async () => {
   const runtime = runtimeForHttp();

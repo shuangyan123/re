@@ -1,11 +1,11 @@
 # Invite-only Reviewer Portal Architecture
 
-Status: **L2-C3A — PASS — architecture decision recorded; implementation not started**
+Status: **L2-C3A — PASS; L2-C3B backend contract implemented — provider activation blocked**
 
 This document is the authoritative architecture decision for the first
-Reviewer Portal phase. It defines the browser authentication and authorization
-boundary for a future invite-only portal. It does not create a portal, open
-reviewer intake, provision a reviewer, or change the current service.
+Reviewer Portal phase and records the narrow C3B backend-authority follow-up.
+It does not create a portal, open reviewer intake, provision a real reviewer,
+or change the current service's launch state.
 
 ## Decision summary
 
@@ -53,6 +53,9 @@ The current main branch remains bounded as follows:
   launch remains partial/blocked because the approved external application
   edge abuse control is not verified.
 - Public participation application and public reviewer intake remain closed.
+- L2-C3B backend channel and invitation contracts are implemented only against
+  synthetic/in-process authority; provider activation and private staging are
+  not verified.
 - The real Community Review campaign, Reviewer Portal implementation, real
   reviewer provisioning, and P5 human calibration have not started.
 
@@ -63,7 +66,8 @@ COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED
 COMMUNITY_REVIEW_PUBLIC_INTAKE=false
 ~~~
 
-C3A is documentation and architecture only. It does not reinterpret the C2D
+C3A was documentation and architecture only. C3B adds a fail-closed backend
+contract and synthetic/in-process tests; it does not reinterpret the C2D
 blocker as permission to open application intake or reviewer intake.
 
 ## Goals and non-goals
@@ -106,10 +110,10 @@ Community Review service and application-intake contracts.
 | Boundary | Current behavior | Evidence |
 |---|---|---|
 | OIDC verification | The OIDC adapter verifies the configured issuer, audience, signature through remote JWKS, supported algorithm, expiry/clock rules, and a string subject before returning an authenticated context. | [oidc.ts](../services/community-review-service/src/oidc.ts), [deployment.test.ts](../services/community-review-service/tests/deployment.test.ts) |
-| Authentication context | The verified external identity is reduced to <code>provider + subject</code>; arbitrary JWT claims and raw credentials do not cross the authentication contract. | [authentication.ts](../services/community-review-service/src/authentication.ts), [authentication.test.ts](../services/community-review-service/tests/authentication.test.ts) |
+| Authentication context | The verifier reduces a credential to <code>provider + subject + server-derived channel</code>; arbitrary JWT claims and raw credentials do not cross the authentication contract. | [authentication.ts](../services/community-review-service/src/authentication.ts), [deployment.test.ts](../services/community-review-service/tests/deployment.test.ts) |
 | Reviewer ownership | Reviewer operations resolve the authenticated principal through the private auth-identity mapping to an opaque <code>reviewerId</code>; caller-supplied reviewer IDs are not accepted as ownership proof. | [application.ts](../services/community-review-service/src/application.ts), [service.ts](../services/community-review-service/src/service.ts) |
 | Reviewer lifecycle | A reviewer account is operator-provisioned and starts without consent. Authentication alone never creates an account. | [service.ts](../services/community-review-service/src/service.ts), [authentication.test.ts](../services/community-review-service/tests/authentication.test.ts) |
-| Operator authority | Operator authorization is a separate authorizer, currently keyed by the same <code>provider + subject</code> principal tuple. | [authentication.ts](../services/community-review-service/src/authentication.ts), [oidc.ts](../services/community-review-service/src/oidc.ts) |
+| Operator authority | Operator routes require the <code>operator</code> channel plus the existing provider/subject allowlist. OIDC activation additionally requires the configured audience, exact client binding, exact access-token profile, and required scope. | [application.ts](../services/community-review-service/src/application.ts), [oidc.ts](../services/community-review-service/src/oidc.ts) |
 | Persistence | Auth identity mappings are private, unique by provider and subject, and separate from consent, qualification, assignments, submissions, and public evidence. | [persistence.ts](../services/community-review-service/src/persistence.ts), [002_auth_identity_consent.sql](../services/community-review-service/migrations/002_auth_identity_consent.sql) |
 | Application intake | Application <code>INVITED</code> is an application decision only. It does not create a reviewer mapping, consent, qualification, assignment, or evidence. | [application-intake.ts](../services/community-review-service/src/application-intake.ts), [community-review-application-gate.md](community-review-application-gate.md) |
 | Browser surface | The current website is a static, read-only Developer Preview. It has no login, form, service, database, or reviewer API integration. | [website/README.md](../website/README.md), [pages.yml](../.github/workflows/pages.yml) |
@@ -119,6 +123,7 @@ The service's current reviewer path is therefore:
 
 ~~~
 verified principal
+  -> server-derived reviewer channel
   -> private reviewer auth mapping
   -> opaque reviewerId
   -> ACTIVE account + current consent
@@ -181,6 +186,42 @@ credential-profile field in the server-side authentication context. It must
 not pass arbitrary claims or raw tokens into the service contract. A separate
 audience, scope, or client binding alone is not enough unless the server
 actually validates and applies it.
+
+## L2-C3B backend-authority implementation status
+
+The repository implementation closes the subject-only contract finding at the
+backend boundary without creating a browser surface:
+
+- `AuthenticationContext` is limited to `{ principal, channel }`, where the
+  channel is produced only by a successful, explicitly configured verifier
+  policy; HTTP headers and caller-supplied channel values are ignored.
+- OIDC policies are configured independently for `operator` and `reviewer`.
+  The verifier checks the exact issuer, signature, algorithm, expiry, single
+  exact audience, token `typ`, profile-specific client claim (`azp` for the
+  Auth0 profile or `client_id` for RFC 9068), and duplicate-free required
+  `scope`. `scope` is authoritative; a present `permissions` array must still
+  be structurally valid.
+- Every operator facade, including the application-intake facade, rejects a
+  reviewer channel before subject allowlist evaluation. A reviewer token for
+  an allowlisted subject therefore cannot invoke `/v1/operator/*`, and an
+  operator token cannot become reviewer authority.
+- `POST /v1/operator/reviewer-invitations` is operator-only and returns the
+  raw high-entropy credential only in the issuance response. Migration `008`
+  stores only its SHA-256 digest and bounded lifecycle metadata. Redemption
+  requires a reviewer channel and atomically binds the authenticated principal
+  to a new opaque Reviewer ID while consuming the invitation.
+- Invitation states are terminal after `CONSUMED`, `REVOKED`, or `EXPIRED`.
+  Replay, existing-principal conflicts, expiry, revocation, and in-memory
+  redemption races are covered by service tests; PostgreSQL race coverage is
+  present in the gated PostgreSQL suite.
+
+The implementation gate remains **NOT ACTIVATED against Auth0**. The exact
+provider access-token profile, operator/reviewer client IDs, and required
+scopes were not available for safe current readback. Production configuration
+therefore keeps the channel policy absent unless all values are supplied, and
+the runtime rejects all OIDC credentials when no complete policy is configured.
+No Auth0 application, grant, token, secret, cookie, or runtime setting was
+created or changed in C3B.
 
 ## Target operator/reviewer separation
 
@@ -772,18 +813,21 @@ prerequisites, not hidden C3A implementation work.
 
 ### C3B — backend authority and invitation contract
 
-- Extend the verified authentication boundary with a typed, server-derived
-  channel/credential profile without passing arbitrary claims into the core
-  service.
-- Finalize the operator audience, reviewer audience, route permissions/scopes,
-  Auth0 client grants, and the exact token profile used for authorized-party
-  validation.
+- **Repository contract implemented:** the verified authentication boundary has
+  a typed server-derived channel/credential profile without passing arbitrary
+  claims into the core service.
+- **Repository contract implemented:** invitation persistence, digest
+  comparison, lifecycle, revocation, expiry, audit, and transactional
+  uniqueness semantics are in migration `008` and the storage adapters.
+- **Repository tests implemented:** same-subject browser/operator separation,
+  missing/invalid mappings, redemption races, replay, conflicts, token-profile
+  rejection, and raw-secret redaction are covered.
+- **Provider activation remains blocked:** finalize and safely read back the
+  operator audience, reviewer audience, route permissions/scopes, Auth0 client
+  grants, and the exact token profile before accepting a real provider token.
 - Keep the existing operator Native application and Device Authorization Grant
-  unchanged.
-- Add invitation persistence, digest comparison, lifecycle, revocation,
-  expiry, audit, and transactional uniqueness semantics.
-- Add tests for same-subject browser/operator separation, missing/invalid
-  mappings, redemption races, replay, conflicts, and log redaction.
+  unchanged until that provider readback and a separately authorized staging
+  exercise exist.
 
 ### C3C — portal shell and PKCE authentication
 
@@ -870,11 +914,12 @@ The architecture is internally consistent at this documentation boundary:
 | Privacy and logging | **DEFINED — applicant/auth/private material excluded** |
 | Threat model | **COMPLETE for the scoped architecture boundary** |
 | C3 implementation sequence | **RECORDED — C3B through C3F** |
+| C3B repository backend authority | **IMPLEMENTED — provider activation and private staging NOT VERIFIED** |
 
 The following remain **NOT STARTED**:
 
 - Reviewer Portal implementation;
-- real reviewer provisioning or invitations;
+- real provider-backed reviewer provisioning or invitations;
 - real consent, qualification, assignments, or review campaign;
 - P5 human calibration.
 

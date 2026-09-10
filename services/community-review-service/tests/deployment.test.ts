@@ -177,6 +177,65 @@ test("application intake configuration is separate, fail-closed, and strict for 
   );
 });
 
+test("reviewer invitation and OIDC channel activation are independent fail-closed gates", () => {
+  const base = {
+    COMMUNITY_REVIEW_ENV: "development",
+    COMMUNITY_REVIEW_STORAGE: "in-memory",
+    COMMUNITY_REVIEW_AUTH_MODE: "synthetic",
+  };
+  const defaults = loadCommunityReviewConfig({ env: base });
+  assert.equal(defaults.reviewerInvitationState, "DISABLED");
+  assert.equal(defaults.publicIntakeEnabled, false);
+  assert.equal(defaults.oidc, undefined);
+  assert.throws(
+    () => loadCommunityReviewConfig({
+      env: { ...base, COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE: "UNKNOWN" },
+    }),
+    configurationCode("invalid_reviewer_invitation_state"),
+  );
+
+  const oidcBase = productionEnvironment({
+    COMMUNITY_REVIEW_DATABASE_URL: "postgresql://reviewer@example.invalid/review",
+    COMMUNITY_REVIEW_OIDC_TOKEN_PROFILE: undefined,
+    COMMUNITY_REVIEW_OPERATOR_OIDC_CLIENT_ID: undefined,
+    COMMUNITY_REVIEW_OPERATOR_OIDC_SCOPE: undefined,
+  });
+  const providerOnly = loadCommunityReviewConfig({ env: oidcBase });
+  assert.equal(providerOnly.oidc?.operator, undefined);
+  assert.equal(providerOnly.reviewerInvitationState, "DISABLED");
+
+  const activated = loadCommunityReviewConfig({
+    env: {
+      ...oidcBase,
+      COMMUNITY_REVIEW_OIDC_TOKEN_PROFILE: "auth0",
+      COMMUNITY_REVIEW_OPERATOR_OIDC_CLIENT_ID: "tutorbench-operator",
+      COMMUNITY_REVIEW_OPERATOR_OIDC_SCOPE: "operator:review",
+      COMMUNITY_REVIEW_REVIEWER_OIDC_AUDIENCE: "https://reviewer-api.example.invalid",
+      COMMUNITY_REVIEW_REVIEWER_OIDC_TOKEN_PROFILE: "rfc9068",
+      COMMUNITY_REVIEW_REVIEWER_OIDC_CLIENT_ID: "tutorbench-reviewer",
+      COMMUNITY_REVIEW_REVIEWER_OIDC_SCOPE: "reviewer:redeem",
+    },
+  });
+  assert.deepEqual(activated.oidc?.operator, {
+    audience: "tutorbench-review",
+    tokenProfile: "auth0",
+    clientId: "tutorbench-operator",
+    requiredScope: "operator:review",
+  });
+  assert.deepEqual(activated.oidc?.reviewer, {
+    audience: "https://reviewer-api.example.invalid",
+    tokenProfile: "rfc9068",
+    clientId: "tutorbench-reviewer",
+    requiredScope: "reviewer:redeem",
+  });
+  assert.throws(
+    () => loadCommunityReviewConfig({
+      env: { ...oidcBase, COMMUNITY_REVIEW_OIDC_TOKEN_PROFILE: "unknown" },
+    }),
+    configurationCode("oidc_invalid"),
+  );
+});
+
 test("public exposure configuration defaults to direct/no-CORS and rejects unsafe production values", () => {
   const base = {
     COMMUNITY_REVIEW_ENV: "development",
@@ -231,7 +290,7 @@ test("synthetic deployment smoke starts, authenticates, loads private material, 
       COMMUNITY_REVIEW_AUTH_MODE: "synthetic",
       COMMUNITY_REVIEW_OPERATOR_SUBJECTS: "example-oidc|operator-smoke",
       COMMUNITY_REVIEW_SYNTHETIC_IDENTITIES:
-        "operator-credential=example-oidc|operator-smoke,reviewer-credential=example-oidc|reviewer-smoke",
+        "operator-credential=operator|example-oidc|operator-smoke,reviewer-credential=reviewer|example-oidc|reviewer-smoke",
       COMMUNITY_REVIEW_MATERIAL_ROOT: root,
     },
   });
@@ -352,7 +411,7 @@ test("synthetic deployment smoke starts, authenticates, loads private material, 
   }
 });
 
-test("OIDC adapter accepts only a verified issuer/audience and exposes provider/subject", async () => {
+test("OIDC adapter binds verified token profile, client, audience, scope, and channel", async () => {
   const { publicKey, privateKey } = await generateKeyPair("RS256");
   const jwk = { ...(await exportJWK(publicKey)), kid: "deployment-test", alg: "RS256", use: "sig" };
   const jwksServer = createServer((_request, response) => {
@@ -367,26 +426,74 @@ test("OIDC adapter accepts only a verified issuer/audience and exposes provider/
     issuer,
     audience: "tutorbench-review",
     jwksUri: `http://127.0.0.1:${address.port}/jwks.json`,
+    channel: "reviewer",
+    tokenProfile: "auth0",
+    clientId: "tutorbench-reviewer",
+    requiredScope: "reviewer:read",
+    allowInsecureHttp: true,
+  });
+  const rfc9068Adapter = new OidcJwtAuthenticationAdapter({
+    provider: "example-oidc",
+    issuer,
+    audience: "tutorbench-review",
+    jwksUri: `http://127.0.0.1:${address.port}/jwks.json`,
+    channel: "operator",
+    tokenProfile: "rfc9068",
+    clientId: "tutorbench-operator",
+    requiredScope: "operator:review",
     allowInsecureHttp: true,
   });
   try {
-    const token = await new SignJWT({ sub: "reviewer-subject-1", email: "must-not-cross-boundary@example.invalid" })
-      .setProtectedHeader({ alg: "RS256", kid: "deployment-test" })
-      .setIssuer(issuer)
-      .setAudience("tutorbench-review")
-      .setIssuedAt()
-      .setExpirationTime("5m")
-      .sign(privateKey);
+    const sign = async (
+      payload: Record<string, unknown>,
+      options: { readonly typ?: string; readonly audience?: string | string[]; readonly issuer?: string; readonly expiration?: number | string } = {},
+    ): Promise<string> => {
+      return new SignJWT(payload)
+        .setProtectedHeader({ alg: "RS256", kid: "deployment-test", typ: options.typ ?? "JWT" })
+        .setIssuer(options.issuer ?? issuer)
+        .setAudience(options.audience ?? "tutorbench-review")
+        .setIssuedAt()
+        .setExpirationTime(options.expiration ?? "5m")
+        .sign(privateKey);
+    };
+    const token = await sign({
+      sub: "reviewer-subject-1",
+      email: "must-not-cross-boundary@example.invalid",
+      scope: "reviewer:read",
+      azp: "tutorbench-reviewer",
+    });
     const context = await adapter.authenticate({ authorization: `Bearer ${token}` });
-    assert.deepEqual(context, { principal: { provider: "example-oidc", subject: "reviewer-subject-1" } });
-    const wrongAudience = await new SignJWT({ sub: "reviewer-subject-1" })
-      .setProtectedHeader({ alg: "RS256", kid: "deployment-test" })
-      .setIssuer(issuer)
-      .setAudience("wrong-audience")
-      .setIssuedAt()
-      .setExpirationTime("5m")
-      .sign(privateKey);
-    await assert.rejects(adapter.authenticate({ authorization: `Bearer ${wrongAudience}` }), AuthenticationAdapterError);
+    assert.deepEqual(context, {
+      principal: { provider: "example-oidc", subject: "reviewer-subject-1" },
+      channel: "reviewer",
+    });
+    assert.equal((await adapter.authenticate({
+      authorization: `Bearer ${token}`,
+      "x-auth-channel": "operator",
+    })).channel, "reviewer");
+    const rejectedTokens = [
+      await sign({ sub: "reviewer-subject-1", scope: "reviewer:read", azp: "wrong-client" }),
+      await sign({ sub: "reviewer-subject-1", azp: "tutorbench-reviewer" }),
+      await sign({ sub: "reviewer-subject-1", scope: "reviewer:read reviewer:read", azp: "tutorbench-reviewer" }),
+      await sign({ sub: "reviewer-subject-1", scope: "reviewer:read", permissions: ["reviewer:read", "reviewer:read"], azp: "tutorbench-reviewer" }),
+      await sign({ sub: "reviewer-subject-1", scope: "reviewer:read", azp: "tutorbench-reviewer" }, { audience: ["tutorbench-review", "extra"] }),
+      await sign({ sub: "reviewer-subject-1", scope: "reviewer:read", azp: "tutorbench-reviewer" }, { typ: "at+jwt" }),
+      await sign({ sub: "reviewer-subject-1", scope: "reviewer:read", azp: "tutorbench-reviewer" }, { issuer: "http://wrong-issuer.invalid/" }),
+      await sign({ sub: "reviewer-subject-1", scope: "reviewer:read", azp: "tutorbench-reviewer" }, { expiration: Math.floor(Date.now() / 1000) - 60 }),
+    ];
+    for (const rejected of rejectedTokens) {
+      await assert.rejects(adapter.authenticate({ authorization: `Bearer ${rejected}` }), AuthenticationAdapterError);
+    }
+    const rfc9068Token = await sign({
+      sub: "operator-subject-1",
+      scope: "operator:review",
+      client_id: "tutorbench-operator",
+    }, { typ: "at+jwt" });
+    assert.deepEqual(await rfc9068Adapter.authenticate({ authorization: `Bearer ${rfc9068Token}` }), {
+      principal: { provider: "example-oidc", subject: "operator-subject-1" },
+      channel: "operator",
+    });
+    await assert.rejects(adapter.authenticate({ authorization: `Bearer ${rfc9068Token}` }), AuthenticationAdapterError);
     const tokenParts = token.split(".");
     tokenParts[2] = `${tokenParts[2]!.startsWith("A") ? "B" : "A"}${tokenParts[2]!.slice(1)}`;
     const tampered = tokenParts.join(".");

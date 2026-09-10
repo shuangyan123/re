@@ -50,7 +50,7 @@ import {
   communityReviewFingerprint,
   communityReviewVisibleTaskSetFingerprint,
 } from "../../../src/community-review/fingerprint.js";
-import { parseAuthenticationContext } from "./authentication.js";
+import { parseAuthenticatedPrincipal } from "./authentication.js";
 import type { AuthenticatedPrincipal } from "./authentication.js";
 import { CommunityReviewServiceError } from "./errors.js";
 import { communityReviewAgreementEvidencePersistenceFingerprint } from "./persistence.js";
@@ -74,7 +74,10 @@ import type {
   ReviewBatchCloseRecord,
   ReviewerAuthIdentityRecord,
   ReviewerAccountRecord,
+  ReviewerInvitationAuditEventRecord,
+  ReviewerInvitationRecord,
   ReviewerConsentRecord,
+  ReviewerInvitationState,
   ReviewerConsentState,
   ReviewAssignmentRecord,
   ReviewBatchRecord,
@@ -184,8 +187,36 @@ function randomAttemptNonce(): string {
   return randomBytes(32).toString("base64url");
 }
 
+function randomInvitationSecret(): string {
+  return randomBytes(32).toString("base64url");
+}
+
 function hashAttemptNonce(value: string): string {
   return `sha256:${createHash("sha256").update(value, "utf8").digest("hex")}`;
+}
+
+function hashInvitationSecret(value: string): string {
+  return `sha256:${createHash("sha256").update(value, "utf8").digest("hex")}`;
+}
+
+function invitationSecretIsWellFormed(value: string): boolean {
+  return /^[A-Za-z0-9_-]{43}$/u.test(value);
+}
+
+function timestampOrThrow(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) throw new CommunityReviewServiceError("invalid_service_record");
+  return parsed.toISOString();
+}
+
+function addMilliseconds(timestamp: string, milliseconds: number): string {
+  const value = Date.parse(timestamp);
+  if (!Number.isSafeInteger(value) || !Number.isSafeInteger(milliseconds) || milliseconds <= 0) {
+    throw new CommunityReviewServiceError("invalid_service_record");
+  }
+  const result = new Date(value + milliseconds);
+  if (Number.isNaN(result.getTime())) throw new CommunityReviewServiceError("invalid_service_record");
+  return result.toISOString();
 }
 
 function validAttemptNonce(value: string): void {
@@ -858,6 +889,12 @@ export interface CommunityReviewServiceOptions {
   readonly rejectionIdGenerator?: OpaqueIdGenerator;
   readonly attemptIdGenerator?: OpaqueIdGenerator;
   readonly attemptNonceGenerator?: () => string;
+  /** Disabled by default; C3C/provider activation must explicitly enable it. */
+  readonly reviewerInvitationEnabled?: boolean;
+  readonly reviewerInvitationTtlMs?: number;
+  readonly invitationIdGenerator?: OpaqueIdGenerator;
+  readonly invitationSecretGenerator?: () => string;
+  readonly invitationAuditEventIdGenerator?: OpaqueIdGenerator;
 }
 
 export interface RegisterReviewerAccountInput {
@@ -895,6 +932,36 @@ export interface ProvisionReviewerAccountInput {
 export interface LinkReviewerAuthIdentityInput {
   readonly reviewerId: string;
   readonly principal: AuthenticatedPrincipal;
+}
+
+export interface CreateReviewerInvitationInput {
+  readonly applicationId?: string;
+}
+
+export interface ReviewerInvitationLifecycleInput {
+  readonly invitationId: string;
+}
+
+export interface RedeemReviewerInvitationInput {
+  readonly credential: string;
+  readonly principal: AuthenticatedPrincipal;
+}
+
+export interface ReviewerInvitationProjection {
+  readonly invitationId: string;
+  readonly applicationId?: string;
+  readonly state: ReviewerInvitationState;
+  readonly issuedAt: string;
+  readonly expiresAt: string;
+  readonly consumedAt?: string;
+  readonly revokedAt?: string;
+  readonly expiredAt?: string;
+}
+
+export interface ReviewerInvitationIssuance {
+  readonly invitation: ReviewerInvitationProjection;
+  /** Returned only by the one-time issuance response. */
+  readonly credential: string;
 }
 
 export interface RegisterQualificationPoolInput {
@@ -1064,6 +1131,11 @@ export class CommunityReviewService {
   private readonly rejectionIdGenerator: OpaqueIdGenerator;
   private readonly attemptIdGenerator: OpaqueIdGenerator;
   private readonly attemptNonceGenerator: () => string;
+  private readonly reviewerInvitationEnabled: boolean;
+  private readonly reviewerInvitationTtlMs: number;
+  private readonly invitationIdGenerator: OpaqueIdGenerator;
+  private readonly invitationSecretGenerator: () => string;
+  private readonly invitationAuditEventIdGenerator: OpaqueIdGenerator;
 
   constructor(
     private readonly persistence: CommunityReviewPersistence,
@@ -1087,6 +1159,14 @@ export class CommunityReviewService {
     this.rejectionIdGenerator = options.rejectionIdGenerator ?? randomOpaqueId;
     this.attemptIdGenerator = options.attemptIdGenerator ?? randomOpaqueId;
     this.attemptNonceGenerator = options.attemptNonceGenerator ?? randomAttemptNonce;
+    this.reviewerInvitationEnabled = options.reviewerInvitationEnabled ?? false;
+    this.reviewerInvitationTtlMs = options.reviewerInvitationTtlMs ?? 7 * 24 * 60 * 60 * 1000;
+    if (!Number.isSafeInteger(this.reviewerInvitationTtlMs) || this.reviewerInvitationTtlMs <= 0) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+    this.invitationIdGenerator = options.invitationIdGenerator ?? randomOpaqueId;
+    this.invitationSecretGenerator = options.invitationSecretGenerator ?? randomInvitationSecret;
+    this.invitationAuditEventIdGenerator = options.invitationAuditEventIdGenerator ?? randomOpaqueId;
   }
 
   getReviewerConsentPolicy(): ReviewerConsentPolicy {
@@ -1097,6 +1177,88 @@ export class CommunityReviewService {
     const value = generator();
     opaqueId(value);
     return value;
+  }
+
+  private invitationProjection(record: ReviewerInvitationRecord): ReviewerInvitationProjection {
+    return {
+      invitationId: record.invitationId,
+      ...(record.applicationId === undefined ? {} : { applicationId: record.applicationId }),
+      state: record.state,
+      issuedAt: record.issuedAt,
+      expiresAt: record.expiresAt,
+      ...(record.consumedAt === undefined ? {} : { consumedAt: record.consumedAt }),
+      ...(record.revokedAt === undefined ? {} : { revokedAt: record.revokedAt }),
+      ...(record.expiredAt === undefined ? {} : { expiredAt: record.expiredAt }),
+    };
+  }
+
+  private assertReviewerInvitationEnabled(): void {
+    if (!this.reviewerInvitationEnabled) {
+      throw new CommunityReviewServiceError("reviewer_invitation_disabled");
+    }
+  }
+
+  private invitationAudit(
+    transaction: CommunityReviewPersistenceTransaction,
+    invitation: ReviewerInvitationRecord,
+    eventType: ReviewerInvitationAuditEventRecord["eventType"],
+  ): void {
+    transaction.insertReviewerInvitationAuditEvent({
+      eventId: this.nextId(this.invitationAuditEventIdGenerator),
+      invitationId: invitation.invitationId,
+      eventType,
+      ...(invitation.applicationId === undefined ? {} : { applicationId: invitation.applicationId }),
+      occurredAt: this.now(),
+    });
+  }
+
+  private createReviewerAccountForPrincipal(
+    transaction: CommunityReviewPersistenceTransaction,
+    principal: AuthenticatedPrincipal,
+  ): ReviewerAccountRecord {
+    let internalId: string | undefined;
+    let reviewerId: string | undefined;
+    let authIdentityId: string | undefined;
+    for (let attempt = 0; attempt < 8 && internalId === undefined; attempt += 1) {
+      const candidate = this.nextId(this.internalIdGenerator);
+      if (transaction.getReviewerAccount(candidate) === undefined) internalId = candidate;
+    }
+    for (let attempt = 0; attempt < 8 && reviewerId === undefined; attempt += 1) {
+      const candidate = this.nextId(this.reviewerIdGenerator);
+      if (transaction.getReviewerAccountByReviewerId(candidate) === undefined) reviewerId = candidate;
+    }
+    for (let attempt = 0; attempt < 8 && authIdentityId === undefined; attempt += 1) {
+      const candidate = this.nextId(this.authIdentityIdGenerator);
+      if (transaction.getReviewerAuthIdentity(candidate) === undefined) authIdentityId = candidate;
+    }
+    if (internalId === undefined || reviewerId === undefined || authIdentityId === undefined) {
+      throw new CommunityReviewServiceError("repository_conflict");
+    }
+
+    const timestamp = this.now();
+    const account = transaction.insertReviewerAccount({
+      internalId,
+      reviewerId,
+      privateAuthSubjectReference: authIdentityId,
+      status: "ACTIVE",
+      consentVersion: this.consentPolicy.policyVersion,
+      consentState: "NOT_CONSENTED",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    const identity = transaction.insertReviewerAuthIdentity({
+      authIdentityId,
+      internalId,
+      reviewerId,
+      authProvider: principal.provider,
+      authSubject: principal.subject,
+      createdAt: timestamp,
+    });
+    this.audit(transaction, "account_created", account);
+    this.audit(transaction, "authentication_mapping_created", account, {
+      authProvider: identity.authProvider,
+    });
+    return account;
   }
 
   private audit(
@@ -1494,7 +1656,7 @@ export class CommunityReviewService {
    * the external principal.
    */
   async provisionReviewerAccount(input: ProvisionReviewerAccountInput): Promise<ReviewerAccountRecord> {
-    const principal = parseAuthenticationContext({ principal: input.principal }).principal;
+    const principal = parseAuthenticatedPrincipal({ principal: input.principal });
     return this.persistence.transaction((transaction) => {
       const existingIdentity = transaction.getReviewerAuthIdentityBySubject(
         principal.provider,
@@ -1508,51 +1670,137 @@ export class CommunityReviewService {
         }
         return existing;
       }
-
-      let internalId: string | undefined;
-      let reviewerId: string | undefined;
-      let authIdentityId: string | undefined;
-      for (let attempt = 0; attempt < 8 && internalId === undefined; attempt += 1) {
-        const candidate = this.nextId(this.internalIdGenerator);
-        if (transaction.getReviewerAccount(candidate) === undefined) internalId = candidate;
-      }
-      for (let attempt = 0; attempt < 8 && reviewerId === undefined; attempt += 1) {
-        const candidate = this.nextId(this.reviewerIdGenerator);
-        if (transaction.getReviewerAccountByReviewerId(candidate) === undefined) reviewerId = candidate;
-      }
-      for (let attempt = 0; attempt < 8 && authIdentityId === undefined; attempt += 1) {
-        const candidate = this.nextId(this.authIdentityIdGenerator);
-        if (transaction.getReviewerAuthIdentity(candidate) === undefined) authIdentityId = candidate;
-      }
-      if (internalId === undefined || reviewerId === undefined || authIdentityId === undefined) {
-        throw new CommunityReviewServiceError("repository_conflict");
-      }
-
-      const timestamp = this.now();
-      const account = transaction.insertReviewerAccount({
-        internalId,
-        reviewerId,
-        privateAuthSubjectReference: authIdentityId,
-        status: "ACTIVE",
-        consentVersion: this.consentPolicy.policyVersion,
-        consentState: "NOT_CONSENTED",
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
-      const identity = transaction.insertReviewerAuthIdentity({
-        authIdentityId,
-        internalId,
-        reviewerId,
-        authProvider: principal.provider,
-        authSubject: principal.subject,
-        createdAt: timestamp,
-      });
-      this.audit(transaction, "account_created", account);
-      this.audit(transaction, "authentication_mapping_created", account, {
-        authProvider: identity.authProvider,
-      });
-      return account;
+      return this.createReviewerAccountForPrincipal(transaction, principal);
     });
+  }
+
+  /** Explicit operator-only issuance; an application decision never calls this. */
+  async issueReviewerInvitation(
+    input: CreateReviewerInvitationInput = {},
+  ): Promise<ReviewerInvitationIssuance> {
+    this.assertReviewerInvitationEnabled();
+    if (input.applicationId !== undefined) opaqueId(input.applicationId);
+    const credential = this.invitationSecretGenerator();
+    if (!invitationSecretIsWellFormed(credential)) {
+      throw new CommunityReviewServiceError("invalid_service_record");
+    }
+    const secretDigest = hashInvitationSecret(credential);
+    const issuedAt = timestampOrThrow(this.now());
+    const expiresAt = addMilliseconds(issuedAt, this.reviewerInvitationTtlMs);
+    return this.persistence.transaction((transaction) => {
+      if (input.applicationId !== undefined) {
+        const application = transaction.getCommunityReviewApplication(input.applicationId);
+        if (application === undefined || application.lifecycle !== "ACTIVE" || application.decision !== "INVITED") {
+          throw new CommunityReviewServiceError("reviewer_invitation_application_invalid");
+        }
+      }
+      let invitationId: string | undefined;
+      for (let attempt = 0; attempt < 8 && invitationId === undefined; attempt += 1) {
+        const candidate = this.nextId(this.invitationIdGenerator);
+        if (transaction.getReviewerInvitation(candidate) === undefined) invitationId = candidate;
+      }
+      if (invitationId === undefined) throw new CommunityReviewServiceError("repository_conflict");
+      const invitation: ReviewerInvitationRecord = {
+        invitationId,
+        secretDigest,
+        ...(input.applicationId === undefined ? {} : { applicationId: input.applicationId }),
+        state: "ISSUED",
+        issuedAt,
+        expiresAt,
+      };
+      const stored = transaction.insertReviewerInvitation(invitation);
+      this.invitationAudit(transaction, stored, "issued");
+      return {
+        invitation: this.invitationProjection(stored),
+        credential,
+      };
+    });
+  }
+
+  /** Operator-only lifecycle transition. It never returns the one-time credential. */
+  async revokeReviewerInvitation(
+    input: ReviewerInvitationLifecycleInput,
+  ): Promise<ReviewerInvitationProjection> {
+    this.assertReviewerInvitationEnabled();
+    opaqueId(input.invitationId);
+    const result = await this.persistence.transaction((transaction) => {
+      const invitation = transaction.getReviewerInvitation(input.invitationId);
+      if (invitation === undefined) throw new CommunityReviewServiceError("reviewer_invitation_not_found");
+      if (invitation.state === "REVOKED") return this.invitationProjection(invitation);
+      if (invitation.state !== "ISSUED") {
+        throw new CommunityReviewServiceError("reviewer_invitation_conflict");
+      }
+      const now = timestampOrThrow(this.now());
+      if (Date.parse(now) >= Date.parse(invitation.expiresAt)) {
+        const expired: ReviewerInvitationRecord = {
+          ...invitation,
+          state: "EXPIRED",
+          expiredAt: now,
+        };
+        const storedExpired = transaction.updateReviewerInvitation(expired);
+        this.invitationAudit(transaction, storedExpired, "expired");
+        return this.invitationProjection(storedExpired);
+      }
+      const revoked: ReviewerInvitationRecord = {
+        ...invitation,
+        state: "REVOKED",
+        revokedAt: now,
+      };
+      const stored = transaction.updateReviewerInvitation(revoked);
+      this.invitationAudit(transaction, stored, "revoked");
+      return this.invitationProjection(stored);
+    });
+    return result;
+  }
+
+  /**
+   * Reviewer-channel redemption. Invitation validation, principal uniqueness,
+   * account creation, and consumption commit in one persistence transaction.
+   */
+  async redeemReviewerInvitation(
+    input: RedeemReviewerInvitationInput,
+  ): Promise<ReviewerAccountRecord> {
+    this.assertReviewerInvitationEnabled();
+    const principal = parseAuthenticatedPrincipal({ principal: input.principal });
+    if (!invitationSecretIsWellFormed(input.credential)) {
+      throw new CommunityReviewServiceError("reviewer_invitation_not_redeemable");
+    }
+    const secretDigest = hashInvitationSecret(input.credential);
+    const result = await this.persistence.transaction((transaction) => {
+      const invitation = transaction.getReviewerInvitationBySecretDigest(secretDigest);
+      if (invitation === undefined || invitation.state !== "ISSUED") {
+        throw new CommunityReviewServiceError("reviewer_invitation_not_redeemable");
+      }
+      const now = timestampOrThrow(this.now());
+      if (Date.parse(now) >= Date.parse(invitation.expiresAt)) {
+        const expired: ReviewerInvitationRecord = {
+          ...invitation,
+          state: "EXPIRED",
+          expiredAt: now,
+        };
+        const storedExpired = transaction.updateReviewerInvitation(expired);
+        this.invitationAudit(transaction, storedExpired, "expired");
+        return { kind: "expired" as const };
+      }
+      if (transaction.getReviewerAuthIdentityBySubject(principal.provider, principal.subject) !== undefined) {
+        // Existing principals use an explicit conflict policy. A valid login
+        // alone never turns redemption into account recovery or re-binding.
+        throw new CommunityReviewServiceError("reviewer_invitation_conflict");
+      }
+      const account = this.createReviewerAccountForPrincipal(transaction, principal);
+      const consumed: ReviewerInvitationRecord = {
+        ...invitation,
+        state: "CONSUMED",
+        consumedAt: now,
+      };
+      const storedConsumed = transaction.updateReviewerInvitation(consumed);
+      this.invitationAudit(transaction, storedConsumed, "consumed");
+      return { kind: "redeemed" as const, account };
+    });
+    if (result.kind === "expired") {
+      throw new CommunityReviewServiceError("reviewer_invitation_not_redeemable");
+    }
+    return result.account;
   }
 
   /** Trusted migration/setup boundary for an existing P4-A account. */
@@ -1560,7 +1808,7 @@ export class CommunityReviewService {
     input: LinkReviewerAuthIdentityInput,
   ): Promise<ReviewerAuthIdentityRecord> {
     opaqueId(input.reviewerId);
-    const principal = parseAuthenticationContext({ principal: input.principal }).principal;
+    const principal = parseAuthenticatedPrincipal({ principal: input.principal });
     return this.persistence.transaction((transaction) => {
       const account = accountOrThrow(transaction, input.reviewerId);
       const existingBySubject = transaction.getReviewerAuthIdentityBySubject(
@@ -1609,7 +1857,7 @@ export class CommunityReviewService {
 
   /** Resolve only a previously provisioned principal; it never auto-creates. */
   async resolveAuthenticatedReviewer(input: ProvisionReviewerAccountInput): Promise<ReviewerAccountRecord> {
-    const principal = parseAuthenticationContext({ principal: input.principal }).principal;
+    const principal = parseAuthenticatedPrincipal({ principal: input.principal });
     return this.persistence.transaction((transaction) => {
       const identity = transaction.getReviewerAuthIdentityBySubject(
         principal.provider,
@@ -1630,7 +1878,7 @@ export class CommunityReviewService {
   async getReviewerAuthIdentity(
     input: ProvisionReviewerAccountInput,
   ): Promise<ReviewerAuthIdentityRecord | undefined> {
-    const principal = parseAuthenticationContext({ principal: input.principal }).principal;
+    const principal = parseAuthenticatedPrincipal({ principal: input.principal });
     return this.persistence.transaction((transaction) => transaction.getReviewerAuthIdentityBySubject(
       principal.provider,
       principal.subject,

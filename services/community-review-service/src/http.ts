@@ -9,6 +9,10 @@ import {
   type CommunityReviewServiceErrorCode,
 } from "./errors.js";
 import type { ReviewerAccountRecord } from "./persistence.js";
+import type {
+  ReviewerInvitationIssuance,
+  ReviewerInvitationProjection,
+} from "./service.js";
 import {
   evaluateApplicationCors,
   resolveClientNetworkAddress,
@@ -141,6 +145,27 @@ function safeReviewerAccount(account: ReviewerAccountRecord): Record<string, unk
   };
 }
 
+function safeReviewerInvitation(invitation: ReviewerInvitationProjection): Record<string, unknown> {
+  return {
+    invitationId: invitation.invitationId,
+    ...(invitation.applicationId === undefined ? {} : { applicationId: invitation.applicationId }),
+    state: invitation.state,
+    issuedAt: invitation.issuedAt,
+    expiresAt: invitation.expiresAt,
+    ...(invitation.consumedAt === undefined ? {} : { consumedAt: invitation.consumedAt }),
+    ...(invitation.revokedAt === undefined ? {} : { revokedAt: invitation.revokedAt }),
+    ...(invitation.expiredAt === undefined ? {} : { expiredAt: invitation.expiredAt }),
+  };
+}
+
+function safeReviewerInvitationIssuance(value: ReviewerInvitationIssuance): Record<string, unknown> {
+  return {
+    invitation: safeReviewerInvitation(value.invitation),
+    // The raw capability is returned only by issuance and is never logged or persisted.
+    credential: value.credential,
+  };
+}
+
 function serviceStatus(code: CommunityReviewServiceErrorCode): number {
   switch (code) {
     case "authentication_required":
@@ -150,6 +175,12 @@ function serviceStatus(code: CommunityReviewServiceErrorCode): number {
     case "application_intake_paused":
     case "application_not_active":
     case "application_decision_conflict":
+      return 409;
+    case "reviewer_invitation_disabled":
+      return 503;
+    case "reviewer_invitation_application_invalid":
+    case "reviewer_invitation_not_redeemable":
+    case "reviewer_invitation_conflict":
       return 409;
     case "application_rate_limited":
       return 429;
@@ -176,6 +207,7 @@ function serviceStatus(code: CommunityReviewServiceErrorCode): number {
     case "agreement_evidence_not_found":
     case "disclosure_not_found":
     case "assignment_not_found":
+    case "reviewer_invitation_not_found":
       return 404;
     case "qualification_pool_not_active":
     case "qualification_pool_invalid_state":
@@ -370,6 +402,18 @@ export async function handleCommunityReviewApiRequest(
       handler: async () => application.recordConsent({ authenticationInput }),
     },
     {
+      method: "POST",
+      pattern: /^\/v1\/reviewer\/invitations\/redeem$/u,
+      handler: async () => {
+        const input = await body();
+        assertAllowedKeys(input, ["credential"]);
+        return safeReviewerAccount(await application.redeemReviewerInvitation({
+          authenticationInput,
+          credential: requiredString(input, "credential"),
+        }));
+      },
+    },
+    {
       method: "DELETE",
       pattern: /^\/v1\/reviewer\/consent$/u,
       handler: async () => application.revokeConsent({ authenticationInput }),
@@ -521,6 +565,27 @@ export async function handleCommunityReviewApiRequest(
         });
         return safeReviewerAccount(account);
       },
+    },
+    {
+      method: "POST",
+      pattern: /^\/v1\/operator\/reviewer-invitations$/u,
+      handler: async () => {
+        const input = await body();
+        assertAllowedKeys(input, ["applicationId"]);
+        const applicationId = optionalString(input, "applicationId");
+        return safeReviewerInvitationIssuance(await application.issueReviewerInvitation({
+          authenticationInput,
+          ...(applicationId === undefined ? {} : { applicationId }),
+        }));
+      },
+    },
+    {
+      method: "POST",
+      pattern: new RegExp(`^/v1/operator/reviewer-invitations/${opaquePathId}/revoke$`, "u"),
+      handler: async (match) => safeReviewerInvitation(await application.revokeReviewerInvitation({
+        authenticationInput,
+        invitationId: match[1]!,
+      })),
     },
     {
       method: "POST",

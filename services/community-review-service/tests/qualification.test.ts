@@ -594,7 +594,7 @@ test("authenticated application qualification operations derive reviewer ownersh
   const authentication = new SyntheticAuthenticationAdapter({
     "reviewer-a-token": reviewerPrincipal,
     "reviewer-b-token": otherPrincipal,
-    "operator-token": operatorPrincipal,
+    "operator-token": { principal: operatorPrincipal, channel: "operator" },
   });
   const application = new CommunityReviewApplicationService(
     setup.service,

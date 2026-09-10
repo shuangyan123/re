@@ -200,6 +200,7 @@ test("operator decision, withdrawal, and purge redact applicant data without cre
   const snapshot = repository.snapshot();
   assert.equal(snapshot.reviewerAccounts.length, 0);
   assert.equal(snapshot.reviewerAuthIdentities.length, 0);
+  assert.equal(snapshot.reviewerInvitations.length, 0);
   assert.equal(snapshot.reviewerConsents.length, 0);
   assert.equal(snapshot.qualificationAttempts.length, 0);
   assert.equal(snapshot.qualificationReceipts.length, 0);
