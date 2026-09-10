@@ -396,3 +396,68 @@ prove public edge/CDN abuse resistance. Public application intake remains
 `CLOSED`; public participation information is `OPEN`, public reviewer intake
 is `NOT OPEN`, the real campaign and Reviewer Portal are `NOT STARTED`, P5 is
 `NOT STARTED`, and separate launch authorization #22 remains **NOT GIVEN**.
+
+## L2-C3B-F provider/staging closure (2026-09-10)
+
+Status: **PASS — existing Auth0 operator channel and private staging verified;
+public intake remains closed.** This is a later closure record and does not
+rewrite the historical L1 or L2-C2C evidence above.
+
+### Provider and deployment readback
+
+The existing Auth0 Native application with Device Code enabled was used; no
+reviewer SPA or portal client was created. The safe provider facts were:
+
+```text
+provider label                  auth0-staging
+issuer                          https://dev-ng0y0til20vmxxds.us.auth0.com/
+API audience                    https://staging.tutorbench.community-review
+operator application type       Native
+operator application client ID  6OVkgSPyDghv2euJOZGMOKmyZFCiLv78
+API JWT profile                 Auth0
+API signing algorithm           RS256
+API permission/client grant     operator:review only
+API RBAC toggle                 disabled; scope remains authoritative
+```
+
+Railway deployment `4957d7b7-6484-496e-81d6-6126c50a5cbf` ran the exact source
+SHA `8126484b5cba1cb9b992dced25942ff3c691e637`. The operator policy read back
+as:
+
+```text
+COMMUNITY_REVIEW_OIDC_TOKEN_PROFILE=auth0
+COMMUNITY_REVIEW_OPERATOR_OIDC_CLIENT_ID=6OVkgSPyDghv2euJOZGMOKmyZFCiLv78
+COMMUNITY_REVIEW_OPERATOR_OIDC_SCOPE=operator:review
+COMMUNITY_REVIEW_APPLICATION_INTAKE_STATE=CLOSED
+COMMUNITY_REVIEW_PUBLIC_INTAKE=false
+COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE=<absent; effective DISABLED>
+```
+
+Live and ready probes returned HTTP 200. A real Device Flow access token was
+verified in memory only: `typ=JWT`, `alg=RS256`, exact issuer, one exact API
+audience, no UserInfo audience, matching `azp`, and `operator:review` in
+`scope`; the deployed operator route returned HTTP 200. No token, secret,
+cookie, subject, or raw provider payload is recorded here.
+
+### Migration and private E2E evidence
+
+On disposable Neon branch `c3b-recovery-v7-pre-008-20260910-1150c`, the exact
+v7 historical state had no invitation tables; migration `008` reached v8 and a
+second run was idempotent. The active Railway database read back migrations
+`001` through `008` with the exact v8 checksum
+`sha256:abe0143d5d90b33f8d414b13419cb446d508657ebbb6b6049d41eff601757b3e`.
+Invitation constraints were validated and existing core row counts were
+unchanged.
+
+The clean private E2E used disposable branch `c3b-private-e2e-v8-20260910-1238`
+and a child listener bound only to `127.0.0.1`. It passed disabled/closed
+boundaries, operator/reviewer channel separation, invitation issue and
+redemption, replay, revoke, expiry, mapped-principal conflict, concurrent
+redemption, `INVITED` without automatic provisioning, and synthetic `.invalid`
+cleanup. Final invitation and invitation-audit rows were zero, baseline counts
+were restored, and the log scan found zero sensitive-pattern hits.
+
+This establishes C3B-F private operator-channel closure only. Public
+application/reviewer intake remains `NOT OPEN`; Reviewer Portal/C3C, real
+invitations, provisioning, email, campaign execution, and P5 remain
+`NOT STARTED`.

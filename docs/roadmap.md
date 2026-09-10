@@ -189,7 +189,7 @@ external application edge abuse control remains unverified.
 #22 remains **NOT GIVEN**. See the [public exposure gate](community-review-public-exposure-gate.md)
 and the [external abuse-control decision](community-review-edge-abuse-control-decision.md).
 
-### L2-C3 Reviewer Portal — C3A COMPLETE / C3B BACKEND CONTRACT IMPLEMENTED
+### L2-C3 Reviewer Portal — C3A COMPLETE / C3B-F PRIVATE STAGING PASS
 
 - [x] L2-C3A invite-only Reviewer Portal architecture and browser
       authentication boundary
@@ -200,12 +200,13 @@ and the [external abuse-control decision](community-review-edge-abuse-control-de
 - [ ] L2-C3E assignment, review, and submission portal flow
 - [ ] L2-C3F private staging Reviewer Portal E2E
 
-L2-C3A status: **PASS — architecture recorded**. L2-C3B repository status is
-**IMPLEMENTED — provider profile/client/scope readback and private staging are
-BLOCKED / NOT VERIFIED**. No real provider token is accepted without the
-complete explicit channel policy, and no real reviewer provisioning has
-started. See the [Reviewer Portal architecture](community-review-reviewer-portal-architecture.md)
-and the [C3B reviewer invitation gate](community-review-reviewer-invitation-gate.md).
+L2-C3A status: **PASS — architecture recorded**. L2-C3B-F status is
+**PASS — the existing Auth0 Native operator channel and private staging
+closure were verified** with the explicit Auth0 profile, client binding, and
+`operator:review` scope. No reviewer-channel provider activation, real
+reviewer provisioning, or invitation campaign has started. See the [Reviewer
+Portal architecture](community-review-reviewer-portal-architecture.md) and the
+[C3B reviewer invitation gate](community-review-reviewer-invitation-gate.md).
 This track does not open public application intake, public reviewer intake, or
 the real Community Review campaign.
 
