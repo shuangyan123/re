@@ -187,6 +187,7 @@ function serviceStatus(code: CommunityReviewServiceErrorCode): number {
     case "authentication_subject_not_found":
     case "operator_not_authorized":
     case "reviewer_not_authorized":
+    case "reviewer_access_not_enabled":
     case "reviewer_account_withdrawn":
     case "reviewer_account_disabled":
     case "consent_required":
@@ -390,6 +391,11 @@ export async function handleCommunityReviewApiRequest(
       method: "POST",
       pattern: /^\/v1\/operator\/applications\/purge$/u,
       handler: async () => applicationIntake.purgeExpired({ authenticationInput }),
+    },
+    {
+      method: "GET",
+      pattern: /^\/v1\/reviewer\/session$/u,
+      handler: async () => application.getReviewerPortalSession({ authenticationInput }),
     },
     {
       method: "GET",

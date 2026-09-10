@@ -1,12 +1,21 @@
 # Invite-only Reviewer Portal Architecture
 
-Status: **L2-C3A — PASS; L2-C3B-F — PASS; C3C NOT STARTED**
+Status: **L2-C3A — PASS; L2-C3B-F — PASS; C3C repository implementation
+delivered; provider activation NOT VERIFIED**
 
 This document is the authoritative architecture decision for the first
 Reviewer Portal phase and records the narrow C3B backend-authority follow-up.
 The C3B-F closure also records activation of the existing operator-only Auth0
 channel for private staging. It does not create a portal, open reviewer intake,
 provision a real reviewer, or change the current service's launch state.
+
+The C3C repository implementation now provides the first intentionally small
+same-origin portal shell, the disabled/private gate, a positive-allowlist
+browser configuration response, Auth0 SPA SDK delivery, and the coarse
+reviewer-session bootstrap. This repository state does not by itself prove
+that the separate Auth0 reviewer API/SPA resources exist, that Railway has
+been configured to enable them, or that a provider-backed browser login has
+passed.
 
 ## Decision summary
 
@@ -842,16 +851,25 @@ prerequisites, not hidden C3A implementation work.
 
 ### C3C — portal shell and PKCE authentication
 
-- Create the separate public SPA Auth0 application only after C3B's channel
-  policy is implemented and tested.
-- Implement exact callback/logout origins, Code + PKCE <code>S256</code>,
-  state and nonce validation, token exchange, callback URL cleanup, and
-  memory-only
-  access token handling.
-- Serve the shell under the selected same public origin without opening
-  operator CORS.
-- Add the CSP, security headers, dependency policy, safe error states, and
-  browser tests.
+- The repository shell is served from the same Railway origin under
+  <code>/reviewer/</code>; the callback is <code>/reviewer/callback</code> and
+  the reviewer API bootstrap is <code>/v1/reviewer/session</code>.
+- The browser uses the separately bundled Auth0 SPA SDK with Authorization
+  Code + PKCE <code>S256</code>, memory-only access-token cache, no refresh
+  tokens, exact callback/logout return paths, and SDK-managed state/nonce/PKCE
+  transaction handling.
+- <code>COMMUNITY_REVIEW_REVIEWER_PORTAL_STATE</code> defaults to
+  <code>DISABLED</code>. <code>PRIVATE</code> requires a complete reviewer OIDC
+  policy and matching public browser configuration; it does not open intake or
+  issue invitations.
+- Static assets use a fixed allowlist, no third-party runtime CDN, strict
+  portal CSP/security headers, and no reviewer CORS expansion. The portal
+  renders coarse states only and does not expose subject, email, identity
+  profile, token claims, invitation, qualification, or assignment data.
+- Local deterministic tests cover disabled/private routing, headers, config
+  allowlisting, unauthenticated/operator/unmapped/mapped/withdrawn session
+  states, and asset packaging. Provider activation and final Railway browser
+  E2E remain separate acceptance evidence.
 
 ### C3D — consent and qualification flow
 
@@ -961,7 +979,7 @@ The architecture is internally consistent at this documentation boundary:
 | Authorization Code + PKCE boundary | **DEFINED — <code>S256</code>, no client secret** |
 | API token model | **DEFINED — reviewer access token, exact issuer/audience/signature/expiry/subject validation, Bearer transport** |
 | Token handling | **DEFINED — access token in memory; no localStorage/URL/logging/analytics; bounded transient OAuth state permitted** |
-| Operator/reviewer separation | **DECIDED — operator channel binding verified in C3B-F; reviewer browser channel remains future work** |
+| Operator/reviewer separation | **DECIDED — operator channel binding verified in C3B-F; reviewer session endpoint rejects operator channel** |
 | Invite-only provisioning | **DEFINED — explicit issue, explicit redeem, one-time digest, atomic binding** |
 | Login versus reviewer authority | **DEFINED — login never auto-provisions** |
 | Consent sequencing | **DEFINED — explicit, versioned, separately revocable** |
@@ -971,10 +989,12 @@ The architecture is internally consistent at this documentation boundary:
 | Threat model | **COMPLETE for the scoped architecture boundary** |
 | C3 implementation sequence | **RECORDED — C3B through C3F** |
 | C3B repository backend authority | **IMPLEMENTED — C3B-F provider activation and private staging PASS** |
+| C3C repository portal boundary | **IMPLEMENTED — provider activation and Railway/browser evidence pending** |
 
-The following remain **NOT STARTED**:
+The following remain **NOT STARTED** or unverified:
 
-- Reviewer Portal implementation;
+- Auth0 reviewer API/SPA provider activation and final Railway enablement;
+- provider-backed Reviewer Portal browser E2E;
 - real provider-backed reviewer provisioning or invitations;
 - real consent, qualification, assignments, or review campaign;
 - P5 human calibration.

@@ -23,6 +23,7 @@ export type CommunityReviewAuthMode = "oidc" | "synthetic";
 export type CommunityReviewLogLevel = "info" | "warn" | "error";
 export type CommunityReviewRuntimeCommand = "migrate" | "readiness" | "serve";
 export type CommunityReviewReviewerInvitationState = "DISABLED" | "INVITE_ONLY";
+export type CommunityReviewReviewerPortalState = "DISABLED" | "PRIVATE";
 
 export interface CommunityReviewOidcPolicyConfig {
   readonly audience: string;
@@ -42,6 +43,18 @@ export interface CommunityReviewOidcConfig {
   readonly operator?: CommunityReviewOidcPolicyConfig;
   /** Absent until the separate reviewer provider/client channel is activated. */
   readonly reviewer?: CommunityReviewOidcPolicyConfig;
+}
+
+export interface CommunityReviewReviewerPortalConfig {
+  readonly state: CommunityReviewReviewerPortalState;
+  readonly directory: string;
+  readonly portalPath: "/reviewer/";
+  readonly callbackPath: "/reviewer/callback";
+  /** Public OIDC configuration used by the browser client; never a secret. */
+  readonly issuer?: string;
+  readonly clientId?: string;
+  readonly audience?: string;
+  readonly scope?: string;
 }
 
 export interface CommunityReviewServiceConfig {
@@ -75,6 +88,7 @@ export interface CommunityReviewServiceConfig {
   readonly applicationRateLimitWindowMs: number;
   readonly reviewerInvitationState: CommunityReviewReviewerInvitationState;
   readonly reviewerInvitationTtlMs: number;
+  readonly reviewerPortal: CommunityReviewReviewerPortalConfig;
 }
 
 export type CommunityReviewConfigurationErrorCode =
@@ -94,6 +108,8 @@ export type CommunityReviewConfigurationErrorCode =
   | "invalid_trusted_proxy_config"
   | "invalid_application_cors_config"
   | "invalid_reviewer_invitation_state"
+  | "invalid_reviewer_portal_state"
+  | "reviewer_portal_invalid"
   | "invalid_runtime_value";
 
 export class CommunityReviewConfigurationError extends Error {
@@ -211,6 +227,12 @@ function defaultMigrationsDirectory(cwd: string): string {
     : path.resolve(cwd, "services/community-review-service/migrations");
 }
 
+function defaultReviewerPortalDirectory(cwd: string): string {
+  return path.basename(cwd) === "community-review-service"
+    ? path.resolve(cwd, "dist/portal")
+    : path.resolve(cwd, "services/community-review-service/dist/portal");
+}
+
 function absoluteDirectory(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
   if (!path.isAbsolute(raw) || raw.includes("\u0000")) {
@@ -300,6 +322,63 @@ function parseOidcPolicy(
   };
 }
 
+function parseReviewerPortal(
+  env: NodeJS.ProcessEnv,
+  state: CommunityReviewReviewerPortalState,
+  oidc: CommunityReviewOidcConfig | undefined,
+  cwd: string,
+): CommunityReviewReviewerPortalConfig {
+  const directoryRaw = value(env, "COMMUNITY_REVIEW_REVIEWER_PORTAL_DIRECTORY");
+  const directory = directoryRaw === undefined
+    ? defaultReviewerPortalDirectory(cwd)
+    : directoryRaw;
+  if (!path.isAbsolute(directory) || directory.includes("\u0000")) {
+    throw new CommunityReviewConfigurationError("reviewer_portal_invalid");
+  }
+  const base = {
+    state,
+    directory: path.resolve(directory),
+    portalPath: "/reviewer/" as const,
+    callbackPath: "/reviewer/callback" as const,
+  };
+  if (state === "DISABLED") return base;
+
+  const issuer = value(env, "COMMUNITY_REVIEW_REVIEWER_PORTAL_ISSUER") ?? oidc?.issuer;
+  const clientId = value(env, "COMMUNITY_REVIEW_REVIEWER_PORTAL_CLIENT_ID") ?? oidc?.reviewer?.clientId;
+  const audience = value(env, "COMMUNITY_REVIEW_REVIEWER_PORTAL_AUDIENCE") ?? oidc?.reviewer?.audience;
+  const scope = value(env, "COMMUNITY_REVIEW_REVIEWER_PORTAL_SCOPE") ?? oidc?.reviewer?.requiredScope;
+  if (issuer === undefined || clientId === undefined || audience === undefined || scope === undefined) {
+    throw new CommunityReviewConfigurationError("reviewer_portal_invalid");
+  }
+  let canonicalIssuer: string;
+  try {
+    canonicalIssuer = canonicalHttpUrl(issuer, false);
+    if (new URL(canonicalIssuer).pathname !== "/") throw new Error("reviewer issuer path");
+  } catch {
+    throw new CommunityReviewConfigurationError("reviewer_portal_invalid");
+  }
+  if (oidc?.reviewer !== undefined && (
+    oidc.issuer !== canonicalIssuer ||
+    oidc.reviewer.clientId !== clientId ||
+    oidc.reviewer.audience !== audience ||
+    oidc.reviewer.requiredScope !== scope
+  )) {
+    throw new CommunityReviewConfigurationError("reviewer_portal_invalid");
+  }
+  if (clientId.length > 256 || /\s/u.test(clientId) || clientId.includes("\u0000") ||
+    audience.length === 0 || /\s/u.test(audience) || audience.includes("\u0000") ||
+    scope.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(scope)) {
+    throw new CommunityReviewConfigurationError("reviewer_portal_invalid");
+  }
+  return {
+    ...base,
+    issuer: canonicalIssuer,
+    clientId,
+    audience,
+    scope,
+  };
+}
+
 function assertProductionMaterialBoundary(root: string, cwd: string): void {
   const relative = path.relative(cwd, root);
   const first = relative.split(path.sep)[0]?.toLowerCase();
@@ -340,6 +419,11 @@ export function loadCommunityReviewConfig(
     value(env, "COMMUNITY_REVIEW_REVIEWER_INVITATION_STATE") ?? "DISABLED",
     ["DISABLED", "INVITE_ONLY"],
     "invalid_reviewer_invitation_state",
+  ) ?? "DISABLED";
+  const reviewerPortalState = enumValue(
+    value(env, "COMMUNITY_REVIEW_REVIEWER_PORTAL_STATE") ?? "DISABLED",
+    ["DISABLED", "PRIVATE"],
+    "invalid_reviewer_portal_state",
   ) ?? "DISABLED";
   let trustedProxyNetworks: readonly CommunityReviewTrustedProxyNetwork[];
   try {
@@ -448,6 +532,11 @@ export function loadCommunityReviewConfig(
     assertProductionMaterialBoundary(materialRoot, cwd);
   }
 
+  const reviewerPortal = parseReviewerPortal(env, reviewerPortalState, oidc, cwd);
+  if (environment === "production" && reviewerPortalState === "PRIVATE" && oidc?.reviewer === undefined) {
+    throw new CommunityReviewConfigurationError("reviewer_portal_invalid");
+  }
+
   const migrationsDirectory = path.resolve(
     cwd,
     value(env, "COMMUNITY_REVIEW_MIGRATIONS_DIRECTORY") ?? defaultMigrationsDirectory(cwd),
@@ -496,5 +585,6 @@ export function loadCommunityReviewConfig(
       allowedOrigins: applicationCorsOrigins,
       maxAgeSeconds: applicationCorsMaxAgeSeconds,
     },
+    reviewerPortal,
   };
 }

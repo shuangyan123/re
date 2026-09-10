@@ -18,6 +18,7 @@ export type CommunityReviewServiceErrorCode =
   | "operator_not_authorized"
   | "reviewer_not_found"
   | "reviewer_not_authorized"
+  | "reviewer_access_not_enabled"
   | "reviewer_account_withdrawn"
   | "reviewer_account_disabled"
   | "reviewer_invitation_disabled"
@@ -83,6 +84,7 @@ const messages: Record<CommunityReviewServiceErrorCode, string> = {
   operator_not_authorized: "Community Review operator authorization is required.",
   reviewer_not_found: "Community Review reviewer account was not found.",
   reviewer_not_authorized: "Community Review reviewer is not authorized for this operation.",
+  reviewer_access_not_enabled: "Reviewer access is not enabled for this account.",
   reviewer_account_withdrawn: "Community Review reviewer account has been withdrawn.",
   reviewer_account_disabled: "Community Review reviewer account is disabled.",
   reviewer_invitation_disabled: "Reviewer invitation activation is disabled.",

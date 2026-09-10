@@ -14,4 +14,5 @@ export * from "./postgres-repository.js";
 export * from "./public-exposure.js";
 export * from "./qualification.js";
 export * from "./runtime.js";
+export * from "./reviewer-portal.js";
 export * from "./service.js";
