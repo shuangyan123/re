@@ -78,7 +78,7 @@ The canonical full benchmark remains a separate path:
 npm run benchmark
 ```
 
-It runs the current `tutor-eval-v0.2a@0.2a.5` dataset with the existing
+It runs the current `tutor-eval-v0.2a@0.2a.6` dataset with the existing
 `0.3a.4` evaluator semantics. The canonical cases include Judge-required
 semantic rubrics. Without an explicitly configured Judge, those criteria stay
 unresolved and the normal run reports Judge-unavailable errors with no score;
@@ -135,13 +135,11 @@ const result = await runTutorBenchmark({ tutor, dataset });
 The canonical 0.2A dataset is the default. It intentionally contains both
 deterministic and Judge-required rubrics; a Judge is optional, but unresolved
 Judge evidence is reported as an error rather than silently omitted.
-The current snapshot is `tutor-eval-v0.2a@0.2a.5`: the original English
-cohort remains in `scenarios/tutor-eval-v0.2a/cases.json`, and the authored
-Simplified Chinese cohort is in `cases.zh-CN.json`. The previous English-only
-`0.2a.1` snapshot, the previous bilingual `0.2a.2` snapshot, and the previous
-corrected bilingual `0.2a.3` and `0.2a.4` snapshots can be loaded explicitly
-for historical corpus and audit work; none is silently treated as the current
-corrected bilingual dataset.
+The current snapshot is `tutor-eval-v0.2a@0.2a.6`, composed from immutable
+`0.2a.5` English / zh-CN snapshots plus the versioned fraction-pair override.
+The previous English-only `0.2a.1` snapshot and bilingual `0.2a.2`, `0.2a.3`,
+`0.2a.4`, and `0.2a.5` snapshots can be loaded explicitly for historical
+corpus and audit work; none is silently treated as the current dataset.
 
 The two cohorts are authored to target the same pedagogical constructs across
 language contexts. A locale breakdown observes tutoring performance in an
