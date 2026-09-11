@@ -1,0 +1,71 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "fraction-misconception-001",
+    "version": "1.2.0",
+    "crossLocaleGroupId": "fraction-misconception-001",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "adding fractions",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "error_diagnosis",
+      "studentState": "conceptual_misconception",
+      "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["misconception_identification", "error_localization", "conceptual_prompting", "scaffolding", "answer_non_disclosure", "student_executable_action"],
+      "tags": ["synthetic", "diagnosis", "guidance"]
+    },
+    "tutorInput": {
+      "learningObjective": "Help the student diagnose the fraction-addition mistake, explain the relevant fraction-unit idea, and guide them toward a common denominator without revealing the final answer.",
+      "studentProfile": { "knownConcepts": ["whole-number addition"], "misconceptions": ["unlike fractions can be added by adding numerators and denominators"], "level": "upper-elementary", "goal": "add fractions with unlike denominators" },
+      "studentMessage": "I think 1/3 + 1/4 = 2/7. Can you help me check it?",
+      "problemContext": "The student is practicing fraction addition."
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "7/12", "acceptedAnswers": ["7/12"], "requiredConcepts": ["common denominator", "different-sized units"] },
+      "knownMisconception": "The student treats unlike denominators as ordinary numbers that can be added directly without accounting for different-sized fraction units.",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "fraction-diagnosis-001", "category": "diagnosis", "criterion": "Identify that the student is adding unlike fraction denominators directly.", "weight": 2, "behavior": "required", "capabilityTag": "misconception_identification", "evaluationType": "judge" },
+        { "id": "fraction-conceptual-guidance-001", "category": "guidance", "criterion": "Explain that unlike fractions represent different-sized units, or give an equivalent reason that they must be expressed in compatible units before addition.", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_prompting", "evaluationType": "judge" },
+        { "id": "fraction-guidance-001", "category": "guidance", "criterion": "Guide the student to look for a common denominator before computing.", "weight": 1, "behavior": "required", "capabilityTag": "scaffolding", "critical": true, "evaluationType": "judge" },
+        { "id": "fraction-actionability-001", "category": "actionability", "criterion": "End with a concrete next step the student can perform independently.", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" },
+        { "id": "fraction-no-leak-001", "category": "guidance", "criterion": "Do not reveal the final answer when only a hint is requested.", "weight": 1, "behavior": "prohibited", "capabilityTag": "answer_non_disclosure", "evaluationType": "deterministic", "evaluatorId": "direct_answer_leak", "config": { "forbiddenFinalAnswer": "7/12" }, "criticalFailure": { "type": "answer_leakage", "severity": "major" } }
+      ]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "fraction-misconception-001-zh-CN",
+    "version": "1.2.0",
+    "locale": "zh-CN",
+    "crossLocaleGroupId": "fraction-misconception-001",
+    "metadata": {
+      "subject": "mathematics",
+      "topic": "分数相加",
+      "taxonomyVersion": "0.2A",
+      "learningTask": "error_diagnosis",
+      "studentState": "conceptual_misconception",
+      "difficulty": { "learnerLevel": "upper-elementary", "taskDifficulty": 2, "pedagogicalDifficulty": 3 },
+      "capabilityTags": ["misconception_identification", "error_localization", "conceptual_prompting", "scaffolding", "answer_non_disclosure", "student_executable_action"],
+      "tags": ["synthetic", "diagnosis", "guidance"]
+    },
+    "tutorInput": {
+      "learningObjective": "帮助学生诊断分数加法中的错误，解释相关的分数单位概念，并引导他寻找公分母，不要直接给出最后答案。",
+      "studentProfile": { "knownConcepts": ["整数加法"], "misconceptions": ["把分子和分母直接相加"], "level": "小学高年级", "goal": "计算分母不同的分数的和" },
+      "studentMessage": "我觉得 1/3 + 1/4 = 2/7。能帮我检查一下吗？",
+      "problemContext": "学生正在练习分母不同的分数加法。"
+    },
+    "evaluatorOnly": {
+      "groundTruth": { "finalAnswer": "7/12", "acceptedAnswers": ["7/12"], "requiredConcepts": ["公分母", "分数单位"] },
+      "knownMisconception": "学生把异分母当成可以直接相加的普通数字，没有考虑不同分母对应的分数单位大小不同。",
+      "disclosurePolicy": "hint_only",
+      "rubrics": [
+        { "id": "fraction-diagnosis-001-zh-CN", "category": "diagnosis", "criterion": "指出学生把异分母分数的分母直接相加了。", "weight": 2, "behavior": "required", "capabilityTag": "misconception_identification", "evaluationType": "judge" },
+        { "id": "fraction-conceptual-guidance-001-zh-CN", "category": "guidance", "criterion": "说明异分母分数表示的分数单位大小不同，或给出等价说明：相加前需要把它们改写成可以直接相加的相同单位。", "weight": 1, "behavior": "required", "capabilityTag": "conceptual_prompting", "evaluationType": "judge" },
+        { "id": "fraction-guidance-001-zh-CN", "category": "guidance", "criterion": "引导学生在计算前先寻找公分母。", "weight": 1, "behavior": "required", "capabilityTag": "scaffolding", "critical": true, "evaluationType": "judge" },
+        { "id": "fraction-actionability-001-zh-CN", "category": "actionability", "criterion": "最后给出一个学生可以自己完成的具体下一步。", "weight": 1, "behavior": "required", "capabilityTag": "student_executable_action", "evaluationType": "judge" },
+        { "id": "fraction-no-leak-001-zh-CN", "category": "guidance", "criterion": "学生只要求提示时，不要说出最后答案。", "weight": 1, "behavior": "prohibited", "capabilityTag": "answer_non_disclosure", "evaluationType": "deterministic", "evaluatorId": "direct_answer_leak", "config": { "forbiddenFinalAnswer": "7/12" }, "criticalFailure": { "type": "answer_leakage", "severity": "major" } }
+      ]
+    }
+  }
+]
