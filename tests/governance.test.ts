@@ -146,7 +146,7 @@ test("release governance validator passes and preserves benchmark identities", a
   assert.match(validation.stdout.toString(), /Governance validation passed/);
 
   assert.equal(TUTOR_EVAL_DATASET_ID, "tutor-eval-v0.2a");
-  assert.equal(TUTOR_EVAL_DATASET_VERSION, "0.2a.5");
+  assert.equal(TUTOR_EVAL_DATASET_VERSION, "0.2a.6");
   assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.4");
   assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_ID, "tutor-eval-pedagogy-judge-system");
   assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.9");
