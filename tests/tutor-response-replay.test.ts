@@ -425,7 +425,7 @@ test("replay preserves full-coverage requirements and Judge error semantics", as
 });
 
 test("CLI replay opt-in evaluates a temporary frozen corpus without any provider call", async () => {
-  const dataset = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const dataset = await loadHistoricalDataset();
   const corpus = makeCorpus(dataset, true);
   const files = await writeCorpus(corpus);
   try {
