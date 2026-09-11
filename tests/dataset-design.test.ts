@@ -5,6 +5,7 @@ import {
   BenchmarkConfigurationError,
   TUTOR_EVAL_DATASET_ID,
   TUTOR_EVAL_DATASET_VERSION,
+  TUTOR_EVAL_IMMEDIATE_PREVIOUS_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_CURRENT_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_CANONICAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
@@ -31,10 +32,14 @@ test("the canonical 0.2A dataset loads through the runtime contract and covers a
   assert.equal(dataset.cases.length, 48);
   assert.equal(
     dataset.cases.filter((caseValue) => caseValue.version === "1.1.0").length,
-    18,
+    16,
   );
   assert.equal(
     dataset.cases.filter((caseValue) => caseValue.version === "1.1.1").length,
+    2,
+  );
+  assert.equal(
+    dataset.cases.filter((caseValue) => caseValue.version === "1.2.0").length,
     2,
   );
   assert.deepEqual(Object.keys(report.casesBySubject), [
@@ -54,7 +59,7 @@ test("the canonical 0.2A dataset loads through the runtime contract and covers a
   assert.deepEqual(report.casesByLocale, { en: 24, "zh-CN": 24 });
   assert.equal(report.counterfactualPairCount, 4);
   assert.equal(report.crossLocaleGroupCount, 24);
-  assert.equal(report.judgeRequiredRubricCount, 118);
+  assert.equal(report.judgeRequiredRubricCount, 120);
   const deterministicRubrics = dataset.cases
     .flatMap((caseValue) => caseValue.evaluatorOnly.rubrics)
     .filter((rubric) => rubric.evaluationType === "deterministic")
@@ -71,7 +76,7 @@ test("the canonical 0.2A dataset loads through the runtime contract and covers a
   ]);
   assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.4");
   assert.equal(report.caseCount, 48);
-  assert.equal(report.rubricCount, 126);
+  assert.equal(report.rubricCount, 128);
   for (const capabilityTag of TUTOR_EVAL_CAPABILITY_TAGS) {
     assert.ok(report.casesByCapabilityTag[capabilityTag] !== undefined, capabilityTag);
   }
@@ -100,9 +105,13 @@ test("coverage is deterministic and keeps every configured disclosure bucket", a
   ]);
 });
 
-test("legacy v0.1 cases remain readable while the canonical loader uses 0.2A", async () => {
+test("legacy and historical 0.2A snapshots remain readable", async () => {
   const legacy = await loadTutorEvalDataset(TUTOR_EVAL_LEGACY_DATASET_ID);
   const current = await loadTutorEvalDataset(TUTOR_EVAL_DATASET_ID);
+  const immediatePrevious = await loadTutorEvalDataset(
+    TUTOR_EVAL_DATASET_ID,
+    TUTOR_EVAL_IMMEDIATE_PREVIOUS_DATASET_VERSION,
+  );
   const historical = await loadTutorEvalDataset(
     TUTOR_EVAL_DATASET_ID,
     TUTOR_EVAL_PREVIOUS_DATASET_VERSION,
@@ -123,6 +132,15 @@ test("legacy v0.1 cases remain readable while the canonical loader uses 0.2A", a
   assert.equal(legacy.cases.length, 7);
   assert.equal(current.version, TUTOR_EVAL_DATASET_VERSION);
   assert.equal(current.cases.length, 48);
+  assert.equal(immediatePrevious.version, "0.2a.5");
+  assert.equal(immediatePrevious.cases.length, 48);
+  assert.ok(
+    immediatePrevious.cases.some(
+      (caseValue) => caseValue.id === "fraction-misconception-001" &&
+        caseValue.version === "1.1.0" &&
+        caseValue.evaluatorOnly.rubrics.length === 4,
+    ),
+  );
   assert.equal(historical.version, TUTOR_EVAL_PREVIOUS_DATASET_VERSION);
   assert.equal(historical.cases.length, 24);
   assert.ok(historical.cases.every((caseValue) => (caseValue.locale ?? "en") === "en"));
