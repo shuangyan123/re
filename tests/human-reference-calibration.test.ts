@@ -389,7 +389,7 @@ test("new protocol identity does not change the frozen Judge or production versi
   assert.equal(MATERIAL_REQUIREMENT_EPISTEMIC_STRENGTH_FIXTURE_VERSION, "0.1.0");
   assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.9");
   assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.4");
-  assert.equal(TUTOR_EVAL_DATASET_VERSION, "0.2a.5");
+  assert.equal(TUTOR_EVAL_DATASET_VERSION, "0.2a.6");
   assert.equal(humanAtomicIdentityKey({
     caseId: "case-consensus",
     rubricId: "rubric-material",

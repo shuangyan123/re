@@ -290,7 +290,7 @@ test("tutorbench exposes the opt-in provider-free structured diagnostic", () => 
 test("experimental identities do not bump production or comparison versions", () => {
   assert.equal(TUTOR_EVAL_JUDGE_SCHEMA_VERSION, 1);
   assert.equal(TUTOR_EVAL_PEDAGOGY_JUDGE_PROMPT_VERSION, "0.9");
-  assert.equal(TUTOR_EVAL_DATASET_VERSION, "0.2a.5");
+  assert.equal(TUTOR_EVAL_DATASET_VERSION, "0.2a.6");
   assert.equal(TUTOR_EVAL_EVALUATOR_VERSION, "0.3a.4");
   assert.equal(WORD_CONTEXT_DISCRIMINATION_CASE_VERSION, "1.1.1");
   assert.equal(JUDGE_CANDIDATE_COMPARISON_VERSION, "0.1.1");

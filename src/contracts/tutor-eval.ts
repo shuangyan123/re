@@ -16,7 +16,9 @@ import {
 } from "./locale.js";
 
 export const TUTOR_EVAL_DATASET_ID = "tutor-eval-v0.2a" as const;
-export const TUTOR_EVAL_DATASET_VERSION = "0.2a.5" as const;
+export const TUTOR_EVAL_DATASET_VERSION = "0.2a.6" as const;
+/** The immediately preceding canonical snapshot remains readable for old artifacts. */
+export const TUTOR_EVAL_IMMEDIATE_PREVIOUS_DATASET_VERSION = "0.2a.5" as const;
 /** The last English-only dataset snapshot remains readable for old artifacts. */
 export const TUTOR_EVAL_PREVIOUS_DATASET_VERSION = "0.2a.1" as const;
 /** The previous bilingual snapshot remains readable as an immutable data view. */

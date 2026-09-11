@@ -5,13 +5,13 @@ v0.1 execution contract. It measures observed tutoring behavior. It does not
 prove that a real student learned, retained, transferred, or can solve a new
 problem independently.
 
-The canonical dataset is `tutor-eval-v0.2a`. The current `0.2a.5` snapshot
-keeps the 24 English cases in `scenarios/tutor-eval-v0.2a/cases.json` and
-loads 24 authored Simplified Chinese counterparts from
-`scenarios/tutor-eval-v0.2a/cases.zh-CN.json`. The seven v0.1 cases remain
-available through the legacy `tutor-eval-v0.1` loader, and the previous
-English-only `0.2a.1` plus bilingual `0.2a.2`, `0.2a.3`, and `0.2a.4`
-snapshots can be loaded explicitly for historical artifacts.
+The canonical dataset is `tutor-eval-v0.2a`. The current `0.2a.6` snapshot
+contains 24 English cases and 24 authored Simplified Chinese counterparts. It
+is composed from immutable `0.2a.5` English / zh-CN snapshots plus a versioned
+two-case override for the `fraction-misconception-001` pair. The seven v0.1
+cases remain available through the legacy `tutor-eval-v0.1` loader, and the
+previous English-only `0.2a.1` plus bilingual `0.2a.2`, `0.2a.3`, `0.2a.4`,
+and `0.2a.5` snapshots can be loaded explicitly for historical artifacts.
 
 The cross-locale cohort design, language-specific boundary, and compatibility
 rules are documented in
@@ -101,6 +101,15 @@ Use `capabilityTag` for the one primary capability observed by the criterion.
 `rubric score = observed capability`. A `criticalFailure` is a separate risk
 or quality-gate signal; it is not another copy of the same score.
 
+The `0.2a.6` fraction correction illustrates this boundary. For
+`fraction-misconception-001`, misconception identification remains a diagnosis
+criterion; explaining incompatible fraction-unit sizes is a separate conceptual
+Guidance criterion; and prompting the learner toward a common denominator is a
+separate procedural scaffolding criterion. The two Guidance criteria each use
+weight `1`, replacing the prior composite Guidance weight `2`. That `1 + 1`
+split is an **uncalibrated structural choice**, not an empirically validated
+educational weighting.
+
 The default quality gate is configured centrally. It includes all seven
 declared critical-failure types at `major` or `critical` severity. A minor
 failure remains a diagnostic signal. Therefore, a high overall rubric score
@@ -182,18 +191,20 @@ The canonical dataset marks criteria that need semantic judgment with
 
 The deterministic ownership and proxy audit is recorded in
 [`docs/deterministic-verifier-audit.md`](deterministic-verifier-audit.md). The
-The historical dataset/case identity described by the audit trail remains
+historical dataset/case identity described by the audit trail remains
 `tutor-eval-v0.2a@0.2a.1`; the current bilingual snapshot is
-`tutor-eval-v0.2a@0.2a.5`, while `0.2a.3` and `0.2a.4` remain loadable for
-historical baseline artifacts. Replay results also carry the explicit evaluator
-semantic version so frozen response evidence is not silently compared across
-verifier revisions.
+`tutor-eval-v0.2a@0.2a.6`, while `0.2a.3`, `0.2a.4`, and `0.2a.5` remain
+loadable for historical baseline and audit artifacts. Replay results also carry
+the explicit evaluator semantic version so frozen response evidence is not
+silently compared across verifier revisions.
 
 Historical frozen responses whose source identity predates `0.2a.1` remain
 strictly incompatible by default. The only reviewed exception is the explicit
 `--allow-compatible-replay` bridge for the evaluator-only
 `language-verb-check-001@1.0.0 -> 1.0.1` change; see
-[`frozen-corpus-semantic-replay.md`](frozen-corpus-semantic-replay.md).
+[`frozen-corpus-semantic-replay.md`](frozen-corpus-semantic-replay.md). No
+`0.2a.5 -> 0.2a.6` bridge exists because the fraction correction changes
+Tutor-visible learning-objective text.
 
 ## Adding a case
 

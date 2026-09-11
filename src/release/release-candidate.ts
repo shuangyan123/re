@@ -44,7 +44,7 @@ export interface ReleaseCandidateReport {
   };
   readonly canonicalDatasetIdentity: {
     readonly id: "tutor-eval-v0.2a";
-    readonly version: "0.2a.5";
+    readonly version: "0.2a.6";
     readonly caseCount: 48;
   };
   readonly evaluatorVersion: "0.3a.4";
@@ -212,7 +212,7 @@ export function assertReleaseCandidateReport(
 
   const canonicalDataset = record(report.canonicalDatasetIdentity, "canonicalDatasetIdentity");
   exactString(canonicalDataset.id, "tutor-eval-v0.2a", "canonicalDatasetIdentity.id");
-  exactString(canonicalDataset.version, "0.2a.5", "canonicalDatasetIdentity.version");
+  exactString(canonicalDataset.version, "0.2a.6", "canonicalDatasetIdentity.version");
   exactNumber(canonicalDataset.caseCount, 48, "canonicalDatasetIdentity.caseCount");
   exactString(report.evaluatorVersion, "0.3a.4", "evaluatorVersion");
 

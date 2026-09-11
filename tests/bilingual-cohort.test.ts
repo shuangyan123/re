@@ -306,7 +306,7 @@ test("the context-bounded word rubric reaches the Judge and passes a cautious pr
     },
   });
 
-  assert.equal(result.datasetVersion, "0.2a.5");
+  assert.equal(result.datasetVersion, "0.2a.6");
   assert.equal(result.caseCount, 2);
   assert.equal(result.failedCount, 0);
   assert.equal(result.errorCount, 0);
@@ -403,7 +403,7 @@ test("the previous bilingual snapshot remains loadable after the semantic correc
     (caseValue) => caseValue.id === "fraction-misconception-001-zh-CN",
   );
   assert.ok(correctedFraction);
-  assert.equal(correctedFraction.version, "1.1.0");
+  assert.equal(correctedFraction.version, "1.2.0");
   assert.match(
     correctedFraction.tutorInput.studentMessage,
     /1\/3\s*\+\s*1\/4\s*=\s*2\/7/u,

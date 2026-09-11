@@ -119,9 +119,9 @@ Content-Type: application/json
 {
   "scenarioId": "fraction-misconception-001",
   "caseId": "fraction-misconception-001",
-  "caseVersion": "1.1.0",
+  "caseVersion": "1.2.0",
   "runIndex": 1,
-  "learningObjective": "Compare fractions with unlike denominators.",
+  "learningObjective": "Identify the learner's misconception and guide them to reason about compatible fraction units before choosing a common denominator.",
   "initialContext": "",
   "conversation": [],
   "currentStudentMessage": "I think 1/3 + 1/4 = 2/7. Can you help me check it?",
@@ -230,6 +230,6 @@ project remains a public Developer Preview. Its five-minute first-run path is
 the separate `tutorbench quickstart` demonstration: it wraps the existing
 legacy deterministic smoke dataset, TutorUnderTest boundary, runner, and
 deterministic evaluators, and emits an independent non-official summary. It is
-not a new Benchmark Core, does not alter the canonical `0.2a.5` cohort, and
+not a new Benchmark Core, does not alter the canonical `0.2a.6` cohort, and
 does not make community review infrastructure, public verified model
 submissions, or a calibrated leaderboard available.

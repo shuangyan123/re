@@ -86,7 +86,7 @@ A reasonable attribution for a reuse of the canonical benchmark content is:
 
 ```text
 TutorBench / TutorEval dataset
-Version: tutor-eval-v0.2a@0.2a.5
+Version: tutor-eval-v0.2a@0.2a.6
 Source: https://github.com/shuangyan123/tutorbench
 Licensed under CC BY 4.0.
 Modified: yes/no

@@ -50,7 +50,7 @@ learner-state/context drift, but its primary disposition is factual/numeric.
 
 | Group | Outcome |
 | --- | --- |
-| `fraction-misconception-001` | Corrected the Chinese arithmetic task, profile, and context to match the English teaching construct. Ground truth remains `7/12`. |
+| `fraction-misconception-001` | Corrected the Chinese arithmetic task, profile, and context to match the English teaching construct. Ground truth remains `7/12`. See the `0.2a.6` amendment below for the later diagnosis/guidance rubric-boundary correction. |
 | `hint-only-linear-equation-001` | Removed extra Chinese learner-state hints and aligned visible request/context and required steps. |
 | `correct-answer-wrong-reasoning-001` | No correction; the arithmetic reasoning error and learner state align. |
 | `paired-fraction-procedural-001` | No correction; operands, local procedural error, and next-step teaching target align. |
@@ -98,31 +98,77 @@ checks both locale members, checks rational equivalence of `finalAnswer` and
 `acceptedAnswers`, and checks every `direct_answer_leak` target. It intentionally
 does not attempt to parse arbitrary natural-language mathematics.
 
+## 0.2a.6 amendment — fraction diagnosis/guidance boundary
+
+A later research audit and Issue #109 identified a remaining authored
+material-requirement mismatch in the diagnosis rubric of the
+`fraction-misconception-001` pair. The English diagnosis required identifying
+that the learner directly added unlike denominators, while the Chinese
+criterion additionally required explaining that the fractions have different
+unit sizes. Under Judge v0.9's material-requirement semantics, that difference
+could change the rubric label for the same substantive response. This is a
+confirmed text/requirement mismatch; it is not evidence of an observed or
+statistically significant locale score difference.
+
+For `tutor-eval-v0.2a@0.2a.6`, the owner-approved project correction is:
+
+- narrow `diagnosis` in both locales to identifying the direct-denominator-
+  addition misconception;
+- make the fraction-unit explanation a separate required `guidance` rubric
+  tagged `conceptual_prompting`;
+- keep procedural common-denominator scaffolding as a separate required
+  `guidance` rubric;
+- split the previous guidance weight `2` into conceptual `1` plus procedural
+  `1`, preserving total guidance weight for the case; and
+- align the Tutor-visible learning-objective specificity across the two locale
+  members.
+
+Both affected cases advance to version `1.2.0`. The `1 + 1` split is an
+**uncalibrated minimal structural choice** made to avoid silently moving the
+entire previous guidance weight onto either new target. It is not an empirical
+claim that conceptual explanation and procedural scaffolding have equal
+educational importance.
+
+This amendment records an owner-approved project design decision informed by
+the research audit and Issue #109. It is **not** independent qualified bilingual
+human validation, psychometric calibration, measurement invariance evidence,
+or proof that prior English and Chinese scores were inequivalent. The
+`0.2a.5` assets remain immutable historical snapshots.
+
+Because the `0.2a.6` correction changes Tutor-visible learning-objective text,
+no `0.2a.5 -> 0.2a.6` semantic-replay bridge is introduced. Historical frozen
+responses remain bound to their original dataset/case identities.
+
 ## Versioning and compatibility
 
-The corrected canonical identity for this audit is `tutor-eval-v0.2a@0.2a.3`.
+The corrected canonical identity for the original cross-locale audit was
+`tutor-eval-v0.2a@0.2a.3`.
 
-The current dataset is `tutor-eval-v0.2a@0.2a.5`, which refines the bilingual
-`language-word-context-001` rubric after the `.2a.4` correction. The `.2a.3`
-snapshot remains loadable for the historical real-model baseline, and `.2a.4`
-remains loadable as the previous canonical snapshot.
+The current dataset is `tutor-eval-v0.2a@0.2a.6`. It composes the immutable
+`0.2a.5` bilingual snapshot with a versioned override for the two affected
+fraction cases. `0.2a.5` remains loadable as the immediate historical snapshot;
+`.2a.3` and `.2a.4` remain available for their prior audit and baseline uses.
 
 The following remain explicitly loadable:
 
-- `0.2a.1`, the historical English-only snapshot; and
+- `0.2a.1`, the historical English-only snapshot;
 - `0.2a.2`, the immutable bilingual snapshot stored in
-  `scenarios/tutor-eval-v0.2a/cases.zh-CN.0.2a.2.json`.
+  `scenarios/tutor-eval-v0.2a/cases.zh-CN.0.2a.2.json`;
 - `0.2a.3`, the immutable corrected bilingual snapshot stored in the matching
-  versioned English and Chinese case files.
+  versioned English and Chinese case files;
 - `0.2a.4`, the immutable canonical snapshot containing the first word-context
-  rubric correction.
+  rubric correction; and
+- `0.2a.5`, the immutable bilingual snapshot containing the refined
+  word-context rubric immediately before the fraction diagnosis/guidance
+  boundary correction.
 
-The 11 changed Chinese cases have version `1.1.0`; unchanged Chinese cases
-remain `1.0.0`, and the word-context pair is `1.1.1` in the current `.2a.5`
-snapshot. Historical files and frozen response artifacts are not rewritten. No
-replay rule was added for `0.2a.3 -> 0.2a.4` or `0.2a.4 -> 0.2a.5`; changed
-Tutor-visible content remains incompatible with historical responses by
-default.
+The 11 Chinese cases changed by the original audit have version `1.1.0` unless
+superseded by a later case-specific change. The word-context pair is `1.1.1` in
+`0.2a.5` and remains so in `0.2a.6`; the two `fraction-misconception-001` locale
+members are `1.2.0` in `0.2a.6`. Historical files and frozen response artifacts
+are not rewritten. No replay rule was added for `0.2a.3 -> 0.2a.4`,
+`0.2a.4 -> 0.2a.5`, or `0.2a.5 -> 0.2a.6`; changed Tutor-visible content
+remains incompatible with historical responses by default.
 
 The Review Translation Layer remains separate from case locale, Tutor input,
 Judge input, scoring, fingerprints, corpus identity, and response IDs.

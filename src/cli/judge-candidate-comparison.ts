@@ -258,7 +258,7 @@ export async function runJudgeCandidateComparisonCli(
   const environment = { ...process.env };
   const prompt = await loadTutorEvalPedagogyJudgePrompt();
   const fixture = createWordContextDiscriminationComparisonFixture(
-    () => loadTutorEvalDataset("tutor-eval-v0.2a", "0.2a.5"),
+    () => loadTutorEvalDataset(),
   );
   const candidates = [
     ...(options.deepSeekJudge ? [deepSeekCandidate(prompt, environment)] : []),

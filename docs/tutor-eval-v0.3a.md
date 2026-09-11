@@ -165,11 +165,13 @@ the case by default.
 ## Compatibility
 
 The v0.1 seven-case dataset remains runtime-readable. The v0.2A dataset keeps
-its existing case and rubric IDs and now executes its mixed rubric sets
-according to `evaluationType`. The language diagnosis mapping was removed as a
-semantic correction; that case is `1.0.1` and the historical English-only
-dataset snapshot is `0.2a.1`. The current bilingual cohort is `0.2a.5` and
-reuses these evaluator semantics; see
+its existing case and rubric identities except where a versioned semantic
+correction explicitly advances a case. The language diagnosis mapping was
+removed as an earlier semantic correction; that case is `1.0.1` and the
+historical English-only dataset snapshot is `0.2a.1`. The current bilingual
+cohort is `0.2a.6` and reuses evaluator `0.3a.4` unchanged; its fraction-pair
+rubric-boundary correction is dataset/case versioning rather than an evaluator
+algorithm change. See
 [`TutorEval bilingual cohorts`](tutor-eval-bilingual-cohorts.md). The
 calibration identity chain is unchanged:
 
@@ -187,7 +189,9 @@ the machine-checked `tutor-eval-v0.2a@0.2a -> 0.2a.1` transition for
 `language-verb-check-001@1.0.0 -> 1.0.1`. Historical replay examples may
 evaluate target `0.3a.3` semantics; current evaluator runs use target `0.3a.4`
 semantics without changing source response identities and record both source
-and target identities in the optional `semanticReplay` result field. See
+and target identities in the optional `semanticReplay` result field. No
+`0.2a.5 -> 0.2a.6` replay bridge is introduced because the `.6` fraction
+correction changes Tutor-visible objective text. See
 [`frozen-corpus-semantic-replay.md`](frozen-corpus-semantic-replay.md).
 
 ## Test coverage
