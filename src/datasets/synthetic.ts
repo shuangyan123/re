@@ -82,7 +82,10 @@ function applyCaseOverrides(
   const replaced = new Set<string>();
   const merged = baseCases.map((baseCase) => {
     const id = caseId(baseCase);
-    const replacement = id === undefined ? undefined : replacements.get(id);
+    if (id === undefined) {
+      return baseCase;
+    }
+    const replacement = replacements.get(id);
     if (replacement === undefined) {
       return baseCase;
     }
