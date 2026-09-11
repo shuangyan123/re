@@ -111,7 +111,7 @@ function fakeCandidate(options: FakeCandidateOptions): JudgeCandidateComparisonC
 
 function fixture() {
   return createWordContextDiscriminationComparisonFixture(
-    () => loadTutorEvalDataset("tutor-eval-v0.2a", "0.2a.5"),
+    () => loadTutorEvalDataset("tutor-eval-v0.2a", "0.2a.6"),
   );
 }
 
@@ -149,7 +149,7 @@ test("candidate comparison runs multiple candidates and repetitions with stable 
   assert.equal(report.schemaVersion, 1);
   assert.equal(report.comparisonVersion, "0.1.1");
   assert.equal(report.fixture.version, "0.1.0");
-  assert.equal(report.datasetVersion, "0.2a.5");
+  assert.equal(report.datasetVersion, "0.2a.6");
   assert.equal(report.evaluatorVersion, "0.3a.4");
   assert.equal(report.runsPerCandidate, 3);
   assert.equal(report.plannedJudgeCalls, 18);
