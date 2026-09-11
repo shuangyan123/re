@@ -26,9 +26,9 @@ Quickstart has the stable identity `tutorbench-quickstart@0.1.0` and selection
 | `full-solution-check-001` | `1.0.0` |
 | `paired-fraction-procedural-001` | `1.0.0` |
 
-The canonical `tutor-eval-v0.2a@0.2a.5` snapshot remains unchanged. The
-Quickstart uses the existing legacy dataset because an audit found no
-complete deterministic-only case in the current canonical snapshot; every
+The canonical `tutor-eval-v0.2a@0.2a.6` snapshot remains separate from
+Quickstart. The Quickstart uses the existing legacy dataset because an audit
+found no complete deterministic-only case in the canonical snapshot; every
 canonical case retains at least one Judge-owned rubric. Quickstart therefore
 fails closed if a selected case changes version, fingerprint, or evaluator
 ownership.
@@ -77,7 +77,7 @@ The full local benchmark is intentionally separate:
 npm run benchmark
 ```
 
-It uses the canonical `tutor-eval-v0.2a@0.2a.5` dataset and evaluator
+It uses the canonical `tutor-eval-v0.2a@0.2a.6` dataset and evaluator
 `0.3a.4`. Judge-required semantic criteria remain unresolved when no explicit
 Judge is configured, so the normal no-Judge run reports Judge-unavailable
 errors and no score. Quickstart does not suppress, reinterpret, or replace
