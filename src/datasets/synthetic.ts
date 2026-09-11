@@ -9,6 +9,7 @@ import {
   TUTOR_EVAL_LEGACY_DATASET_VERSION,
   TUTOR_EVAL_DATASET_ID,
   TUTOR_EVAL_DATASET_VERSION,
+  TUTOR_EVAL_IMMEDIATE_PREVIOUS_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_CURRENT_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_CANONICAL_DATASET_VERSION,
   TUTOR_EVAL_PREVIOUS_BILINGUAL_DATASET_VERSION,
@@ -17,20 +18,106 @@ import {
 } from "../contracts/index.js";
 import { assertValidTutorEvalDatasetIntegrity } from "./integrity.js";
 
+interface DatasetSpec {
+  readonly directory: string;
+  readonly version: string;
+  readonly files: readonly string[];
+  readonly overrideFile?: string;
+  readonly strict: boolean;
+  readonly requireCrossLocaleGroups: boolean;
+}
+
+async function readDatasetArray(
+  moduleDirectory: string,
+  directory: string,
+  filename: string,
+): Promise<unknown[]> {
+  const filePaths = [
+    resolve(moduleDirectory, "../../../scenarios", directory, filename),
+    resolve(moduleDirectory, "../../scenarios", directory, filename),
+    resolve(process.cwd(), "scenarios", directory, filename),
+  ];
+  let raw: string | undefined;
+  for (const filePath of [...new Set(filePaths)]) {
+    try {
+      raw = await readFile(filePath, "utf8");
+      break;
+    } catch (error) {
+      if (!isFileNotFound(error)) {
+        throw error;
+      }
+    }
+  }
+  if (raw === undefined) {
+    throw new Error("TutorEval dataset file was not found.");
+  }
+  const values = JSON.parse(raw) as unknown;
+  if (!Array.isArray(values)) {
+    throw new Error("TutorEval dataset file is not an array.");
+  }
+  return values;
+}
+
+function caseId(value: unknown): string | undefined {
+  return typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string"
+    ? value.id
+    : undefined;
+}
+
+function applyCaseOverrides(
+  baseCases: readonly unknown[],
+  overrides: readonly unknown[],
+): unknown[] {
+  const replacements = new Map<string, unknown>();
+  for (const override of overrides) {
+    const id = caseId(override);
+    if (id === undefined || replacements.has(id)) {
+      throw new Error("TutorEval dataset override is invalid.");
+    }
+    replacements.set(id, override);
+  }
+  const replaced = new Set<string>();
+  const merged = baseCases.map((baseCase) => {
+    const id = caseId(baseCase);
+    const replacement = id === undefined ? undefined : replacements.get(id);
+    if (replacement === undefined) {
+      return baseCase;
+    }
+    replaced.add(id);
+    return replacement;
+  });
+  if (replaced.size !== replacements.size) {
+    throw new Error("TutorEval dataset override target was not found.");
+  }
+  return merged;
+}
+
 export async function loadTutorEvalDataset(
   datasetId: string = TUTOR_EVAL_DATASET_ID,
   requestedVersion?: string,
 ): Promise<TutorEvalDataset> {
-  const datasetSpec =
+  const datasetSpec: DatasetSpec | null =
     datasetId === TUTOR_EVAL_DATASET_ID
       ? requestedVersion === undefined || requestedVersion === TUTOR_EVAL_DATASET_VERSION
         ? {
             directory: "tutor-eval-v0.2a",
             version: TUTOR_EVAL_DATASET_VERSION,
-            files: ["cases.json", "cases.zh-CN.json"],
+            files: ["cases.0.2a.5.json", "cases.zh-CN.0.2a.5.json"],
+            overrideFile: "cases.0.2a.6.overrides.json",
             strict: true,
             requireCrossLocaleGroups: true,
           }
+        : requestedVersion === TUTOR_EVAL_IMMEDIATE_PREVIOUS_DATASET_VERSION
+          ? {
+              directory: "tutor-eval-v0.2a",
+              version: TUTOR_EVAL_IMMEDIATE_PREVIOUS_DATASET_VERSION,
+              files: ["cases.0.2a.5.json", "cases.zh-CN.0.2a.5.json"],
+              strict: true,
+              requireCrossLocaleGroups: true,
+            }
         : requestedVersion === TUTOR_EVAL_PREVIOUS_CURRENT_DATASET_VERSION
           ? {
               directory: "tutor-eval-v0.2a",
@@ -81,35 +168,25 @@ export async function loadTutorEvalDataset(
     const moduleDirectory = dirname(fileURLToPath(import.meta.url));
     const rawCases: unknown[] = [];
     for (const filename of datasetSpec.files) {
-      const filePaths = [
-        resolve(moduleDirectory, "../../../scenarios", datasetSpec.directory, filename),
-        resolve(moduleDirectory, "../../scenarios", datasetSpec.directory, filename),
-        resolve(process.cwd(), "scenarios", datasetSpec.directory, filename),
-      ];
-      let raw: string | undefined;
-      for (const filePath of [...new Set(filePaths)]) {
-        try {
-          raw = await readFile(filePath, "utf8");
-          break;
-        } catch (error) {
-          if (!isFileNotFound(error)) {
-            throw error;
-          }
-        }
-      }
-      if (raw === undefined) {
-        throw new Error("TutorEval dataset file was not found.");
-      }
-      const cases = JSON.parse(raw) as unknown;
-      if (!Array.isArray(cases)) {
-        throw new Error("TutorEval dataset file is not an array.");
-      }
-      rawCases.push(...cases);
+      rawCases.push(
+        ...(await readDatasetArray(moduleDirectory, datasetSpec.directory, filename)),
+      );
     }
+    const mergedCases =
+      datasetSpec.overrideFile === undefined
+        ? rawCases
+        : applyCaseOverrides(
+            rawCases,
+            await readDatasetArray(
+              moduleDirectory,
+              datasetSpec.directory,
+              datasetSpec.overrideFile,
+            ),
+          );
     const dataset = parseTutorEvalDataset({
       id: datasetId,
       version: datasetSpec.version,
-      cases: rawCases,
+      cases: mergedCases,
     });
     if (datasetSpec.strict) {
       assertValidTutorEvalDatasetIntegrity(dataset, {
