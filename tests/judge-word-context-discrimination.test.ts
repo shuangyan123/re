@@ -71,7 +71,7 @@ function judgeResultFor(
 test("A/B/C fixture keeps current dataset, case, rubric, and expectation identities", async () => {
   const dataset = await loadCurrentDataset();
   const tutorEvalCase = requireWordContextCase(dataset);
-  assert.equal(dataset.version, "0.2a.5");
+  assert.equal(dataset.version, "0.2a.6");
   assert.equal(tutorEvalCase.version, WORD_CONTEXT_DISCRIMINATION_CASE_VERSION);
   assert.equal(tutorEvalCase.crossLocaleGroupId, WORD_CONTEXT_DISCRIMINATION_CASE_ID);
 
