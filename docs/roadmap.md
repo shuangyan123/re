@@ -25,6 +25,7 @@
 - [x] Dataset integrity validation and deterministic coverage report
 - [x] Calibration contracts, blind packet export, agreement metrics, and adjudication boundary
 - [x] Separate human critical-failure calibration contract, target registry, agreement, adjudication, and synthetic pipeline fixtures
+- [x] Canonical cross-category human rubric pilot package and strict reviewer import boundary (reviewer-ready; no real reviewer data)
 - [ ] Independent human rubric review using real reviewers
 - [ ] Independent human critical-failure review using real reviewers
 - [ ] Adjudication and human reference generation using real reviewer data
