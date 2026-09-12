@@ -101,6 +101,40 @@ generated. Adjudication is a separate record that retains all source
 annotation IDs, rationale, and a pseudonymous adjudicator ID; it never edits an
 original annotation.
 
+## Canonical TutorEval pilot readiness
+
+A separate reviewer-ready pilot now exercises this existing 0.2B rubric-level
+contract over a deliberately small cross-category subset of the current
+canonical dataset. Its frozen identity is:
+
+```text
+canonical-tutoreval-human-calibration-pilot-001@0.1.0
+```
+
+The pilot is bound to `tutor-eval-v0.2a@0.2a.6` and contains 9 canonical cases,
+27 fixed developer-authored synthetic Tutor responses, and 84 rubric judgments
+per reviewer. It covers all five current TutorEval categories, all five
+disclosure policies, and all five subjects. The fixed response stimuli are
+measurement diagnostics, not model-performance evidence.
+
+The export creates two pseudonymous reviewer packages with a shared frozen
+annotation guide and strict submission templates. Import rebuilds the frozen
+task set and rejects stale, incomplete, duplicate, extra, wrong-owner, or
+identity-tampered judgments before converting a completed submission into the
+existing `CalibrationAnnotationFile` contract. Agreement is inspected before
+explicit adjudication; no automatic kappa, agreement, or coverage threshold
+creates a calibration claim.
+
+This is **pilot readiness only**. No real reviewer data is checked in, no
+independent human rubric review is claimed complete, and no Human Reference or
+Judge-vs-human calibration is established. The pilot is also distinct from the
+Material Requirement Human Reference Pilot #1/#2 and from Community Review;
+neither historical synthetic pilot data nor Community Review infrastructure is
+silently reclassified as canonical TutorEval human calibration evidence.
+
+See [Canonical TutorEval Human Calibration Pilot Readiness](canonical-human-calibration-pilot.md)
+for the frozen selection, blind export/import workflow, and claim boundary.
+
 ## Agreement and ambiguity
 
 The pure agreement functions provide:
